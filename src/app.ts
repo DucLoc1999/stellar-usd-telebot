@@ -6,6 +6,7 @@ import { errorHandler } from './middlewares/errorHandler';
 import helloRoutes from './routes/helloRoutes';
 import { testConnection } from './config/database';
 import logger from './utils/logger';
+import { runMigrations } from './utils/migrationRunner';
 
 export async function buildApp(): Promise<FastifyInstance> {
   const fastify = Fastify({
@@ -60,24 +61,25 @@ export async function buildApp(): Promise<FastifyInstance> {
     transformStaticCSP: (header) => header,
   });
 
-  // Set error handler
   fastify.setErrorHandler(errorHandler);
 
-  // Health check route
+  // check health
   fastify.get('/health', () => {
     return { status: 'ok', timestamp: new Date().toISOString() };
   });
 
-  // Register API routes
   void fastify.register(helloRoutes, { prefix: '/api' });
 
-  // Test database connection on startup
+  // run migration on startup
   fastify.addHook('onReady', async () => {
     try {
+      await runMigrations();
+
       await testConnection();
       logger.info('Database connection verified');
     } catch (error) {
       logger.error('Failed to connect to database:', error);
+      throw error;
     }
   });
 
