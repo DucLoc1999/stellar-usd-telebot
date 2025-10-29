@@ -4,6 +4,7 @@ import swagger from '@fastify/swagger';
 import swaggerUI from '@fastify/swagger-ui';
 import { errorHandler } from './middlewares/errorHandler';
 import teleUserRoutes from './routes/teleUserRoutes';
+import paymentRoutes from './routes/paymentRoutes';
 import { testConnection } from './config/database';
 import { logger } from './config/logger';
 import { runMigrations } from './utils/migrationRunner';
@@ -22,7 +23,7 @@ export async function buildApp(): Promise<FastifyInstance> {
   await fastify.register(swagger, {
     swagger: {
       info: {
-        title: 'Fastify TypeScript MySQL API',
+        title: 'USDT247',
         description: 'API documentation for Fastify TypeScript MySQL project',
         version: '1.0.0',
       },
@@ -34,7 +35,10 @@ export async function buildApp(): Promise<FastifyInstance> {
       schemes: ['http', 'https'],
       consumes: ['application/json'],
       produces: ['application/json'],
-      tags: [{ name: 'Users', description: 'Telegram user management endpoints' }],
+      tags: [
+        { name: 'Users', description: 'Telegram user management endpoints' },
+        { name: 'Payment', description: 'Payment processing endpoints' },
+      ],
     },
   });
 
@@ -75,6 +79,7 @@ export async function buildApp(): Promise<FastifyInstance> {
   });
 
   void fastify.register(teleUserRoutes, { prefix: '/api/v1' });
+  void fastify.register(paymentRoutes, { prefix: '/api/v1' });
 
   // run migration on startup
   fastify.addHook('onReady', async () => {

@@ -52,7 +52,7 @@ export async function up(knex: Knex): Promise<void> {
     table.string('client_ip').notNullable();
     table.string('outcome').notNullable();
     table.string('original_rate').notNullable();
-    table.string('total_fee_vnd').notNullable();
+    table.integer('total_fee_vnd').nullable();
   });
 }
 

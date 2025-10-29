@@ -1,5 +1,3 @@
-// Common types and interfaces used across the application
-
 export interface ApiResponse<T = unknown> {
   success: boolean;
   data?: T;
