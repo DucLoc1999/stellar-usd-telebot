@@ -2,15 +2,19 @@
   "name": "fastify-typescript-mysql",
   "version": "1.0.0",
   "description": "A production-ready Fastify project with TypeScript and MySQL integration",
-  "main": "dist/server.js",
+  "main": "dist/src/server.js",
   "scripts": {
     "dev": "tsx watch src/server.ts",
     "build": "tsc",
-    "start": "node dist/server.js",
+    "start": "node dist/src/server.js",
     "lint": "eslint . --ext .ts",
     "lint:fix": "eslint . --ext .ts --fix",
     "format": "prettier --write \"src/**/*.ts\"",
-    "format:check": "prettier --check \"src/**/*.ts\""
+    "format:check": "prettier --check \"src/**/*.ts\"",
+    "migrate:make": "knex migrate:make --knexfile knexfile.ts -x ts",
+    "migrate:latest": "knex migrate:latest --knexfile knexfile.ts",
+    "migrate:rollback": "knex migrate:rollback --knexfile knexfile.ts",
+    "migrate:status": "knex migrate:status --knexfile knexfile.ts"
   },
   "keywords": [
     "fastify",
@@ -27,9 +31,13 @@
     "@fastify/swagger-ui": "^4.1.0",
     "dotenv": "^16.4.5",
     "fastify": "^4.28.1",
-    "mysql2": "^3.11.3"
+    "knex": "^3.1.0",
+    "mysql2": "^3.11.3",
+    "pino": "^10.1.0",
+    "pino-roll": "^4.0.0"
   },
   "devDependencies": {
+    "@types/knex": "^0.15.2",
     "@types/node": "^22.5.0",
     "@typescript-eslint/eslint-plugin": "^7.18.0",
     "@typescript-eslint/parser": "^7.18.0",
