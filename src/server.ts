@@ -1,0 +1,40 @@
+import dotenv from 'dotenv';
+import { buildApp } from './app';
+import { appConfig } from './config/app';
+import logger from './utils/logger';
+
+// Load environment variables
+dotenv.config();
+
+const start = async (): Promise<void> => {
+  try {
+    const app = await buildApp();
+
+    await app.listen({
+      port: appConfig.port,
+      host: appConfig.host,
+    });
+
+    logger.info(`🚀 Server is running on http://${appConfig.host}:${appConfig.port}`);
+    logger.info(
+      `📚 API Documentation available at http://${appConfig.host}:${appConfig.port}/documentation`
+    );
+    logger.info(`🏥 Health check available at http://${appConfig.host}:${appConfig.port}/health`);
+  } catch (error) {
+    logger.error('Error starting server:', error);
+    process.exit(1);
+  }
+};
+
+// Handle graceful shutdown
+process.on('SIGINT', () => {
+  logger.info('Received SIGINT, shutting down gracefully...');
+  process.exit(0);
+});
+
+process.on('SIGTERM', () => {
+  logger.info('Received SIGTERM, shutting down gracefully...');
+  process.exit(0);
+});
+
+void start();
