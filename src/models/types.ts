@@ -27,3 +27,21 @@ export interface AppConfig {
   host: string;
   nodeEnv: string;
 }
+
+export interface TeleUser {
+  id?: number;
+  chat_id: number;
+  first_name: string;
+  last_name: string;
+  username: string;
+  is_kyc?: boolean;
+  created_at?: Date;
+  updated_at?: Date;
+}
+
+export interface CreateTeleUserRequest {
+  chat_id: number;
+  first_name: string;
+  last_name: string;
+  username: string;
+}
