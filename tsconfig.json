@@ -8,7 +8,6 @@
 
     /* Emit */
     "outDir": "./dist",
-    "rootDir": "./src",
     "removeComments": true,
     "sourceMap": true,
     "declaration": true,
@@ -49,7 +48,6 @@
       "@utils/*": ["utils/*"]
     }
   },
-  "include": ["src/**/*"],
+  "include": ["src/**/*", "database/**/*", "knexfile.ts"],
   "exclude": ["node_modules", "dist"]
 }
-

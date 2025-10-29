@@ -1,39 +1,29 @@
-import Fastify, { type FastifyInstance } from 'fastify';
+import Fastify, { type FastifyInstance, type FastifyBaseLogger } from 'fastify';
 import cors from '@fastify/cors';
 import swagger from '@fastify/swagger';
 import swaggerUI from '@fastify/swagger-ui';
 import { errorHandler } from './middlewares/errorHandler';
-import helloRoutes from './routes/helloRoutes';
+import teleUserRoutes from './routes/teleUserRoutes';
+import paymentRoutes from './routes/paymentRoutes';
 import { testConnection } from './config/database';
-import logger from './utils/logger';
+import { logger } from './config/logger';
+import { runMigrations } from './utils/migrationRunner';
 
 export async function buildApp(): Promise<FastifyInstance> {
   const fastify = Fastify({
-    logger: {
-      level: process.env.LOG_LEVEL || 'info',
-      transport:
-        process.env.NODE_ENV === 'development'
-          ? {
-              target: 'pino-pretty',
-              options: {
-                translateTime: 'HH:MM:ss Z',
-                ignore: 'pid,hostname',
-              },
-            }
-          : undefined,
-    },
+    logger: logger as FastifyBaseLogger,
   });
 
-  // Register CORS
+  // CORS
   await fastify.register(cors, {
     origin: true,
   });
 
-  // Register Swagger
+  // Swagger
   await fastify.register(swagger, {
     swagger: {
       info: {
-        title: 'Fastify TypeScript MySQL API',
+        title: 'USDT247',
         description: 'API documentation for Fastify TypeScript MySQL project',
         version: '1.0.0',
       },
@@ -45,7 +35,10 @@ export async function buildApp(): Promise<FastifyInstance> {
       schemes: ['http', 'https'],
       consumes: ['application/json'],
       produces: ['application/json'],
-      tags: [{ name: 'Hello', description: 'Hello world endpoints' }],
+      tags: [
+        { name: 'Users', description: 'Telegram user management endpoints' },
+        { name: 'Payment', description: 'Payment processing endpoints' },
+      ],
     },
   });
 
@@ -60,24 +53,45 @@ export async function buildApp(): Promise<FastifyInstance> {
     transformStaticCSP: (header) => header,
   });
 
-  // Set error handler
   fastify.setErrorHandler(errorHandler);
 
-  // Health check route
+  fastify.addHook('preSerialization', async (request, _reply, payload) => {
+    request.responsePayload = payload;
+    return payload;
+  });
+
+  fastify.addHook('onResponse', async (request, reply) => {
+    const responsePayload: unknown = request.responsePayload;
+
+    request.log.info(
+      {
+        responseBody: responsePayload,
+        statusCode: reply.statusCode,
+        responseTime: reply.elapsedTime,
+      },
+      'Response sent'
+    );
+  });
+
+  // check health
   fastify.get('/health', () => {
     return { status: 'ok', timestamp: new Date().toISOString() };
   });
 
-  // Register API routes
-  void fastify.register(helloRoutes, { prefix: '/api' });
+  void fastify.register(teleUserRoutes, { prefix: '/api/v1' });
+  void fastify.register(paymentRoutes, { prefix: '/api/v1' });
 
-  // Test database connection on startup
+  // run migration on startup
   fastify.addHook('onReady', async () => {
     try {
+      await runMigrations();
+
       await testConnection();
       logger.info('Database connection verified');
     } catch (error) {
-      logger.error('Failed to connect to database:', error);
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      logger.error({ error: errorMessage }, 'Failed to connect to database');
+      throw error;
     }
   });
 
