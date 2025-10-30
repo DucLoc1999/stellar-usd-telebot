@@ -10,10 +10,10 @@ export class TeleUserController {
     try {
       const userData = request.body;
 
-      if (!userData.chat_id || !userData.first_name || !userData.last_name || !userData.username) {
+      if (!userData.chat_id || !userData.username) {
         const response: ApiResponse = {
           success: false,
-          error: 'Missing required fields: chat_id, first_name, last_name, username',
+          error: 'Missing required fields: chat_id, username',
         };
         return reply.status(400).send(response);
       }

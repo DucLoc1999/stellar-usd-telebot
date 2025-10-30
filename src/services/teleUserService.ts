@@ -19,7 +19,7 @@ export class TeleUserService {
         updated_at = NOW()
     `;
 
-    await db.raw(query, [chat_id, first_name, last_name, username]);
+    await db.raw(query, [chat_id, first_name ?? null, last_name ?? null, username]);
 
     const user = await db(this.tableName).where({ chat_id }).first<TeleUser>();
 
