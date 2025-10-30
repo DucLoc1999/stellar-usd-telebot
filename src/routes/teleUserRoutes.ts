@@ -12,7 +12,7 @@ export const teleUserRoutes: FastifyPluginAsync = async (
         tags: ['Users'],
         body: {
           type: 'object',
-          required: ['chat_id', 'first_name', 'last_name', 'username'],
+          required: ['chat_id', 'username'],
           properties: {
             chat_id: {
               type: 'number',

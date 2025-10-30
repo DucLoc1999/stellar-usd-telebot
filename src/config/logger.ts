@@ -22,12 +22,12 @@ export const getLogFilePath = (date?: string): string => {
   return path.join(logsDir, `${dateStr}.log`);
 };
 
-// Create file write stream for current date
 const logFilePath = getLogFilePath();
-const fileStream = fs.createWriteStream(logFilePath, { flags: 'a' });
-
-// Create the logger instance with multistream
-const isDevelopment = process.env.NODE_ENV === 'development';
+const fileStream = pino.destination({
+  dest: logFilePath,
+  sync: true,
+  mkdir: true,
+});
 
 const stream = pino.transport({
   target: 'pino-pretty',
@@ -39,7 +39,7 @@ const stream = pino.transport({
   },
 });
 
-const consoleStream: DestinationStream = isDevelopment ? stream : process.stdout;
+const consoleStream: DestinationStream = stream;
 
 export const logger = pino(
   {

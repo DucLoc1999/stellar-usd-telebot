@@ -29,8 +29,8 @@ export interface AppConfig {
 export interface TeleUser {
   id?: number;
   chat_id: number;
-  first_name: string;
-  last_name: string;
+  first_name?: string;
+  last_name?: string;
   username: string;
   is_kyc?: boolean;
   created_at?: Date;
@@ -39,7 +39,7 @@ export interface TeleUser {
 
 export interface CreateTeleUserRequest {
   chat_id: number;
-  first_name: string;
-  last_name: string;
+  first_name?: string;
+  last_name?: string;
   username: string;
 }
