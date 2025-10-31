@@ -36,7 +36,9 @@ export async function buildApp(): Promise<FastifyInstance> {
       host: process.env.URL_SWAGGER
         ? process.env.URL_SWAGGER.replace(/^https?:\/\//, '').replace(/\/$/, '')
         : `localhost:${process.env.PORT || 3000}`,
-      schemes: ['http', 'https'],
+      // HTTPS first for production, HTTP second for local development
+      // Swagger uses the first scheme as the default for "Try it out" requests
+      schemes: ['https', 'http'],
       consumes: ['application/json'],
       produces: ['application/json'],
       tags: [
