@@ -9,20 +9,34 @@ services:
     container_name: usdt247-app
     restart: unless-stopped
 
-    # IMPORTANT: Choose ONE of the following network configurations based on your OS:
-
-    # Option 1: For Linux - Use host network mode (RECOMMENDED for Linux)
-    # This allows the container to access localhost:3306 on the host directly
-    # Uncomment the line below if you're on Linux:
+    # ============================================================================
+    # NETWORK CONFIGURATION - LINUX DEPLOYMENT
+    # ============================================================================
+    # Using host network mode for Linux deployment
+    # This allows the container to directly access services on the host (e.g., MySQL on localhost:3306)
+    #
+    # Benefits:
+    # - Direct access to host's localhost without IP mapping
+    # - No port mapping needed (container uses host's network stack)
+    # - Better performance (no network translation overhead)
+    #
+    # Note: host network mode only works on Linux
+    # For macOS/Windows deployment, see commented configuration below
     network_mode: host
 
-    # Option 2: For macOS/Windows - Use bridge network with extra_hosts
-    # This maps 'localhost' inside the container to the host machine
-    # Comment out the 'ports' and 'extra_hosts' sections if using network_mode: host
+    # ============================================================================
+    # ALTERNATIVE: macOS/Windows Configuration (COMMENTED OUT)
+    # ============================================================================
+    # Uncomment the following lines and comment out 'network_mode: host' above
+    # if deploying on macOS or Windows:
+    #
     # ports:
     #   - '${PORT:-8001}:${PORT:-8001}'
     # extra_hosts:
     #   - 'host.docker.internal:host-gateway'
+    #
+    # Also update DB_HOST in .env file to: host.docker.internal
+    # ============================================================================
 
     # Load environment variables from .env file
     env_file:
@@ -37,8 +51,10 @@ services:
 
       # Database Configuration
       # Sensitive values are loaded from .env file via env_file directive
-      # These are here for documentation and can be overridden
-      DB_HOST: ${DB_HOST:-host.docker.internal}
+      #
+      # LINUX DEPLOYMENT: DB_HOST should be 'localhost' (using host network mode)
+      # macOS/Windows: DB_HOST should be 'host.docker.internal' (using bridge network)
+      DB_HOST: ${DB_HOST:-localhost}
       DB_PORT: ${DB_PORT:-3306}
       DB_USER: ${DB_USER}
       DB_PASSWORD: ${DB_PASSWORD}
@@ -53,6 +69,8 @@ services:
 
     volumes:
       # Mount logs directory to persist logs on host
+      # The docker-entrypoint.sh script automatically fixes permissions at startup
+      # This works correctly on Linux with host network mode
       - ./logs:/app/logs
 
     healthcheck:
