@@ -32,7 +32,10 @@ export async function buildApp(): Promise<FastifyInstance> {
         url: 'https://swagger.io',
         description: 'Find more info here',
       },
-      host: `localhost:${process.env.PORT || 3000}`,
+      // Use URL_SWAGGER environment variable for production, fallback to localhost for development
+      host: process.env.URL_SWAGGER
+        ? process.env.URL_SWAGGER.replace(/^https?:\/\//, '').replace(/\/$/, '')
+        : `localhost:${process.env.PORT || 3000}`,
       schemes: ['http', 'https'],
       consumes: ['application/json'],
       produces: ['application/json'],
