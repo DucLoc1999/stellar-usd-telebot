@@ -5,6 +5,7 @@ import swaggerUI from '@fastify/swagger-ui';
 import { errorHandler } from './middlewares/errorHandler';
 import teleUserRoutes from './routes/teleUserRoutes';
 import paymentRoutes from './routes/paymentRoutes';
+import webhookRoutes from './routes/webhookRoutes';
 import { testConnection } from './config/database';
 import { logger } from './config/logger';
 import { runMigrations } from './utils/migrationRunner';
@@ -38,6 +39,7 @@ export async function buildApp(): Promise<FastifyInstance> {
       tags: [
         { name: 'Users', description: 'Telegram user management endpoints' },
         { name: 'Payment', description: 'Payment processing endpoints' },
+        { name: 'Webhooks', description: 'Webhook endpoints for external notifications' },
       ],
     },
   });
@@ -80,6 +82,7 @@ export async function buildApp(): Promise<FastifyInstance> {
 
   void fastify.register(teleUserRoutes, { prefix: '/api/v1' });
   void fastify.register(paymentRoutes, { prefix: '/api/v1' });
+  void fastify.register(webhookRoutes, { prefix: '/api' });
 
   // run migration on startup
   fastify.addHook('onReady', async () => {
