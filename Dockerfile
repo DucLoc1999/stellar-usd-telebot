@@ -23,6 +23,9 @@ RUN npm run build
 # Stage 2: Production stage
 FROM node:24-alpine AS production
 
+# Install su-exec for secure user switching
+RUN apk add --no-cache su-exec
+
 # Set working directory
 WORKDIR /app
 
@@ -41,12 +44,15 @@ COPY --from=builder /app/knexfile.ts ./knexfile.ts
 # Copy database migrations and seeds
 COPY --from=builder /app/database ./database
 
-# Create logs directory
-RUN mkdir -p /app/logs && \
-    chmod -R 777 /app/logs
+# Copy entrypoint script
+COPY docker-entrypoint.sh /usr/local/bin/
+RUN chmod +x /usr/local/bin/docker-entrypoint.sh
 
-# Use non-root user for security
-USER node
+# Create logs directory with proper ownership
+# Note: When volume is mounted, entrypoint script will fix permissions at runtime
+RUN mkdir -p /app/logs && \
+    chown -R node:node /app/logs && \
+    chmod -R 755 /app/logs
 
 # Expose application port
 EXPOSE 8001
@@ -54,6 +60,9 @@ EXPOSE 8001
 # Health check
 HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
     CMD node -e "require('http').get('http://localhost:8001/health', (r) => {process.exit(r.statusCode === 200 ? 0 : 1)})"
+
+# Use entrypoint script to fix permissions and switch to node user
+ENTRYPOINT ["/usr/local/bin/docker-entrypoint.sh"]
 
 # Start the application
 CMD ["node", "dist/src/server.js"]
