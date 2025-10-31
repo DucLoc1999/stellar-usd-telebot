@@ -29,17 +29,21 @@ const fileStream = pino.destination({
   mkdir: true,
 });
 
-const stream = pino.transport({
-  target: 'pino-pretty',
-  options: {
-    colorize: true,
-    translateTime: 'HH:MM:ss.l',
-    ignore: 'pid,hostname',
-    singleLine: true,
-  },
-});
+// Determine if we're in development mode
+const isDevelopment = process.env.NODE_ENV !== 'production';
 
-const consoleStream: DestinationStream = stream;
+// Use pino-pretty only in development, plain JSON in production
+const consoleStream: DestinationStream = isDevelopment
+  ? pino.transport({
+      target: 'pino-pretty',
+      options: {
+        colorize: true,
+        translateTime: 'HH:MM:ss.l',
+        ignore: 'pid,hostname',
+        singleLine: true,
+      },
+    })
+  : process.stdout;
 
 export const logger = pino(
   {
