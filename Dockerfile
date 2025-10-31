@@ -43,7 +43,7 @@ COPY --from=builder /app/database ./database
 
 # Create logs directory
 RUN mkdir -p /app/logs && \
-    chown -R node:node /app/logs
+    chmod -R 777 /app/logs
 
 # Use non-root user for security
 USER node
