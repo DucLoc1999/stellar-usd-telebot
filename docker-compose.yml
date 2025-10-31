@@ -14,15 +14,15 @@ services:
     # Option 1: For Linux - Use host network mode (RECOMMENDED for Linux)
     # This allows the container to access localhost:3306 on the host directly
     # Uncomment the line below if you're on Linux:
-    # network_mode: host
+    network_mode: host
 
     # Option 2: For macOS/Windows - Use bridge network with extra_hosts
     # This maps 'localhost' inside the container to the host machine
     # Comment out the 'ports' and 'extra_hosts' sections if using network_mode: host
-    ports:
-      - '${PORT:-8001}:${PORT:-8001}'
-    extra_hosts:
-      - 'host.docker.internal:host-gateway'
+    # ports:
+    #   - '${PORT:-8001}:${PORT:-8001}'
+    # extra_hosts:
+    #   - 'host.docker.internal:host-gateway'
 
     # Load environment variables from .env file
     env_file:
