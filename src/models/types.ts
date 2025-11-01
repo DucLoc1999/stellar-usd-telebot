@@ -43,3 +43,11 @@ export interface CreateTeleUserRequest {
   last_name?: string;
   username: string;
 }
+
+export interface TelegramConfig {
+  botToken: string;
+  webhookSecret: string;
+  chainId: number;
+  tokenAddress: string;
+  callbackUrl: string;
+}
