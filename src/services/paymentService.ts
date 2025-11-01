@@ -1,5 +1,6 @@
 import db from '../config/knex';
 import teleUserService from './teleUserService';
+import { logger } from '../config/logger';
 import type {
   Usdt247CreateWithdrawalRequest,
   Usdt247CreateDepositRequest,
@@ -36,51 +37,108 @@ export class PaymentService {
   private async callWithdrawalAPI(
     requestData: Usdt247CreateWithdrawalRequest
   ): Promise<Usdt247Order> {
-    const response = await fetch(`${this.apiBaseUrl}/withdrawal`, {
-      method: 'POST',
-      headers: {
-        'Partner-App-Key': this.partnerAppKey,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(requestData),
-    });
+    try {
+      const response = await fetch(`${this.apiBaseUrl}/withdrawal`, {
+        method: 'POST',
+        headers: {
+          'Partner-App-Key': this.partnerAppKey,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(requestData),
+      });
 
-    if (!response.ok) {
-      const errorText = await response.text();
-      throw new Error(`USDT247 API error: ${response.status} - ${errorText}`);
+      logger.info(
+        { status: response.status, ok: response.ok },
+        'Withdrawal API HTTP response received'
+      );
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        logger.error(
+          { status: response.status, errorText },
+          'Withdrawal API returned error status'
+        );
+        throw new Error(`USDT247 API error: ${response.status} - ${errorText}`);
+      }
+
+      const apiResponse = (await response.json()) as Usdt247CreateOrderResponse;
+
+      logger.info(
+        {
+          hasData: !!apiResponse.data,
+          hasOrder: !!apiResponse.data?.order,
+          orderId: apiResponse.data?.order?.id,
+        },
+        'Withdrawal API JSON response parsed'
+      );
+
+      if (!apiResponse.data || !apiResponse.data.order) {
+        logger.error({ apiResponse }, 'Invalid API response structure: missing data.order');
+        throw new Error('Invalid API response structure: missing data.order');
+      }
+
+      return apiResponse.data.order;
+    } catch (error) {
+      logger.error(
+        {
+          error: error instanceof Error ? error.message : 'Unknown error',
+          stack: error instanceof Error ? error.stack : undefined,
+        },
+        'Error calling withdrawal API'
+      );
+      throw error;
     }
-
-    const apiResponse = (await response.json()) as Usdt247CreateOrderResponse;
-
-    if (!apiResponse.data || !apiResponse.data.order) {
-      throw new Error('Invalid API response structure: missing data.order');
-    }
-
-    return apiResponse.data.order;
   }
 
   private async callDepositAPI(requestData: Usdt247CreateDepositRequest): Promise<Usdt247Order> {
-    const response = await fetch(`${this.apiBaseUrl}/deposit`, {
-      method: 'POST',
-      headers: {
-        'Partner-App-Key': this.partnerAppKey,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(requestData),
-    });
+    try {
+      const response = await fetch(`${this.apiBaseUrl}/deposit`, {
+        method: 'POST',
+        headers: {
+          'Partner-App-Key': this.partnerAppKey,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(requestData),
+      });
 
-    if (!response.ok) {
-      const errorText = await response.text();
-      throw new Error(`USDT247 API error: ${response.status} - ${errorText}`);
+      logger.info(
+        { status: response.status, ok: response.ok },
+        'Deposit API HTTP response received'
+      );
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        logger.error({ status: response.status, errorText }, 'Deposit API returned error status');
+        throw new Error(`USDT247 API error: ${response.status} - ${errorText}`);
+      }
+
+      const apiResponse = (await response.json()) as Usdt247CreateOrderResponse;
+
+      logger.info(
+        {
+          hasData: !!apiResponse.data,
+          hasOrder: !!apiResponse.data?.order,
+          orderId: apiResponse.data?.order?.id,
+        },
+        'Deposit API JSON response parsed'
+      );
+
+      if (!apiResponse.data || !apiResponse.data.order) {
+        logger.error({ apiResponse }, 'Invalid API response structure: missing data.order');
+        throw new Error('Invalid API response structure: missing data.order');
+      }
+
+      return apiResponse.data.order;
+    } catch (error) {
+      logger.error(
+        {
+          error: error instanceof Error ? error.message : 'Unknown error',
+          stack: error instanceof Error ? error.stack : undefined,
+        },
+        'Error calling deposit API'
+      );
+      throw error;
     }
-
-    const apiResponse = (await response.json()) as Usdt247CreateOrderResponse;
-
-    if (!apiResponse.data || !apiResponse.data.order) {
-      throw new Error('Invalid API response structure: missing data.order');
-    }
-
-    return apiResponse.data.order;
   }
 
   private async saveOrder(chatId: number, apiResponse: Usdt247Order): Promise<Order> {
@@ -125,8 +183,14 @@ export class PaymentService {
   }
 
   async processWithdrawal(request: WithdrawalRequest): Promise<Usdt247Order> {
+    logger.info(
+      { chatId: request.chat_id, amount: request.amount },
+      'Processing withdrawal request'
+    );
+
     const isKYCVerified = await this.checkKYC(request.chat_id);
     if (!isKYCVerified) {
+      logger.warn({ chatId: request.chat_id }, 'KYC verification failed for withdrawal');
       throw new Error('KYC verification required');
     }
 
@@ -138,18 +202,48 @@ export class PaymentService {
       payment_info: request.payment_info,
     };
 
+    logger.info(
+      {
+        chatId: request.chat_id,
+        bankId: request.payment_info.bank_id,
+        apiUrl: `${this.apiBaseUrl}/withdrawal`,
+      },
+      'Calling withdrawal API'
+    );
+
     const apiResponse = await this.callWithdrawalAPI(apiRequest);
+
+    logger.info(
+      {
+        chatId: request.chat_id,
+        orderId: apiResponse.id,
+        hasPayData: !!apiResponse.pay_data,
+        hasAddress: !!apiResponse.pay_data?.address,
+        payData: apiResponse.pay_data,
+        recipient: apiResponse.recipient,
+        body: apiResponse.body,
+      },
+      'Withdrawal API response received - full details'
+    );
 
     // Save to database
     await this.saveOrder(request.chat_id, apiResponse);
+
+    logger.info(
+      { chatId: request.chat_id, orderId: apiResponse.id },
+      'Withdrawal order saved to database'
+    );
 
     // Return the original HSPay API response
     return apiResponse;
   }
 
   async processDeposit(request: DepositRequest): Promise<Usdt247Order> {
+    logger.info({ chatId: request.chat_id, amount: request.amount }, 'Processing deposit request');
+
     const isKYCVerified = await this.checkKYC(request.chat_id);
     if (!isKYCVerified) {
+      logger.warn({ chatId: request.chat_id }, 'KYC verification failed');
       throw new Error('KYC verification required');
     }
 
@@ -161,10 +255,27 @@ export class PaymentService {
       callback: request.callback as string,
     };
 
+    logger.info(
+      { chatId: request.chat_id, apiUrl: `${this.apiBaseUrl}/deposit` },
+      'Calling deposit API'
+    );
+
     const apiResponse = await this.callDepositAPI(apiRequest);
+
+    logger.info(
+      {
+        chatId: request.chat_id,
+        orderId: apiResponse.id,
+        hasPayData: !!apiResponse.pay_data,
+        hasQrCode: !!apiResponse.pay_data?.qr_code,
+      },
+      'Deposit API response received'
+    );
 
     // Save to database
     await this.saveOrder(request.chat_id, apiResponse);
+
+    logger.info({ chatId: request.chat_id, orderId: apiResponse.id }, 'Order saved to database');
 
     // Return the original HSPay API response
     return apiResponse;

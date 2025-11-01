@@ -140,11 +140,11 @@ export class WebhookController {
       try {
         const order = await db('orders').where('id', stateChange.orderId).first<Order>();
         if (order && order.chat_id) {
-          const statusName = webhookService.getStateName(stateChange.newState);
           await telegramService.sendOrderStatusUpdate(
             order.chat_id,
             stateChange.orderId,
-            statusName
+            stateChange.newState,
+            stateChange.newProcessingState
           );
           logger.info(
             { chatId: order.chat_id, orderId: stateChange.orderId },
