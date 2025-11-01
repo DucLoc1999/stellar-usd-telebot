@@ -1,6 +1,6 @@
 import type { FastifyReply, FastifyRequest } from 'fastify';
 import paymentService from '../services/paymentService';
-import { DepositRequest, Order, WithdrawalRequest } from '@models/usdt247';
+import { DepositRequest, Usdt247Order, WithdrawalRequest } from '@models/usdt247';
 import { ApiResponse } from '@models/types';
 
 export class PaymentController {
@@ -10,7 +10,7 @@ export class PaymentController {
   async processWithdrawal(
     request: FastifyRequest<{ Body: WithdrawalRequest }>,
     reply: FastifyReply
-  ): Promise<ApiResponse<Order>> {
+  ): Promise<{ success: boolean; chat_id: number; data: Usdt247Order }> {
     try {
       const requestData = request.body;
 
@@ -47,8 +47,9 @@ export class PaymentController {
 
       const order = await paymentService.processWithdrawal(requestData);
 
-      const response: ApiResponse<Order> = {
+      const response = {
         success: true,
+        chat_id: requestData.chat_id,
         data: order,
       };
 
@@ -87,7 +88,7 @@ export class PaymentController {
   async processDeposit(
     request: FastifyRequest<{ Body: DepositRequest }>,
     reply: FastifyReply
-  ): Promise<ApiResponse<Order>> {
+  ): Promise<{ success: boolean; chat_id: number; data: Usdt247Order }> {
     try {
       const requestData = request.body;
 
@@ -109,8 +110,9 @@ export class PaymentController {
 
       const order = await paymentService.processDeposit(requestData);
 
-      const response: ApiResponse<Order> = {
+      const response = {
         success: true,
+        chat_id: requestData.chat_id,
         data: order,
       };
 
