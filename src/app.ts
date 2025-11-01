@@ -1,7 +1,5 @@
 import Fastify, { type FastifyInstance, type FastifyBaseLogger } from 'fastify';
 import cors from '@fastify/cors';
-import swagger from '@fastify/swagger';
-import swaggerUI from '@fastify/swagger-ui';
 import { errorHandler } from './middlewares/errorHandler';
 import teleUserRoutes from './routes/teleUserRoutes';
 import paymentRoutes from './routes/paymentRoutes';
@@ -18,46 +16,6 @@ export async function buildApp(): Promise<FastifyInstance> {
   // CORS
   await fastify.register(cors, {
     origin: true,
-  });
-
-  // Swagger
-  await fastify.register(swagger, {
-    swagger: {
-      info: {
-        title: 'USDT247',
-        description: 'API documentation for Fastify TypeScript MySQL project',
-        version: '1.0.0',
-      },
-      externalDocs: {
-        url: 'https://swagger.io',
-        description: 'Find more info here',
-      },
-      // Use URL_SWAGGER environment variable for production, fallback to localhost for development
-      host: process.env.URL_SWAGGER
-        ? process.env.URL_SWAGGER.replace(/^https?:\/\//, '').replace(/\/$/, '')
-        : `localhost:${process.env.PORT || 3000}`,
-      // HTTPS first for production, HTTP second for local development
-      // Swagger uses the first scheme as the default for "Try it out" requests
-      schemes: ['https', 'http'],
-      consumes: ['application/json'],
-      produces: ['application/json'],
-      tags: [
-        { name: 'Users', description: 'Telegram user management endpoints' },
-        { name: 'Payment', description: 'Payment processing endpoints' },
-        { name: 'Webhooks', description: 'Webhook endpoints for external notifications' },
-      ],
-    },
-  });
-
-  // Register Swagger UI
-  await fastify.register(swaggerUI, {
-    routePrefix: '/docs',
-    uiConfig: {
-      docExpansion: 'list',
-      deepLinking: false,
-    },
-    staticCSP: true,
-    transformStaticCSP: (header) => header,
   });
 
   fastify.setErrorHandler(errorHandler);

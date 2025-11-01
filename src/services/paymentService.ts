@@ -1,5 +1,4 @@
 import db from '../config/knex';
-import { logger } from '../config/logger';
 import teleUserService from './teleUserService';
 import type {
   Usdt247CreateWithdrawalRequest,
@@ -85,8 +84,6 @@ export class PaymentService {
   }
 
   private async saveOrder(chatId: number, apiResponse: Usdt247Order): Promise<Order> {
-    logger.info({ apiResponse }, 'Saving order to database');
-
     const orderData = {
       id: apiResponse.id,
       chat_id: chatId,
@@ -127,7 +124,7 @@ export class PaymentService {
     };
   }
 
-  async processWithdrawal(request: WithdrawalRequest): Promise<Order> {
+  async processWithdrawal(request: WithdrawalRequest): Promise<Usdt247Order> {
     const isKYCVerified = await this.checkKYC(request.chat_id);
     if (!isKYCVerified) {
       throw new Error('KYC verification required');
@@ -137,16 +134,20 @@ export class PaymentService {
       amount: request.amount,
       chain_id: request.chain_id,
       token_address: request.token_address,
-      callback: request.callback,
+      callback: request.callback as string,
       payment_info: request.payment_info,
     };
 
     const apiResponse = await this.callWithdrawalAPI(apiRequest);
 
-    return await this.saveOrder(request.chat_id, apiResponse);
+    // Save to database
+    await this.saveOrder(request.chat_id, apiResponse);
+
+    // Return the original HSPay API response
+    return apiResponse;
   }
 
-  async processDeposit(request: DepositRequest): Promise<Order> {
+  async processDeposit(request: DepositRequest): Promise<Usdt247Order> {
     const isKYCVerified = await this.checkKYC(request.chat_id);
     if (!isKYCVerified) {
       throw new Error('KYC verification required');
@@ -157,12 +158,16 @@ export class PaymentService {
       chain_id: request.chain_id,
       token_address: request.token_address,
       recipient: request.recipient,
-      callback: request.callback,
+      callback: request.callback as string,
     };
 
     const apiResponse = await this.callDepositAPI(apiRequest);
 
-    return await this.saveOrder(request.chat_id, apiResponse);
+    // Save to database
+    await this.saveOrder(request.chat_id, apiResponse);
+
+    // Return the original HSPay API response
+    return apiResponse;
   }
 }
 
