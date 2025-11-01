@@ -1,7 +1,10 @@
 import type { FastifyReply, FastifyRequest } from 'fastify';
 import webhookService from '../services/webhookService';
+import telegramService from '../services/telegramService';
 import type { WebhookEvent } from '../models/webhook';
 import { logger } from '../config/logger';
+import db from '../config/knex';
+import type { Order } from '../models/usdt247';
 
 export class WebhookController {
   /**
@@ -132,6 +135,26 @@ export class WebhookController {
       }
 
       logger.info(logData, 'Webhook processed successfully');
+
+      // Send Telegram notification to user
+      try {
+        const order = await db('orders').where('id', stateChange.orderId).first<Order>();
+        if (order && order.chat_id) {
+          const statusName = webhookService.getStateName(stateChange.newState);
+          await telegramService.sendOrderStatusUpdate(
+            order.chat_id,
+            stateChange.orderId,
+            statusName
+          );
+          logger.info(
+            { chatId: order.chat_id, orderId: stateChange.orderId },
+            'Telegram notification sent'
+          );
+        }
+      } catch (notificationError) {
+        // Log but don't fail the webhook processing
+        logger.error({ error: notificationError }, 'Failed to send Telegram notification');
+      }
 
       // Return 200 OK to acknowledge receipt
       return reply.status(200).send({
