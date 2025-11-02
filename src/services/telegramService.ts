@@ -135,7 +135,7 @@ export const Messages = {
 
   PAYMENT_QR_CAPTION: () =>
     `💳 Quét mã QR để thanh toán\n\n` +
-    `⏰ Sau khi thanh toán, USDT sẽ được chuyển vào ví của bạn trong vòng 5-10 phút.\n\n` +
+    `⏰ Sau khi thanh toán, USDT sẽ được chuyển vào ví của bạn trong vòng 3-30 giây.\n\n` +
     `📞 Liên hệ support nếu có vấn đề!`,
 
   PAYMENT_SELL_ADDRESS: (recipientAddress: string) =>
@@ -144,7 +144,7 @@ export const Messages = {
     `<code>${recipientAddress}</code>\n\n` +
     `🌐 Mạng: <b>BNB Chain (BSC)</b>\n` +
     `💎 Token: <b>USDT (BEP-20)</b>\n\n` +
-    `⏰ Sau khi chuyển, tiền VND sẽ được chuyển vào tài khoản của bạn trong vòng 5-10 phút.\n\n` +
+    `⏰ Sau khi chuyển, tiền VND sẽ được chuyển vào tài khoản của bạn trong vòng 3-30 giây.\n\n` +
     `⚠️ Lưu ý: Chỉ chuyển USDT trên mạng BSC!`,
 
   PAYMENT_CANCELLED: () =>
@@ -1486,6 +1486,11 @@ export class TelegramService {
         parse_mode: 'HTML',
       });
 
+      // Send wallet address only (for easy copying)
+      await ctx.reply(`<code>${recipientAddress}</code>`, {
+        parse_mode: 'HTML',
+      });
+
       // Generate and send QR code for the wallet address
       logger.info({ orderId: order.id, recipientAddress }, 'Generating QR code for wallet address');
 
@@ -1498,7 +1503,7 @@ export class TelegramService {
       await ctx.replyWithPhoto(new InputFile(qrCodeImage), {
         caption:
           `📱 <b>Quét mã QR để sao chép địa chỉ ví</b>\n\n` +
-          `⏰ Sau khi chuyển USDT, tiền VND sẽ được chuyển vào tài khoản của bạn trong vòng 5-10 phút.\n\n` +
+          `⏰ Sau khi chuyển USDT, tiền VND sẽ được chuyển vào tài khoản của bạn trong vòng 3-30 giây.\n\n` +
           `📞 Liên hệ support nếu có vấn đề!`,
         parse_mode: 'HTML',
         reply_markup: Keyboards.backToMenu(),
