@@ -51,3 +51,26 @@ export interface TelegramConfig {
   tokenAddress: string;
   callbackUrl: string;
 }
+
+export type PaymentType = 'BANK' | 'CRYPTO';
+
+export interface PaymentInformation {
+  id?: number;
+  chat_id: number;
+  type: PaymentType;
+  wallet_address?: string | null;
+  bank_id?: number | null;
+  full_name?: string | null;
+  bank_account?: string | null;
+  created_at?: Date;
+  updated_at?: Date;
+}
+
+export interface CreatePaymentInformationRequest {
+  chat_id: number;
+  type: PaymentType;
+  wallet_address?: string;
+  bank_id?: number;
+  full_name?: string;
+  bank_account?: string;
+}

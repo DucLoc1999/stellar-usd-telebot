@@ -1,8 +1,10 @@
 import { Bot, InlineKeyboard, InputFile } from 'grammy';
 import { telegramConfig } from '../config/app';
 import paymentService from './paymentService';
+import paymentInformationService from './paymentInformationService';
 import { logger } from '../config/logger';
 import { banks } from '../models/webhook';
+import type { PaymentInformation } from '../models/types';
 
 /**
  * Message Templates (Vietnamese)
@@ -118,6 +120,14 @@ export const Messages = {
     `❌ <b>ĐÃ HỦY THANH TOÁN</b>\n\n` +
     `Đơn hàng đã được hủy.\n\n` +
     `Bạn có thể thực hiện giao dịch mới bất cứ lúc nào!`,
+
+  SELECT_SAVED_WALLET: () =>
+    `💼 <b>CHỌN ĐỊA CHỈ VÍ</b>\n\n` +
+    `Bạn có các địa chỉ ví đã lưu. Vui lòng chọn một địa chỉ hoặc thêm địa chỉ mới:`,
+
+  SELECT_SAVED_BANK_ACCOUNT: () =>
+    `💼 <b>CHỌN TÀI KHOẢN NGÂN HÀNG</b>\n\n` +
+    `Bạn có các tài khoản ngân hàng đã lưu. Vui lòng chọn một tài khoản hoặc thêm tài khoản mới:`,
 
   ERROR_GENERIC: () => `❌ Có lỗi xảy ra. Vui lòng thử lại sau!`,
 
@@ -311,6 +321,52 @@ export class Keyboards {
 
     return keyboard;
   }
+
+  static savedWalletSelection(wallets: PaymentInformation[]): InlineKeyboard {
+    const keyboard = new InlineKeyboard();
+
+    // Add saved wallet buttons
+    for (const wallet of wallets) {
+      if (wallet.wallet_address) {
+        // Format wallet address: 0x1234...5678
+        const shortAddress = `${wallet.wallet_address.substring(0, 6)}...${wallet.wallet_address.substring(38)}`;
+        keyboard.text(`💼 ${shortAddress}`, `use_saved_wallet_${wallet.id}`).row();
+      }
+    }
+
+    // Add "Add new wallet" button
+    keyboard.text('➕ Thêm địa chỉ ví mới', 'add_new_wallet').row();
+
+    // Add back button
+    keyboard.text('🔙 Quay lại Menu', 'back_to_menu');
+
+    return keyboard;
+  }
+
+  static savedBankAccountSelection(accounts: PaymentInformation[]): InlineKeyboard {
+    const keyboard = new InlineKeyboard();
+
+    // Add saved bank account buttons
+    for (const account of accounts) {
+      if (account.bank_id && account.bank_account && account.full_name) {
+        // Find bank name
+        const bank = banks.find((b) => b.id === account.bank_id);
+        const bankName = bank?.short_name || 'Bank';
+
+        // Format: [Bank Name] - [Account] - [Name]
+        const label = `🏦 ${bankName} - ${account.bank_account} - ${account.full_name}`;
+        keyboard.text(label, `use_saved_bank_${account.id}`).row();
+      }
+    }
+
+    // Add "Add new bank account" button
+    keyboard.text('➕ Thêm tài khoản ngân hàng mới', 'add_new_bank').row();
+
+    // Add back button
+    keyboard.text('🔙 Quay lại Menu', 'back_to_menu');
+
+    return keyboard;
+  }
 }
 
 /**
@@ -332,6 +388,8 @@ interface UserState {
   fullName?: string;
   accountNumber?: string;
   bankPageOffset?: number;
+  paymentInfoId?: number; // ID of selected saved payment info
+  isNewPaymentInfo?: boolean; // Flag to indicate if this is new payment info to be saved
 }
 
 const userStates = new Map<number, UserState>();
@@ -435,11 +493,30 @@ export class TelegramService {
       await ctx.answerCallbackQuery();
       const userId = ctx.from.id;
       const amount = ctx.callbackQuery.data.replace('buy_amount_', '');
-      userStates.set(userId, { action: 'buy', amount, waitingFor: 'wallet' });
-      await ctx.editMessageText(Messages.ENTER_WALLET_ADDRESS(), {
-        parse_mode: 'HTML',
-        reply_markup: Keyboards.backToMenu(),
-      });
+
+      // Check for saved wallets
+      const savedWallets = await paymentInformationService.findByTypeAndChatId(userId, 'CRYPTO');
+
+      if (savedWallets.length > 0) {
+        // Show saved wallets
+        userStates.set(userId, { action: 'buy', amount });
+        await ctx.editMessageText(Messages.SELECT_SAVED_WALLET(), {
+          parse_mode: 'HTML',
+          reply_markup: Keyboards.savedWalletSelection(savedWallets),
+        });
+      } else {
+        // No saved wallets, ask for wallet address
+        userStates.set(userId, {
+          action: 'buy',
+          amount,
+          waitingFor: 'wallet',
+          isNewPaymentInfo: true,
+        });
+        await ctx.editMessageText(Messages.ENTER_WALLET_ADDRESS(), {
+          parse_mode: 'HTML',
+          reply_markup: Keyboards.backToMenu(),
+        });
+      }
     });
 
     // Buy custom amount
@@ -469,19 +546,34 @@ export class TelegramService {
       await ctx.answerCallbackQuery();
       const userId = ctx.from.id;
       const amount = ctx.callbackQuery.data.replace('sell_amount_', '');
-      const state = userStates.get(userId) || {};
-      state.action = 'sell';
-      state.amount = amount;
-      state.waitingFor = 'bank_selection';
-      state.bankPageOffset = 0;
-      userStates.set(userId, state);
 
-      logger.info({ userId, amount }, 'Sell amount selected, showing bank selection');
+      // Check for saved bank accounts
+      const savedBankAccounts = await paymentInformationService.findByTypeAndChatId(userId, 'BANK');
 
-      await ctx.editMessageText(Messages.SELECT_BANK(), {
-        parse_mode: 'HTML',
-        reply_markup: Keyboards.bankSelection(0),
-      });
+      if (savedBankAccounts.length > 0) {
+        // Show saved bank accounts
+        userStates.set(userId, { action: 'sell', amount });
+        await ctx.editMessageText(Messages.SELECT_SAVED_BANK_ACCOUNT(), {
+          parse_mode: 'HTML',
+          reply_markup: Keyboards.savedBankAccountSelection(savedBankAccounts),
+        });
+      } else {
+        // No saved bank accounts, show bank selection
+        const state = userStates.get(userId) || {};
+        state.action = 'sell';
+        state.amount = amount;
+        state.waitingFor = 'bank_selection';
+        state.bankPageOffset = 0;
+        state.isNewPaymentInfo = true;
+        userStates.set(userId, state);
+
+        logger.info({ userId, amount }, 'Sell amount selected, showing bank selection');
+
+        await ctx.editMessageText(Messages.SELECT_BANK(), {
+          parse_mode: 'HTML',
+          reply_markup: Keyboards.bankSelection(0),
+        });
+      }
     });
 
     // Sell custom amount
@@ -550,6 +642,152 @@ export class TelegramService {
       await ctx.editMessageText(Messages.SELECT_BANK(), {
         parse_mode: 'HTML',
         reply_markup: Keyboards.bankSelection(offset),
+      });
+    });
+
+    // Use saved wallet callback
+    this.bot.callbackQuery(/^use_saved_wallet_\d+$/, async (ctx) => {
+      await ctx.answerCallbackQuery();
+      const userId = ctx.from.id;
+      const paymentInfoId = parseInt(ctx.callbackQuery.data.replace('use_saved_wallet_', ''));
+      const state = userStates.get(userId);
+
+      if (!state || state.action !== 'buy') {
+        await ctx.reply(Messages.ERROR_GENERIC());
+        return;
+      }
+
+      // Get the saved wallet info
+      const paymentInfo = await paymentInformationService.findById(paymentInfoId);
+      if (!paymentInfo || !paymentInfo.wallet_address) {
+        logger.error({ userId, paymentInfoId }, 'Saved wallet not found');
+        await ctx.reply(Messages.ERROR_GENERIC());
+        return;
+      }
+
+      state.walletAddress = paymentInfo.wallet_address;
+      state.paymentInfoId = paymentInfoId;
+      state.waitingFor = undefined;
+      userStates.set(userId, state);
+
+      logger.info(
+        { userId, paymentInfoId, wallet: paymentInfo.wallet_address },
+        'Using saved wallet'
+      );
+
+      await ctx.editMessageText(
+        Messages.ORDER_SUMMARY_BUY(state.amount!, paymentInfo.wallet_address),
+        {
+          parse_mode: 'HTML',
+          reply_markup: Keyboards.confirmPayment(),
+        }
+      );
+    });
+
+    // Add new wallet callback
+    this.bot.callbackQuery('add_new_wallet', async (ctx) => {
+      await ctx.answerCallbackQuery();
+      const userId = ctx.from.id;
+      const state = userStates.get(userId);
+
+      if (!state || state.action !== 'buy') {
+        await ctx.reply(Messages.ERROR_GENERIC());
+        return;
+      }
+
+      state.waitingFor = 'wallet';
+      state.isNewPaymentInfo = true;
+      userStates.set(userId, state);
+
+      logger.info({ userId }, 'User chose to add new wallet');
+
+      await ctx.editMessageText(Messages.ENTER_WALLET_ADDRESS(), {
+        parse_mode: 'HTML',
+        reply_markup: Keyboards.backToMenu(),
+      });
+    });
+
+    // Use saved bank account callback
+    this.bot.callbackQuery(/^use_saved_bank_\d+$/, async (ctx) => {
+      await ctx.answerCallbackQuery();
+      const userId = ctx.from.id;
+      const paymentInfoId = parseInt(ctx.callbackQuery.data.replace('use_saved_bank_', ''));
+      const state = userStates.get(userId);
+
+      if (!state || state.action !== 'sell') {
+        await ctx.reply(Messages.ERROR_GENERIC());
+        return;
+      }
+
+      // Get the saved bank account info
+      const paymentInfo = await paymentInformationService.findById(paymentInfoId);
+      if (
+        !paymentInfo ||
+        !paymentInfo.bank_id ||
+        !paymentInfo.full_name ||
+        !paymentInfo.bank_account
+      ) {
+        logger.error({ userId, paymentInfoId }, 'Saved bank account not found');
+        await ctx.reply(Messages.ERROR_GENERIC());
+        return;
+      }
+
+      // Find bank name
+      const bank = banks.find((b) => b.id === paymentInfo.bank_id);
+      if (!bank) {
+        logger.error({ userId, bankId: paymentInfo.bank_id }, 'Bank not found');
+        await ctx.reply(Messages.ERROR_GENERIC());
+        return;
+      }
+
+      state.bankId = paymentInfo.bank_id;
+      state.bankName = bank.short_name;
+      state.fullName = paymentInfo.full_name;
+      state.accountNumber = paymentInfo.bank_account;
+      state.paymentInfoId = paymentInfoId;
+      state.waitingFor = undefined;
+      userStates.set(userId, state);
+
+      logger.info(
+        { userId, paymentInfoId, bankId: paymentInfo.bank_id },
+        'Using saved bank account'
+      );
+
+      await ctx.editMessageText(
+        Messages.SELL_CONFIRMATION(
+          state.amount!,
+          bank.short_name,
+          paymentInfo.full_name,
+          paymentInfo.bank_account
+        ),
+        {
+          parse_mode: 'HTML',
+          reply_markup: Keyboards.confirmPayment(),
+        }
+      );
+    });
+
+    // Add new bank account callback
+    this.bot.callbackQuery('add_new_bank', async (ctx) => {
+      await ctx.answerCallbackQuery();
+      const userId = ctx.from.id;
+      const state = userStates.get(userId);
+
+      if (!state || state.action !== 'sell') {
+        await ctx.reply(Messages.ERROR_GENERIC());
+        return;
+      }
+
+      state.waitingFor = 'bank_selection';
+      state.bankPageOffset = 0;
+      state.isNewPaymentInfo = true;
+      userStates.set(userId, state);
+
+      logger.info({ userId }, 'User chose to add new bank account');
+
+      await ctx.editMessageText(Messages.SELECT_BANK(), {
+        parse_mode: 'HTML',
+        reply_markup: Keyboards.bankSelection(0),
       });
     });
 
@@ -704,10 +942,24 @@ export class TelegramService {
     }
 
     state.amount = text.replace(/,/g, '');
-    state.waitingFor = 'wallet';
-    userStates.set(userId, state);
 
-    await ctx.reply(Messages.ENTER_WALLET_ADDRESS(), { parse_mode: 'HTML' });
+    // Check for saved wallets
+    const savedWallets = await paymentInformationService.findByTypeAndChatId(userId, 'CRYPTO');
+
+    if (savedWallets.length > 0) {
+      // Show saved wallets
+      userStates.set(userId, state);
+      await ctx.reply(Messages.SELECT_SAVED_WALLET(), {
+        parse_mode: 'HTML',
+        reply_markup: Keyboards.savedWalletSelection(savedWallets),
+      });
+    } else {
+      // No saved wallets, ask for wallet address
+      state.waitingFor = 'wallet';
+      state.isNewPaymentInfo = true;
+      userStates.set(userId, state);
+      await ctx.reply(Messages.ENTER_WALLET_ADDRESS(), { parse_mode: 'HTML' });
+    }
   }
 
   /**
@@ -727,19 +979,34 @@ export class TelegramService {
     }
 
     state.amount = text.replace(/,/g, '');
-    state.waitingFor = 'bank_selection';
-    state.bankPageOffset = 0;
-    userStates.set(userId, state);
 
-    logger.info(
-      { userId, amount: state.amount },
-      'Custom sell amount entered, showing bank selection'
-    );
+    // Check for saved bank accounts
+    const savedBankAccounts = await paymentInformationService.findByTypeAndChatId(userId, 'BANK');
 
-    await ctx.reply(Messages.SELECT_BANK(), {
-      parse_mode: 'HTML',
-      reply_markup: Keyboards.bankSelection(0),
-    });
+    if (savedBankAccounts.length > 0) {
+      // Show saved bank accounts
+      userStates.set(userId, state);
+      await ctx.reply(Messages.SELECT_SAVED_BANK_ACCOUNT(), {
+        parse_mode: 'HTML',
+        reply_markup: Keyboards.savedBankAccountSelection(savedBankAccounts),
+      });
+    } else {
+      // No saved bank accounts, show bank selection
+      state.waitingFor = 'bank_selection';
+      state.bankPageOffset = 0;
+      state.isNewPaymentInfo = true;
+      userStates.set(userId, state);
+
+      logger.info(
+        { userId, amount: state.amount },
+        'Custom sell amount entered, showing bank selection'
+      );
+
+      await ctx.reply(Messages.SELECT_BANK(), {
+        parse_mode: 'HTML',
+        reply_markup: Keyboards.bankSelection(0),
+      });
+    }
   }
 
   /**
@@ -759,6 +1026,29 @@ export class TelegramService {
 
     state.walletAddress = text;
     state.waitingFor = undefined;
+
+    // Save wallet address if it's new payment info
+    if (state.isNewPaymentInfo) {
+      try {
+        // Check if wallet already exists
+        const exists = await paymentInformationService.walletExists(userId, text);
+        if (!exists) {
+          await paymentInformationService.createPaymentInfo({
+            chat_id: userId,
+            type: 'CRYPTO',
+            wallet_address: text,
+          });
+          logger.info({ userId, wallet: text }, 'Saved new wallet address');
+        } else {
+          logger.info({ userId, wallet: text }, 'Wallet address already exists, skipping save');
+        }
+      } catch (error) {
+        logger.error({ userId, wallet: text, error }, 'Error saving wallet address');
+        // Continue with the flow even if save fails
+      }
+      state.isNewPaymentInfo = false;
+    }
+
     userStates.set(userId, state);
 
     await ctx.reply(Messages.ORDER_SUMMARY_BUY(state.amount!, text), {
@@ -808,16 +1098,54 @@ export class TelegramService {
 
     state.accountNumber = text;
     state.waitingFor = undefined;
-    userStates.set(userId, state);
 
     logger.info({ userId, accountNumber: text }, 'Account number entered');
 
     // Show confirmation screen with all collected details
-    if (!state.amount || !state.bankName || !state.fullName) {
+    if (!state.amount || !state.bankName || !state.fullName || !state.bankId) {
       logger.error({ userId, state }, 'Missing required fields for sell confirmation');
       await ctx.reply(Messages.ERROR_GENERIC());
       return;
     }
+
+    // Save bank account if it's new payment info
+    if (state.isNewPaymentInfo) {
+      try {
+        // Check if bank account already exists
+        const exists = await paymentInformationService.bankAccountExists(
+          userId,
+          state.bankId,
+          text
+        );
+        if (!exists) {
+          await paymentInformationService.createPaymentInfo({
+            chat_id: userId,
+            type: 'BANK',
+            bank_id: state.bankId,
+            full_name: state.fullName,
+            bank_account: text,
+          });
+          logger.info(
+            { userId, bankId: state.bankId, accountNumber: text },
+            'Saved new bank account'
+          );
+        } else {
+          logger.info(
+            { userId, bankId: state.bankId, accountNumber: text },
+            'Bank account already exists, skipping save'
+          );
+        }
+      } catch (error) {
+        logger.error(
+          { userId, bankId: state.bankId, accountNumber: text, error },
+          'Error saving bank account'
+        );
+        // Continue with the flow even if save fails
+      }
+      state.isNewPaymentInfo = false;
+    }
+
+    userStates.set(userId, state);
 
     await ctx.reply(
       Messages.SELL_CONFIRMATION(state.amount, state.bankName, state.fullName, text),
