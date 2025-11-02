@@ -1,6 +1,6 @@
 import type { FastifyReply, FastifyRequest } from 'fastify';
 import webhookService from '../services/webhookService';
-import telegramService from '../services/telegramService';
+import notificationQueueService from '../services/notificationQueueService';
 import type { WebhookEvent } from '../models/webhook';
 import { logger } from '../config/logger';
 import db from '../config/knex';
@@ -136,24 +136,26 @@ export class WebhookController {
 
       logger.info(logData, 'Webhook processed successfully');
 
-      // Send Telegram notification to user
+      // Enqueue Telegram notification for sequential delivery
       try {
         const order = await db('orders').where('id', stateChange.orderId).first<Order>();
         if (order && order.chat_id) {
-          await telegramService.sendOrderStatusUpdate(
-            order.chat_id,
-            stateChange.orderId,
-            stateChange.newState,
-            stateChange.newProcessingState
-          );
+          await notificationQueueService.enqueueNotification({
+            chatId: order.chat_id,
+            orderId: stateChange.orderId,
+            state: stateChange.newState,
+            processingState: stateChange.newProcessingState,
+            timestamp: event.ts,
+            eventId: event.id,
+          });
           logger.info(
-            { chatId: order.chat_id, orderId: stateChange.orderId },
-            'Telegram notification sent'
+            { chatId: order.chat_id, orderId: stateChange.orderId, eventId: event.id },
+            'Notification enqueued for delivery'
           );
         }
       } catch (notificationError) {
         // Log but don't fail the webhook processing
-        logger.error({ error: notificationError }, 'Failed to send Telegram notification');
+        logger.error({ error: notificationError }, 'Failed to enqueue Telegram notification');
       }
 
       // Return 200 OK to acknowledge receipt
