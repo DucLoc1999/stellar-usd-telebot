@@ -2,6 +2,7 @@ import { Bot, InlineKeyboard, InputFile } from 'grammy';
 import { telegramConfig } from '../config/app';
 import paymentService from './paymentService';
 import paymentInformationService from './paymentInformationService';
+import teleUserService from './teleUserService';
 import { logger } from '../config/logger';
 import { banks } from '../models/webhook';
 import type { PaymentInformation } from '../models/types';
@@ -176,13 +177,54 @@ export const Messages = {
     `3️⃣ Xác minh số điện thoại\n\n` +
     `📞 Liên hệ support để được hướng dẫn chi tiết!`,
 
-  ACCOUNT_INFO: (userId: number, firstName: string, lastName: string, username: string) =>
-    `👤 <b>THÔNG TIN TÀI KHOẢN</b>\n\n` +
-    `🆔 User ID: <code>${userId}</code>\n` +
-    `👤 Tên: ${firstName} ${lastName || ''}\n` +
-    `📱 Username: ${username ? '@' + username : 'Chưa có'}\n\n` +
-    `✅ Trạng thái: Đang hoạt động\n` +
-    `🔐 KYC: Chưa xác minh`,
+  ACCOUNT_INFO: (
+    chatId: number,
+    firstName: string,
+    lastName: string | null,
+    username: string,
+    isKyc: boolean,
+    savedBankAccounts: PaymentInformation[],
+    savedWallets: PaymentInformation[]
+  ) => {
+    let message =
+      `👤 <b>THÔNG TIN TÀI KHOẢN</b>\n\n` +
+      `🆔 Chat ID: <code>${chatId}</code>\n` +
+      `👤 Họ tên: ${firstName}${lastName ? ' ' + lastName : ''}\n` +
+      `📱 Username: ${username ? '@' + username : 'Chưa có'}\n` +
+      `🔐 Trạng thái KYC: ${isKyc ? '✅ Đã xác minh' : '❌ Chưa xác minh'}\n\n` +
+      `💳 <b>THÔNG TIN THANH TOÁN ĐÃ LƯU</b>\n\n`;
+
+    // Add bank accounts section
+    if (savedBankAccounts.length > 0) {
+      message += `🏦 <b>Ngân hàng:</b>\n`;
+      savedBankAccounts.forEach((account) => {
+        // Find bank name from banks array
+        const bank = banks.find((b) => b.id === account.bank_id);
+        const bankName = bank ? bank.short_name : 'N/A';
+        message += `• <code>${bankName} - ${account.full_name || 'N/A'} - ${account.bank_account || 'N/A'}</code>\n`;
+      });
+      message += '\n';
+    }
+
+    // Add crypto wallets section
+    if (savedWallets.length > 0) {
+      message += `💎 <b>Ví crypto:</b>\n`;
+      savedWallets.forEach((wallet) => {
+        if (wallet.wallet_address) {
+          // Display full wallet address wrapped in code tags for easy copying
+          message += `• <code>${wallet.wallet_address}</code>\n`;
+        }
+      });
+      message += '\n';
+    }
+
+    // If no payment info exists
+    if (savedBankAccounts.length === 0 && savedWallets.length === 0) {
+      message += `Chưa có thông tin thanh toán đã lưu`;
+    }
+
+    return message.trim();
+  },
 
   ORDER_STATUS_UPDATE: (orderId: string, status: string) =>
     `📢 <b>CẬP NHẬT ĐƠN HÀNG</b>\n\n` +
@@ -455,11 +497,46 @@ export class TelegramService {
   private setupHandlers(): void {
     // Start command
     this.bot.command('start', async (ctx) => {
-      const firstName = ctx.from?.first_name || 'bạn';
-      await ctx.reply(Messages.WELCOME(firstName), {
-        parse_mode: 'HTML',
-        reply_markup: Keyboards.mainMenu(),
-      });
+      try {
+        // Extract user information from Telegram context
+        const chatId = ctx.chat?.id;
+        const firstName = ctx.from?.first_name;
+        const lastName = ctx.from?.last_name;
+        const username = ctx.from?.username;
+
+        if (!chatId || !firstName) {
+          logger.error(
+            { chatId, firstName },
+            'Missing required user information in /start command'
+          );
+          await ctx.reply(Messages.ERROR_GENERIC());
+          return;
+        }
+
+        // Upsert user information to database
+        logger.info(
+          { chatId, firstName, lastName, username },
+          'Upserting user information on /start command'
+        );
+
+        await teleUserService.upsertUser({
+          chat_id: chatId,
+          first_name: firstName,
+          last_name: lastName,
+          username: username ?? '',
+        });
+
+        logger.info({ chatId }, 'User information updated successfully');
+
+        // Send welcome message
+        await ctx.reply(Messages.WELCOME(firstName), {
+          parse_mode: 'HTML',
+          reply_markup: Keyboards.mainMenu(),
+        });
+      } catch (error) {
+        logger.error({ error }, 'Error handling /start command');
+        await ctx.reply(Messages.ERROR_GENERIC());
+      }
     });
 
     // Check rate callback
@@ -499,14 +576,79 @@ export class TelegramService {
     // Account info callback
     this.bot.callbackQuery('account_info', async (ctx) => {
       await ctx.answerCallbackQuery();
-      const user = ctx.from;
-      await ctx.editMessageText(
-        Messages.ACCOUNT_INFO(user.id, user.first_name, user.last_name || '', user.username || ''),
-        {
+
+      try {
+        const chatId = ctx.chat?.id;
+
+        if (!chatId) {
+          logger.error('Missing chat ID in account_info callback');
+          await ctx.editMessageText(Messages.ERROR_GENERIC(), {
+            parse_mode: 'HTML',
+            reply_markup: Keyboards.backToMenu(),
+          });
+          return;
+        }
+
+        // Fetch user information from database
+        logger.info({ chatId }, 'Fetching user information from database');
+        const teleUser = await teleUserService.findByChatId(chatId);
+
+        if (!teleUser) {
+          logger.warn({ chatId }, 'User not found in database');
+          await ctx.editMessageText(
+            `❌ <b>Không tìm thấy thông tin</b>\n\n` +
+              `Không tìm thấy thông tin tài khoản của bạn trong hệ thống.\n\n` +
+              `Vui lòng thử lại hoặc liên hệ support!`,
+            {
+              parse_mode: 'HTML',
+              reply_markup: Keyboards.backToMenu(),
+            }
+          );
+          return;
+        }
+
+        logger.info({ chatId, userId: teleUser.id }, 'User information retrieved successfully');
+
+        // Fetch saved payment information
+        logger.info({ chatId }, 'Fetching saved payment information');
+        const savedBankAccounts = await paymentInformationService.findByTypeAndChatId(
+          chatId,
+          'BANK'
+        );
+        const savedWallets = await paymentInformationService.findByTypeAndChatId(chatId, 'CRYPTO');
+
+        logger.info(
+          {
+            chatId,
+            bankAccountsCount: savedBankAccounts.length,
+            walletsCount: savedWallets.length,
+          },
+          'Payment information retrieved'
+        );
+
+        // Display user information from database
+        await ctx.editMessageText(
+          Messages.ACCOUNT_INFO(
+            teleUser.chat_id,
+            teleUser.first_name || 'N/A',
+            teleUser.last_name ?? null,
+            teleUser.username || '',
+            teleUser.is_kyc ?? false,
+            savedBankAccounts,
+            savedWallets
+          ),
+          {
+            parse_mode: 'HTML',
+            reply_markup: Keyboards.backToMenu(),
+          }
+        );
+      } catch (error) {
+        logger.error({ error }, 'Error fetching user information');
+        await ctx.editMessageText(Messages.ERROR_GENERIC(), {
           parse_mode: 'HTML',
           reply_markup: Keyboards.backToMenu(),
-        }
-      );
+        });
+      }
     });
 
     // Buy USDT callback - show amount selection
@@ -590,20 +732,22 @@ export class TelegramService {
           reply_markup: Keyboards.savedBankAccountSelection(savedBankAccounts),
         });
       } else {
-        // No saved bank accounts, show bank selection
+        // No saved bank accounts, use simplified single-input format
         const state = userStates.get(userId) || {};
         state.action = 'sell';
         state.amount = amount;
-        state.waitingFor = 'bank_selection';
-        state.bankPageOffset = 0;
+        state.waitingFor = 'bank_details_single';
         state.isNewPaymentInfo = true;
         userStates.set(userId, state);
 
-        logger.info({ userId, amount }, 'Sell amount selected, showing bank selection');
+        logger.info(
+          { userId, amount },
+          'Sell amount selected, showing single-input bank details prompt'
+        );
 
-        await ctx.editMessageText(Messages.SELECT_BANK(), {
+        await ctx.editMessageText(Messages.ENTER_BANK_DETAILS_SINGLE(), {
           parse_mode: 'HTML',
-          reply_markup: Keyboards.bankSelection(0),
+          reply_markup: Keyboards.backToMenu(),
         });
       }
     });
@@ -1024,20 +1168,19 @@ export class TelegramService {
         reply_markup: Keyboards.savedBankAccountSelection(savedBankAccounts),
       });
     } else {
-      // No saved bank accounts, show bank selection
-      state.waitingFor = 'bank_selection';
-      state.bankPageOffset = 0;
+      // No saved bank accounts, use simplified single-input format
+      state.waitingFor = 'bank_details_single';
       state.isNewPaymentInfo = true;
       userStates.set(userId, state);
 
       logger.info(
         { userId, amount: state.amount },
-        'Custom sell amount entered, showing bank selection'
+        'Custom sell amount entered, showing single-input bank details prompt'
       );
 
-      await ctx.reply(Messages.SELECT_BANK(), {
+      await ctx.reply(Messages.ENTER_BANK_DETAILS_SINGLE(), {
         parse_mode: 'HTML',
-        reply_markup: Keyboards.bankSelection(0),
+        reply_markup: Keyboards.backToMenu(),
       });
     }
   }
