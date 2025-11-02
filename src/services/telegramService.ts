@@ -289,8 +289,8 @@ export class Keyboards {
       banksToShow = banks.slice(0, 5);
       hasMore = banks.length > 5;
     } else {
-      // Subsequent pages: show 20 banks
-      const endIndex = Math.min(offset + 20, banks.length);
+      // Subsequent pages: show 5 banks
+      const endIndex = Math.min(offset + 5, banks.length);
       banksToShow = banks.slice(offset, endIndex);
       hasMore = endIndex < banks.length;
     }
@@ -302,7 +302,7 @@ export class Keyboards {
 
     // Add "Show More" button if there are more banks
     if (hasMore) {
-      const nextOffset = offset === 0 ? 5 : offset + 20;
+      const nextOffset = offset === 0 ? 5 : offset + 5;
       keyboard.text('📋 Xem thêm', `show_more_banks_${nextOffset}`).row();
     }
 
@@ -990,12 +990,30 @@ export class TelegramService {
         'Sending recipient address to user'
       );
 
+      // Send wallet address message
       await ctx.reply(Messages.PAYMENT_SELL_ADDRESS(recipientAddress), {
+        parse_mode: 'HTML',
+      });
+
+      // Generate and send QR code for the wallet address
+      logger.info({ orderId: order.id, recipientAddress }, 'Generating QR code for wallet address');
+
+      const qrCodeImage = await this.generateQRCode(recipientAddress);
+      logger.info(
+        { orderId: order.id, qrCodeSize: qrCodeImage.length },
+        'QR code generated, sending to user'
+      );
+
+      await ctx.replyWithPhoto(new InputFile(qrCodeImage), {
+        caption:
+          `📱 <b>Quét mã QR để sao chép địa chỉ ví</b>\n\n` +
+          `⏰ Sau khi chuyển USDT, tiền VND sẽ được chuyển vào tài khoản của bạn trong vòng 5-10 phút.\n\n` +
+          `📞 Liên hệ support nếu có vấn đề!`,
         parse_mode: 'HTML',
         reply_markup: Keyboards.backToMenu(),
       });
 
-      logger.info({ userId, orderId: order.id }, 'Sell flow completed successfully');
+      logger.info({ userId, orderId: order.id }, 'Sell flow completed successfully with QR code');
     } else {
       logger.error(
         {
