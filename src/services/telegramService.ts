@@ -727,12 +727,18 @@ export class TelegramService {
     }
 
     state.amount = text.replace(/,/g, '');
-    state.waitingFor = undefined;
+    state.waitingFor = 'bank_selection';
+    state.bankPageOffset = 0;
     userStates.set(userId, state);
 
-    await ctx.reply(Messages.ORDER_SUMMARY_SELL(state.amount), {
+    logger.info(
+      { userId, amount: state.amount },
+      'Custom sell amount entered, showing bank selection'
+    );
+
+    await ctx.reply(Messages.SELECT_BANK(), {
       parse_mode: 'HTML',
-      reply_markup: Keyboards.confirmPayment(),
+      reply_markup: Keyboards.bankSelection(0),
     });
   }
 
