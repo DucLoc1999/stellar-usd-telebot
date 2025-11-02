@@ -125,6 +125,25 @@ export class NotificationQueueService {
         );
 
         try {
+          // Add 3-second delay for processing state notifications
+          const isProcessingNotification =
+            notification.state === 2 ||
+            (notification.processingState && notification.processingState > 0);
+
+          if (isProcessingNotification) {
+            logger.info(
+              {
+                chatId,
+                orderId: notification.orderId,
+                eventId: notification.eventId,
+                state: notification.state,
+                processingState: notification.processingState,
+              },
+              'Delaying processing state notification by 3 seconds'
+            );
+            await new Promise((resolve) => setTimeout(resolve, 3000));
+          }
+
           // Send the notification
           await telegramService.sendOrderStatusUpdate(
             notification.chatId,
@@ -221,4 +240,3 @@ export class NotificationQueueService {
 }
 
 export default new NotificationQueueService();
-
