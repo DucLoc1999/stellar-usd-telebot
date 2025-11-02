@@ -57,6 +57,16 @@ export const Messages = {
     `Vui lòng nhập số tài khoản ngân hàng:\n\n` +
     `📝 Ví dụ: 1234567890`,
 
+  ENTER_BANK_DETAILS_SINGLE: () =>
+    `🏦 <b>NHẬP THÔNG TIN NGÂN HÀNG</b>\n\n` +
+    `Vui lòng nhập thông tin theo định dạng:\n\n` +
+    `<b>TÊN NGÂN HÀNG, HỌ TÊN, SỐ TÀI KHOẢN</b>\n\n` +
+    `📝 Ví dụ: VIETCOMBANK, NGUYEN VAN A, 1234567890\n\n` +
+    `⚠️ Lưu ý:\n` +
+    `• Tên ngân hàng và họ tên không được chứa số\n` +
+    `• Số tài khoản chỉ chứa chữ số\n` +
+    `• Phân cách bằng dấu phẩy (,)`,
+
   INVALID_AMOUNT: () => `❌ Số lượng không hợp lệ!\n\n` + `Vui lòng nhập số hợp lệ (VD: 100)`,
 
   INVALID_WALLET: () =>
@@ -67,6 +77,27 @@ export const Messages = {
 
   INVALID_ACCOUNT_NUMBER: () =>
     `❌ Số tài khoản không hợp lệ!\n\n` + `Vui lòng nhập số tài khoản hợp lệ (chỉ chứa số)`,
+
+  INVALID_BANK_DETAILS_FORMAT: () =>
+    `❌ <b>Định dạng không hợp lệ!</b>\n\n` +
+    `Vui lòng nhập theo mẫu:\n` +
+    `<b>TÊN NGÂN HÀNG, HỌ TÊN, SỐ TÀI KHOẢN</b>\n\n` +
+    `📝 Ví dụ: VIETCOMBANK, NGUYEN VAN A, 1234567890`,
+
+  INVALID_BANK_NAME_HAS_NUMBERS: () =>
+    `❌ <b>Tên ngân hàng không được chứa số!</b>\n\n` +
+    `Vui lòng nhập lại theo định dạng:\n` +
+    `<b>TÊN NGÂN HÀNG, HỌ TÊN, SỐ TÀI KHOẢN</b>`,
+
+  INVALID_FULL_NAME_HAS_NUMBERS: () =>
+    `❌ <b>Họ tên không được chứa số!</b>\n\n` +
+    `Vui lòng nhập lại theo định dạng:\n` +
+    `<b>TÊN NGÂN HÀNG, HỌ TÊN, SỐ TÀI KHOẢN</b>`,
+
+  BANK_NOT_FOUND: () =>
+    `❌ <b>Không tìm thấy ngân hàng!</b>\n\n` +
+    `Vui lòng kiểm tra lại tên ngân hàng.\n\n` +
+    `💡 Gợi ý: VIETCOMBANK, TECHCOMBANK, BIDV, AGRIBANK, VCB, TCB, MB, ACB, VPB, TPB, SACOMBANK, HDBANK, SHB, VIB, MSB, OCB, EXIMBANK, SCB, SEABANK, ABBANK, VIETINBANK, LIENVIETPOSTBANK, PVCOMBANK, BAOVIETBANK, GPBANK, NAMABANK, PGBANK, VIETABANK, VIETBANK, OCEANBANK, CBBANK, KIENLONGBANK, DONGABANK, WOORIBANK, PUBLICBANK, NONGHYUP, INDOVINABANK, SHINHAN, STANDARDCHARTERED, ANZ, HSBC, HONGKONG, CIMB, UOB, MAYBANK, BANGKOK, MIZUHO, MUFG, SMBC, DEUTSCHE, BNP, CITIBANK`,
 
   ORDER_SUMMARY_BUY: (amount: string, wallet: string) =>
     `📋 <b>XÁC NHẬN ĐƠN HÀNG - MUA USDT</b>\n\n` +
@@ -122,11 +153,11 @@ export const Messages = {
     `Bạn có thể thực hiện giao dịch mới bất cứ lúc nào!`,
 
   SELECT_SAVED_WALLET: () =>
-    `💼 <b>CHỌN ĐỊA CHỈ VÍ</b>\n\n` +
+    `🔑 <b>CHỌN ĐỊA CHỈ VÍ</b>\n\n` +
     `Bạn có các địa chỉ ví đã lưu. Vui lòng chọn một địa chỉ hoặc thêm địa chỉ mới:`,
 
   SELECT_SAVED_BANK_ACCOUNT: () =>
-    `💼 <b>CHỌN TÀI KHOẢN NGÂN HÀNG</b>\n\n` +
+    `🏦 <b>CHỌN TÀI KHOẢN NGÂN HÀNG</b>\n\n` +
     `Bạn có các tài khoản ngân hàng đã lưu. Vui lòng chọn một tài khoản hoặc thêm tài khoản mới:`,
 
   ERROR_GENERIC: () => `❌ Có lỗi xảy ra. Vui lòng thử lại sau!`,
@@ -330,7 +361,7 @@ export class Keyboards {
       if (wallet.wallet_address) {
         // Format wallet address: 0x1234...5678
         const shortAddress = `${wallet.wallet_address.substring(0, 6)}...${wallet.wallet_address.substring(38)}`;
-        keyboard.text(`💼 ${shortAddress}`, `use_saved_wallet_${wallet.id}`).row();
+        keyboard.text(`🔑 ${shortAddress}`, `use_saved_wallet_${wallet.id}`).row();
       }
     }
 
@@ -382,7 +413,8 @@ interface UserState {
     | 'wallet'
     | 'bank_selection'
     | 'full_name'
-    | 'account_number';
+    | 'account_number'
+    | 'bank_details_single'; // Single-input for bank details
   bankId?: number;
   bankName?: string;
   fullName?: string;
@@ -767,7 +799,7 @@ export class TelegramService {
       );
     });
 
-    // Add new bank account callback
+    // Add new bank account callback - Single input flow
     this.bot.callbackQuery('add_new_bank', async (ctx) => {
       await ctx.answerCallbackQuery();
       const userId = ctx.from.id;
@@ -778,16 +810,15 @@ export class TelegramService {
         return;
       }
 
-      state.waitingFor = 'bank_selection';
-      state.bankPageOffset = 0;
+      state.waitingFor = 'bank_details_single';
       state.isNewPaymentInfo = true;
       userStates.set(userId, state);
 
-      logger.info({ userId }, 'User chose to add new bank account');
+      logger.info({ userId }, 'User chose to add new bank account - single input mode');
 
-      await ctx.editMessageText(Messages.SELECT_BANK(), {
+      await ctx.editMessageText(Messages.ENTER_BANK_DETAILS_SINGLE(), {
         parse_mode: 'HTML',
-        reply_markup: Keyboards.bankSelection(0),
+        reply_markup: Keyboards.backToMenu(),
       });
     });
 
@@ -897,6 +928,8 @@ export class TelegramService {
         await this.handleFullNameInput(ctx, userId, state, text);
       } else if (state.waitingFor === 'account_number') {
         await this.handleAccountNumberInput(ctx, userId, state, text);
+      } else if (state.waitingFor === 'bank_details_single') {
+        await this.handleBankDetailsSingleInput(ctx, userId, state, text);
       }
     });
 
@@ -1149,6 +1182,136 @@ export class TelegramService {
 
     await ctx.reply(
       Messages.SELL_CONFIRMATION(state.amount, state.bankName, state.fullName, text),
+      {
+        parse_mode: 'HTML',
+        reply_markup: Keyboards.confirmPayment(),
+      }
+    );
+  }
+
+  /**
+   * Handle bank details single input (format: BANK_NAME, FULL_NAME, ACCOUNT_NUMBER)
+   */
+  private async handleBankDetailsSingleInput(
+    ctx: any,
+    userId: number,
+    state: UserState,
+    text: string
+  ): Promise<void> {
+    // Split by comma and trim whitespace
+    const parts = text.split(',').map((part) => part.trim());
+
+    // Validate format: must have exactly 3 parts
+    if (parts.length !== 3 || !parts[0] || !parts[1] || !parts[2]) {
+      await ctx.reply(Messages.INVALID_BANK_DETAILS_FORMAT(), { parse_mode: 'HTML' });
+      return;
+    }
+
+    const bankNameInput = parts[0];
+    const fullNameInput = parts[1];
+    const accountNumberInput = parts[2];
+
+    // Validate bank name: must not contain numbers
+    if (/\d/.test(bankNameInput)) {
+      await ctx.reply(Messages.INVALID_BANK_NAME_HAS_NUMBERS(), { parse_mode: 'HTML' });
+      return;
+    }
+
+    // Validate full name: must not contain numbers and minimum 2 characters
+    if (/\d/.test(fullNameInput)) {
+      await ctx.reply(Messages.INVALID_FULL_NAME_HAS_NUMBERS(), { parse_mode: 'HTML' });
+      return;
+    }
+
+    if (fullNameInput.length < 2) {
+      await ctx.reply(Messages.INVALID_FULL_NAME(), { parse_mode: 'HTML' });
+      return;
+    }
+
+    // Validate account number: must be numeric only
+    if (!/^\d+$/.test(accountNumberInput)) {
+      await ctx.reply(Messages.INVALID_ACCOUNT_NUMBER(), { parse_mode: 'HTML' });
+      return;
+    }
+
+    // Convert to uppercase
+    const bankNameUpper = bankNameInput.toUpperCase();
+    const fullNameUpper = fullNameInput.toUpperCase();
+
+    // Find bank by name (case-insensitive matching)
+    const bank = banks.find(
+      (b) =>
+        b.short_name.toUpperCase() === bankNameUpper ||
+        b.bank_name.toUpperCase().includes(bankNameUpper) ||
+        b.cvpay_code.toUpperCase() === bankNameUpper
+    );
+
+    if (!bank) {
+      logger.warn({ userId, bankNameInput: bankNameUpper }, 'Bank not found');
+      await ctx.reply(Messages.BANK_NOT_FOUND(), { parse_mode: 'HTML' });
+      return;
+    }
+
+    // Set state with parsed values
+    state.bankId = bank.id;
+    state.bankName = bank.short_name;
+    state.fullName = fullNameUpper;
+    state.accountNumber = accountNumberInput;
+    state.waitingFor = undefined;
+
+    logger.info(
+      { userId, bankId: bank.id, bankName: bank.short_name, fullName: fullNameUpper },
+      'Bank details parsed successfully from single input'
+    );
+
+    // Save bank account if it's new payment info
+    if (state.isNewPaymentInfo) {
+      try {
+        // Check if bank account already exists
+        const exists = await paymentInformationService.bankAccountExists(
+          userId,
+          bank.id,
+          accountNumberInput
+        );
+        if (!exists) {
+          await paymentInformationService.createPaymentInfo({
+            chat_id: userId,
+            type: 'BANK',
+            bank_id: bank.id,
+            full_name: fullNameUpper,
+            bank_account: accountNumberInput,
+          });
+          logger.info(
+            { userId, bankId: bank.id, accountNumber: accountNumberInput },
+            'Saved new bank account from single input'
+          );
+        } else {
+          logger.info(
+            { userId, bankId: bank.id, accountNumber: accountNumberInput },
+            'Bank account already exists, skipping save'
+          );
+        }
+      } catch (error) {
+        logger.error(
+          { userId, bankId: bank.id, accountNumber: accountNumberInput, error },
+          'Error saving bank account from single input'
+        );
+        // Continue with the flow even if save fails
+      }
+      state.isNewPaymentInfo = false;
+    }
+
+    userStates.set(userId, state);
+
+    // Show confirmation screen with all collected details
+    if (!state.amount) {
+      logger.error({ userId, state }, 'Missing amount for sell confirmation');
+      await ctx.reply(Messages.ERROR_GENERIC());
+      return;
+    }
+
+    await ctx.reply(
+      Messages.SELL_CONFIRMATION(state.amount, bank.short_name, fullNameUpper, accountNumberInput),
       {
         parse_mode: 'HTML',
         reply_markup: Keyboards.confirmPayment(),
