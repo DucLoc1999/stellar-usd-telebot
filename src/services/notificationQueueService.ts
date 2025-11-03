@@ -62,35 +62,11 @@ export class NotificationQueueService {
     // Add notification to queue
     chatQueue.queue.push(notification);
 
-    // Sort queue by timestamp and priority to ensure correct order
+    // Sort queue by timestamp to ensure chronological order
     chatQueue.queue.sort((a, b) => {
       const timeA = new Date(a.timestamp).getTime();
       const timeB = new Date(b.timestamp).getTime();
-
-      // First, sort by timestamp (chronological order)
-      if (timeA !== timeB) {
-        return timeA - timeB;
-      }
-
-      // When timestamps are equal, prioritize by notification type
-      // Processing state notifications should come BEFORE final state notifications
-      const aIsProcessing = a.state === 2 || (a.processingState && a.processingState > 0);
-      const bIsProcessing = b.state === 2 || (b.processingState && b.processingState > 0);
-      const aIsCompleted = a.state === 3;
-      const bIsCompleted = b.state === 3;
-
-      // If A is processing and B is completed, A should come first
-      if (aIsProcessing && bIsCompleted) {
-        return -1;
-      }
-
-      // If B is processing and A is completed, B should come first
-      if (bIsProcessing && aIsCompleted) {
-        return 1;
-      }
-
-      // Otherwise, maintain insertion order (stable sort)
-      return 0;
+      return timeA - timeB;
     });
 
     logger.info(
@@ -149,26 +125,7 @@ export class NotificationQueueService {
         );
 
         try {
-          // Add 3-second delay for processing state notifications
-          const isProcessingNotification =
-            notification.state === 2 ||
-            (notification.processingState && notification.processingState > 0);
-
-          if (isProcessingNotification) {
-            logger.info(
-              {
-                chatId,
-                orderId: notification.orderId,
-                eventId: notification.eventId,
-                state: notification.state,
-                processingState: notification.processingState,
-              },
-              'Delaying processing state notification by 3 seconds'
-            );
-            await new Promise((resolve) => setTimeout(resolve, 3000));
-          }
-
-          // Send the notification
+          // Send the notification (only for state changes, processing_state is ignored)
           await telegramService.sendOrderStatusUpdate(
             notification.chatId,
             notification.orderId,
@@ -181,6 +138,7 @@ export class NotificationQueueService {
               chatId,
               orderId: notification.orderId,
               eventId: notification.eventId,
+              state: notification.state,
             },
             'Notification sent successfully'
           );

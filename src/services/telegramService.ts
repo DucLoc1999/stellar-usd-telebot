@@ -132,7 +132,7 @@ export const Messages = {
     `💸 <b>XÁC NHẬN ĐƠN HÀNG - BÁN USDT</b>\n\n` +
     `Đơn hàng BÁN <b>${amount} USDT</b> x <b>${sellRate.toLocaleString('vi-VN')}đ</b>\n\n` +
     `🌐 Mạng: BSC | ⚡ Phí gas: $0.00\n` +
-    `💰 Thành tiền: <b>${Math.round(totalVND).toLocaleString('vi-VN')}đ</b> |  💳 Phí dịch vụ: <b>${Math.round(serviceFee).toLocaleString('vi-VN')}đ</b>\n` +
+    `💰 Thành tiền: <b>${Math.round(totalVND - serviceFee).toLocaleString('vi-VN')}đ</b> |  💳 Phí dịch vụ: <b>${Math.round(serviceFee).toLocaleString('vi-VN')}đ</b>\n` +
     `🏦 Bank nhận: <code>${bankName}</code> | <code>${accountNumber}</code> | <code>${fullName}</code>\n\n` +
     `⚠️ Vui lòng kiểm tra kỹ thông tin trước khi xác nhận!`,
 
@@ -177,6 +177,16 @@ export const Messages = {
     `❌ <b>ĐÃ HỦY THANH TOÁN</b>\n\n` +
     `Đơn hàng đã được hủy.\n\n` +
     `Bạn có thể thực hiện giao dịch mới bất cứ lúc nào!`,
+
+  ORDER_CANCELLED: () =>
+    `✅ <b>ĐÃ HỦY ĐƠN HÀNG</b>\n\n` +
+    `Đơn hàng của bạn đã được hủy thành công.\n\n` +
+    `Bạn có thể thực hiện giao dịch mới bất cứ lúc nào!`,
+
+  ORDER_CANCEL_FAILED: (reason?: string) =>
+    `❌ <b>KHÔNG THỂ HỦY ĐƠN HÀNG</b>\n\n` +
+    `${reason || 'Đơn hàng không thể hủy (có thể đã hoàn thành hoặc hết hạn).'}\n\n` +
+    `Vui lòng liên hệ support nếu cần hỗ trợ!`,
 
   SELECT_SAVED_WALLET: () =>
     `🔑 <b>CHỌN ĐỊA CHỈ VÍ</b>\n\n` +
@@ -405,6 +415,13 @@ export class Keyboards {
     return new InlineKeyboard().text('🔙 Quay lại Menu', 'back_to_menu');
   }
 
+  static qrCodeWithCancel(orderId: string): InlineKeyboard {
+    return new InlineKeyboard()
+      .text('❌ Hủy đơn hàng', `cancel_order_${orderId}`)
+      .row()
+      .text('🔙 Quay lại Menu', 'back_to_menu');
+  }
+
   static bankSelection(offset: number = 0): InlineKeyboard {
     const keyboard = new InlineKeyboard();
 
@@ -509,6 +526,7 @@ interface UserState {
   bankPageOffset?: number;
   paymentInfoId?: number; // ID of selected saved payment info
   isNewPaymentInfo?: boolean; // Flag to indicate if this is new payment info to be saved
+  orderId?: string; // Order ID for cancellation
 }
 
 const userStates = new Map<number, UserState>();
@@ -591,7 +609,7 @@ export class TelegramService {
         const rates = await this.fetchExchangeRates();
         if (rates) {
           const updated = new Date(rates.created_at).toLocaleString('vi-VN');
-          await ctx.editMessageText(Messages.RATE_CHECK(rates.buy, rates.sell, updated), {
+          await ctx.editMessageText(Messages.RATE_CHECK(rates.sell, rates.buy, updated), {
             parse_mode: 'HTML',
             reply_markup: Keyboards.backToMenu(),
           });
@@ -654,8 +672,12 @@ export class TelegramService {
           message += `💡 Khi thực hiện giao dịch BÁN USDT, bạn có thể lưu thông tin ngân hàng để sử dụng lại sau.`;
         } else {
           savedBankAccounts.forEach((account, index) => {
+            // Look up bank name from bank_id
+            const bank = banks.find((b) => b.id === account.bank_id);
+            const bankName = bank ? bank.short_name : account.bank_id?.toString() || 'N/A';
+
             message += `<b>${index + 1}. ${account.full_name || 'N/A'}</b>\n`;
-            message += `   🏛️ Bank ID: ${account.bank_id || 'N/A'}\n`;
+            message += `   🏛️ Ngân hàng: ${bankName}\n`;
             message += `   💳 Số TK: <code>${account.bank_account || 'N/A'}</code>\n\n`;
           });
         }
@@ -1032,7 +1054,7 @@ export class TelegramService {
       }
 
       const usdtAmount = parseFloat(state.amount!);
-      const vndAmount = usdtAmount * rates.buy;
+      const vndAmount = usdtAmount * rates.sell;
       const gatewayFeesPercent = parseFloat(process.env.GATEWAY_FEES || '0.5');
       const gatewayFee = vndAmount * (gatewayFeesPercent / 100);
 
@@ -1041,7 +1063,7 @@ export class TelegramService {
           state.amount!,
           paymentInfo.wallet_address,
           vndAmount,
-          rates.buy,
+          rates.sell,
           gatewayFee
         ),
         {
@@ -1153,7 +1175,7 @@ export class TelegramService {
       }
 
       const usdtAmount = parseFloat(state.amount!);
-      const totalVND = usdtAmount * rates.sell;
+      const totalVND = usdtAmount * rates.buy;
       const gatewayFeesPercent = parseFloat(process.env.GATEWAY_FEES || '0.5');
       const serviceFee = totalVND * (gatewayFeesPercent / 100);
 
@@ -1163,7 +1185,7 @@ export class TelegramService {
           bank.short_name,
           paymentInfo.full_name,
           paymentInfo.bank_account,
-          rates.sell,
+          rates.buy,
           totalVND,
           serviceFee
         ),
@@ -1268,6 +1290,76 @@ export class TelegramService {
         parse_mode: 'HTML',
         reply_markup: await Keyboards.mainMenu(userId),
       });
+    });
+
+    // Cancel order callback - handles order cancellation via API
+    this.bot.callbackQuery(/^cancel_order_(.+)$/, async (ctx) => {
+      await ctx.answerCallbackQuery();
+      const userId = ctx.from.id;
+      const orderId = ctx.match[1];
+
+      logger.info({ userId, orderId }, 'User requested to cancel order');
+
+      try {
+        // Call USDT247 API to close the order
+        const partnerAppKey = process.env.PARTNER_APP_KEY;
+        if (!partnerAppKey) {
+          logger.error('PARTNER_APP_KEY not configured');
+          await ctx.reply(Messages.ERROR_GENERIC(), {
+            parse_mode: 'HTML',
+            reply_markup: await Keyboards.mainMenu(userId),
+          });
+          return;
+        }
+
+        const response = await fetch(`https://api.usdt247.shop/partners/orders/${orderId}/close`, {
+          method: 'POST',
+          headers: {
+            Accept: 'application/json',
+            'Content-Type': 'application/json',
+            'Partner-App-Key': partnerAppKey,
+          },
+        });
+
+        logger.info(
+          { userId, orderId, status: response.status, ok: response.ok },
+          'Cancel order API response received'
+        );
+
+        if (response.ok) {
+          // Order cancelled successfully
+          await ctx.reply(Messages.ORDER_CANCELLED(), {
+            parse_mode: 'HTML',
+            reply_markup: await Keyboards.mainMenu(userId),
+          });
+        } else {
+          // Failed to cancel order
+          const errorText = await response.text();
+          logger.error(
+            { userId, orderId, status: response.status, errorText },
+            'Failed to cancel order'
+          );
+
+          await ctx.reply(Messages.ORDER_CANCEL_FAILED(), {
+            parse_mode: 'HTML',
+            reply_markup: await Keyboards.mainMenu(userId),
+          });
+        }
+      } catch (error) {
+        logger.error(
+          {
+            userId,
+            orderId,
+            error: error instanceof Error ? error.message : 'Unknown error',
+          },
+          'Error cancelling order'
+        );
+
+        await ctx.reply(Messages.ORDER_CANCEL_FAILED(), {
+          parse_mode: 'HTML',
+          reply_markup: await Keyboards.mainMenu(userId),
+        });
+      }
     });
 
     // Back to menu callback
@@ -1514,12 +1606,12 @@ export class TelegramService {
     }
 
     const usdtAmount = parseFloat(state.amount!);
-    const vndAmount = usdtAmount * rates.buy;
+    const vndAmount = usdtAmount * rates.sell;
     const gatewayFeesPercent = parseFloat(process.env.GATEWAY_FEES || '0.5');
     const gatewayFee = vndAmount * (gatewayFeesPercent / 100);
 
     await ctx.reply(
-      Messages.ORDER_SUMMARY_BUY(state.amount!, text, vndAmount, rates.buy, gatewayFee),
+      Messages.ORDER_SUMMARY_BUY(state.amount!, text, vndAmount, rates.sell, gatewayFee),
       {
         parse_mode: 'HTML',
         reply_markup: Keyboards.confirmPayment(),
@@ -1635,7 +1727,7 @@ export class TelegramService {
     }
 
     const usdtAmount = parseFloat(state.amount);
-    const totalVND = usdtAmount * rates.sell;
+    const totalVND = usdtAmount * rates.buy;
     const gatewayFeesPercent = parseFloat(process.env.GATEWAY_FEES || '0.5');
     const serviceFee = totalVND * (gatewayFeesPercent / 100);
 
@@ -1645,7 +1737,7 @@ export class TelegramService {
         state.bankName,
         state.fullName,
         text,
-        rates.sell,
+        rates.buy,
         totalVND,
         serviceFee
       ),
@@ -1795,7 +1887,7 @@ export class TelegramService {
     }
 
     const usdtAmount = parseFloat(state.amount);
-    const totalVND = usdtAmount * rates.sell;
+    const totalVND = usdtAmount * rates.buy;
     const gatewayFeesPercent = parseFloat(process.env.GATEWAY_FEES || '0.5');
     const serviceFee = totalVND * (gatewayFeesPercent / 100);
 
@@ -1805,7 +1897,7 @@ export class TelegramService {
         bank.short_name,
         fullNameUpper,
         accountNumberInput,
-        rates.sell,
+        rates.buy,
         totalVND,
         serviceFee
       ),
@@ -1838,7 +1930,7 @@ export class TelegramService {
 
     // Calculate VND amount from USDT amount
     const usdtAmount = parseFloat(state.amount);
-    const vndAmount = Math.round(usdtAmount * rates.buy);
+    const vndAmount = Math.round(usdtAmount * rates.sell);
 
     // Calculate gateway fee (service fee)
     const gatewayFeesPercent = parseFloat(process.env.GATEWAY_FEES || '0.5');
@@ -1854,7 +1946,7 @@ export class TelegramService {
         vndAmount: vndAmount.toString(),
         gatewayFee: gatewayFee.toString(),
         totalAmount: totalAmount.toString(),
-        buyRate: rates.buy,
+        buyRate: rates.sell,
         wallet: state.walletAddress,
         chainId: telegramConfig.chainId,
         tokenAddress: telegramConfig.tokenAddress,
@@ -1914,7 +2006,7 @@ export class TelegramService {
       await ctx.replyWithPhoto(new InputFile(qrCodeImage), {
         caption: Messages.PAYMENT_QR_CAPTION(),
         parse_mode: 'HTML',
-        reply_markup: Keyboards.backToMenu(),
+        reply_markup: Keyboards.qrCodeWithCancel(order.id),
       });
 
       logger.info({ orderId: order.id }, 'QR code sent successfully');
@@ -2029,7 +2121,7 @@ export class TelegramService {
           `⏰ Sau khi chuyển USDT, tiền VND sẽ được chuyển vào tài khoản của bạn trong vòng 3-30 giây.\n\n` +
           `📞 Liên hệ support nếu có vấn đề!`,
         parse_mode: 'HTML',
-        reply_markup: Keyboards.backToMenu(),
+        reply_markup: Keyboards.qrCodeWithCancel(order.id),
       });
 
       logger.info({ userId, orderId: order.id }, 'Sell flow completed successfully with QR code');
@@ -2086,6 +2178,7 @@ export class TelegramService {
 
   /**
    * Send order status update notification with enhanced messages
+   * NOTE: Only sends notifications for main order state changes, ignores processing_state
    */
   async sendOrderStatusUpdate(
     chatId: number,
@@ -2093,39 +2186,19 @@ export class TelegramService {
     state: number,
     processingState?: number
   ): Promise<void> {
-    let message: string;
+    // Only use the main order state for notifications
+    // Ignore processing_state parameter completely
+    const message = this.getOrderStateMessage(orderId, state);
 
-    // Prioritize processing state messages if available
-    if (processingState) {
-      switch (processingState) {
-        case 10:
-          message = Messages.PROCESSING_STATE_WAITING_FIAT(orderId);
-          break;
-        case 11:
-          message = Messages.PROCESSING_STATE_FIAT_CONFIRMED(orderId);
-          break;
-        case 12:
-          message = Messages.PROCESSING_STATE_FIAT_FAILED(orderId);
-          break;
-        case 13:
-          message = Messages.PROCESSING_STATE_WAITING_USDT(orderId);
-          break;
-        case 14:
-          message = Messages.PROCESSING_STATE_USDT_CONFIRMED(orderId);
-          break;
-        case 15:
-          message = Messages.PROCESSING_STATE_USDT_FAILED(orderId);
-          break;
-        case 16:
-          message = Messages.PROCESSING_STATE_WAITING_ADMIN(orderId);
-          break;
-        default:
-          // Fall back to order state message
-          message = this.getOrderStateMessage(orderId, state);
-      }
-    } else {
-      message = this.getOrderStateMessage(orderId, state);
-    }
+    logger.info(
+      {
+        chatId,
+        orderId,
+        state,
+        processingState: processingState ?? 'N/A',
+      },
+      'Sending order state notification (processing_state ignored)'
+    );
 
     await this.sendNotification(chatId, message);
   }
