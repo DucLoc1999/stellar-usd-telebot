@@ -196,6 +196,37 @@ export const Messages = {
     `🏦 <b>CHỌN TÀI KHOẢN NGÂN HÀNG</b>\n\n` +
     `Bạn có các tài khoản ngân hàng đã lưu. Vui lòng chọn một tài khoản hoặc thêm tài khoản mới:`,
 
+  CONFIRM_DELETE_BANK: (bankName: string, accountNumber: string) =>
+    `⚠️ <b>XÁC NHẬN XÓA</b>\n\n` +
+    `Bạn có chắc muốn xóa tài khoản ngân hàng?\n\n` +
+    `🏛️ Ngân hàng: <b>${bankName}</b>\n` +
+    `💳 Số TK: <code>${accountNumber}</code>\n\n` +
+    `⚠️ Hành động này không thể hoàn tác!`,
+
+  CONFIRM_DELETE_WALLET: (walletAddress: string) =>
+    `⚠️ <b>XÁC NHẬN XÓA</b>\n\n` +
+    `Bạn có chắc muốn xóa địa chỉ ví?\n\n` +
+    `📮 Địa chỉ: <code>${walletAddress}</code>\n\n` +
+    `⚠️ Hành động này không thể hoàn tác!`,
+
+  DELETE_SUCCESS: () =>
+    `✅ <b>ĐÃ XÓA THÀNH CÔNG</b>\n\n` + `Thông tin thanh toán đã được xóa khỏi hệ thống.`,
+
+  DELETE_FAILED: () =>
+    `❌ <b>XÓA THẤT BẠI</b>\n\n` +
+    `Không thể xóa thông tin thanh toán.\n` +
+    `Vui lòng thử lại hoặc liên hệ support!`,
+
+  ENTER_DELETE_BANK_INDEX: () =>
+    `🗑️ <b>XÓA TÀI KHOẢN NGÂN HÀNG</b>\n\n` +
+    `Vui lòng nhập số thứ tự tài khoản muốn xóa (ví dụ: 1, 2):`,
+
+  ENTER_DELETE_WALLET_INDEX: () =>
+    `🗑️ <b>XÓA VÍ CRYPTO</b>\n\n` + `Vui lòng nhập số thứ tự ví muốn xóa (ví dụ: 1, 2):`,
+
+  INVALID_DELETE_INDEX: () =>
+    `❌ <b>SỐ THỨ TỰ KHÔNG HỢP LỆ</b>\n\n` + `Vui lòng nhập một số hợp lệ từ danh sách.`,
+
   ERROR_GENERIC: () => `❌ Có lỗi xảy ra. Vui lòng thử lại sau!`,
 
   KYC_REQUIRED: () =>
@@ -422,6 +453,51 @@ export class Keyboards {
       .text('🔙 Quay lại Menu', 'back_to_menu');
   }
 
+  static bankAccountsList(accounts: any[]): InlineKeyboard {
+    const keyboard = new InlineKeyboard();
+
+    // Add "Add New" and "Delete" buttons
+    keyboard.text('➕ Thêm mới', 'add_bank_from_menu');
+
+    // Only show delete button if there are accounts to delete
+    if (accounts.length > 0) {
+      keyboard.text('🗑️ Xóa ngân hàng', 'delete_bank_prompt');
+    }
+
+    keyboard.row();
+
+    // Add back button
+    keyboard.text('🔙 Quay lại Menu', 'back_to_menu');
+
+    return keyboard;
+  }
+
+  static cryptoWalletsList(wallets: any[]): InlineKeyboard {
+    const keyboard = new InlineKeyboard();
+
+    // Add "Add New" and "Delete" buttons
+    keyboard.text('➕ Thêm mới', 'add_wallet_from_menu');
+
+    // Only show delete button if there are wallets to delete
+    if (wallets.length > 0) {
+      keyboard.text('🗑️ Xóa ví crypto', 'delete_wallet_prompt');
+    }
+
+    keyboard.row();
+
+    // Add back button
+    keyboard.text('🔙 Quay lại Menu', 'back_to_menu');
+
+    return keyboard;
+  }
+
+  static confirmDelete(): InlineKeyboard {
+    return new InlineKeyboard()
+      .text('✅ Xác nhận xóa', 'confirm_delete')
+      .row()
+      .text('❌ Hủy', 'cancel_delete');
+  }
+
   static bankSelection(offset: number = 0): InlineKeyboard {
     const keyboard = new InlineKeyboard();
 
@@ -518,7 +594,9 @@ interface UserState {
     | 'bank_selection'
     | 'full_name'
     | 'account_number'
-    | 'bank_details_single'; // Single-input for bank details
+    | 'bank_details_single' // Single-input for bank details
+    | 'delete_bank_index' // Waiting for bank account index to delete
+    | 'delete_wallet_index'; // Waiting for wallet index to delete
   bankId?: number;
   bankName?: string;
   fullName?: string;
@@ -527,6 +605,8 @@ interface UserState {
   paymentInfoId?: number; // ID of selected saved payment info
   isNewPaymentInfo?: boolean; // Flag to indicate if this is new payment info to be saved
   orderId?: string; // Order ID for cancellation
+  savedBankAccounts?: any[]; // Saved bank accounts for deletion
+  savedWallets?: any[]; // Saved wallets for deletion
 }
 
 const userStates = new Map<number, UserState>();
@@ -669,7 +749,12 @@ export class TelegramService {
 
         if (savedBankAccounts.length === 0) {
           message += `❌ Bạn chưa lưu tài khoản ngân hàng nào.\n\n`;
-          message += `💡 Khi thực hiện giao dịch BÁN USDT, bạn có thể lưu thông tin ngân hàng để sử dụng lại sau.`;
+          message += `💡 Nhấn "➕ Thêm mới" để thêm tài khoản ngân hàng.`;
+
+          await ctx.editMessageText(message, {
+            parse_mode: 'HTML',
+            reply_markup: Keyboards.bankAccountsList([]),
+          });
         } else {
           savedBankAccounts.forEach((account, index) => {
             // Look up bank name from bank_id
@@ -680,12 +765,12 @@ export class TelegramService {
             message += `   🏛️ Ngân hàng: ${bankName}\n`;
             message += `   💳 Số TK: <code>${account.bank_account || 'N/A'}</code>\n\n`;
           });
-        }
 
-        await ctx.editMessageText(message, {
-          parse_mode: 'HTML',
-          reply_markup: Keyboards.backToMenu(),
-        });
+          await ctx.editMessageText(message, {
+            parse_mode: 'HTML',
+            reply_markup: Keyboards.bankAccountsList(savedBankAccounts),
+          });
+        }
       } catch (error) {
         logger.error({ error }, 'Error fetching bank accounts');
         await ctx.editMessageText(Messages.ERROR_GENERIC(), {
@@ -722,18 +807,23 @@ export class TelegramService {
 
         if (savedWallets.length === 0) {
           message += `❌ Bạn chưa lưu địa chỉ ví crypto nào.\n\n`;
-          message += `💡 Khi thực hiện giao dịch MUA USDT, bạn có thể lưu địa chỉ ví để sử dụng lại sau.`;
+          message += `💡 Nhấn "➕ Thêm mới" để thêm địa chỉ ví.`;
+
+          await ctx.editMessageText(message, {
+            parse_mode: 'HTML',
+            reply_markup: Keyboards.cryptoWalletsList([]),
+          });
         } else {
           savedWallets.forEach((wallet, index) => {
             message += `<b>${index + 1}. Ví ${index + 1}</b>\n`;
             message += `📮 Địa chỉ: <code>${wallet.wallet_address || 'N/A'}</code>\n\n`;
           });
-        }
 
-        await ctx.editMessageText(message, {
-          parse_mode: 'HTML',
-          reply_markup: Keyboards.backToMenu(),
-        });
+          await ctx.editMessageText(message, {
+            parse_mode: 'HTML',
+            reply_markup: Keyboards.cryptoWalletsList(savedWallets),
+          });
+        }
       } catch (error) {
         logger.error({ error }, 'Error fetching crypto wallets');
         await ctx.editMessageText(Messages.ERROR_GENERIC(), {
@@ -741,6 +831,159 @@ export class TelegramService {
           reply_markup: Keyboards.backToMenu(),
         });
       }
+    });
+
+    // Delete bank account prompt - ask for index
+    this.bot.callbackQuery('delete_bank_prompt', async (ctx) => {
+      await ctx.answerCallbackQuery();
+      const userId = ctx.from.id;
+
+      logger.info({ userId }, 'User initiated bank account deletion');
+
+      // Fetch saved bank accounts to store in state
+      const savedBankAccounts = await paymentInformationService.findByTypeAndChatId(userId, 'BANK');
+
+      // Set user state to wait for delete index
+      userStates.set(userId, {
+        waitingFor: 'delete_bank_index',
+        savedBankAccounts: savedBankAccounts,
+      });
+
+      await ctx.editMessageText(Messages.ENTER_DELETE_BANK_INDEX(), {
+        parse_mode: 'HTML',
+        reply_markup: Keyboards.backToMenu(),
+      });
+    });
+
+    // Delete wallet prompt - ask for index
+    this.bot.callbackQuery('delete_wallet_prompt', async (ctx) => {
+      await ctx.answerCallbackQuery();
+      const userId = ctx.from.id;
+
+      logger.info({ userId }, 'User initiated wallet deletion');
+
+      // Fetch saved wallets to store in state
+      const savedWallets = await paymentInformationService.findByTypeAndChatId(userId, 'CRYPTO');
+
+      // Set user state to wait for delete index
+      userStates.set(userId, {
+        waitingFor: 'delete_wallet_index',
+        savedWallets: savedWallets,
+      });
+
+      await ctx.editMessageText(Messages.ENTER_DELETE_WALLET_INDEX(), {
+        parse_mode: 'HTML',
+        reply_markup: Keyboards.backToMenu(),
+      });
+    });
+
+    // Confirm delete callback - actually delete the payment info
+    this.bot.callbackQuery('confirm_delete', async (ctx) => {
+      await ctx.answerCallbackQuery();
+      const userId = ctx.from.id;
+      const state = userStates.get(userId);
+
+      if (!state || !state.paymentInfoId) {
+        logger.error({ userId }, 'No payment info ID in state for deletion');
+        await ctx.editMessageText(Messages.ERROR_GENERIC(), {
+          parse_mode: 'HTML',
+          reply_markup: Keyboards.backToMenu(),
+        });
+        return;
+      }
+
+      try {
+        const deleted = await paymentInformationService.deleteById(state.paymentInfoId, userId);
+
+        if (deleted) {
+          logger.info({ userId, paymentInfoId: state.paymentInfoId }, 'Payment info deleted');
+          await ctx.editMessageText(Messages.DELETE_SUCCESS(), {
+            parse_mode: 'HTML',
+            reply_markup: await Keyboards.mainMenu(userId),
+          });
+        } else {
+          logger.error(
+            { userId, paymentInfoId: state.paymentInfoId },
+            'Failed to delete payment info'
+          );
+          await ctx.editMessageText(Messages.DELETE_FAILED(), {
+            parse_mode: 'HTML',
+            reply_markup: await Keyboards.mainMenu(userId),
+          });
+        }
+
+        // Clear the payment info ID from state
+        delete state.paymentInfoId;
+        userStates.set(userId, state);
+      } catch (error) {
+        logger.error(
+          { userId, paymentInfoId: state.paymentInfoId, error },
+          'Error deleting payment info'
+        );
+        await ctx.editMessageText(Messages.DELETE_FAILED(), {
+          parse_mode: 'HTML',
+          reply_markup: await Keyboards.mainMenu(userId),
+        });
+      }
+    });
+
+    // Cancel delete callback
+    this.bot.callbackQuery('cancel_delete', async (ctx) => {
+      await ctx.answerCallbackQuery();
+      const userId = ctx.from.id;
+      const state = userStates.get(userId);
+
+      // Clear the payment info ID from state
+      if (state) {
+        delete state.paymentInfoId;
+        userStates.set(userId, state);
+      }
+
+      // Return to main menu
+      await ctx.editMessageText('❌ Đã hủy thao tác xóa.', {
+        parse_mode: 'HTML',
+        reply_markup: await Keyboards.mainMenu(userId),
+      });
+    });
+
+    // Add bank from menu callback - trigger bank addition flow
+    this.bot.callbackQuery('add_bank_from_menu', async (ctx) => {
+      await ctx.answerCallbackQuery();
+      const userId = ctx.from.id;
+
+      logger.info({ userId }, 'User chose to add new bank account from menu');
+
+      // Set user state to wait for bank details
+      userStates.set(userId, {
+        action: 'sell',
+        waitingFor: 'bank_details_single',
+        isNewPaymentInfo: true,
+      });
+
+      await ctx.editMessageText(Messages.ENTER_BANK_DETAILS_SINGLE(), {
+        parse_mode: 'HTML',
+        reply_markup: Keyboards.backToMenu(),
+      });
+    });
+
+    // Add wallet from menu callback - trigger wallet addition flow
+    this.bot.callbackQuery('add_wallet_from_menu', async (ctx) => {
+      await ctx.answerCallbackQuery();
+      const userId = ctx.from.id;
+
+      logger.info({ userId }, 'User chose to add new wallet from menu');
+
+      // Set user state to wait for wallet address
+      userStates.set(userId, {
+        action: 'buy',
+        waitingFor: 'wallet',
+        isNewPaymentInfo: true,
+      });
+
+      await ctx.editMessageText(Messages.ENTER_WALLET_ADDRESS(), {
+        parse_mode: 'HTML',
+        reply_markup: Keyboards.backToMenu(),
+      });
     });
 
     // Account info callback
@@ -1397,6 +1640,10 @@ export class TelegramService {
         await this.handleAccountNumberInput(ctx, userId, state, text);
       } else if (state.waitingFor === 'bank_details_single') {
         await this.handleBankDetailsSingleInput(ctx, userId, state, text);
+      } else if (state.waitingFor === 'delete_bank_index') {
+        await this.handleDeleteBankIndexInput(ctx, userId, state, text);
+      } else if (state.waitingFor === 'delete_wallet_index') {
+        await this.handleDeleteWalletIndexInput(ctx, userId, state, text);
       }
     });
 
@@ -1584,6 +1831,24 @@ export class TelegramService {
         // Continue with the flow even if save fails
       }
       state.isNewPaymentInfo = false;
+    }
+
+    // Check if this is being added from the menu (no amount in state)
+    if (!state.amount) {
+      // Clear user state
+      userStates.delete(userId);
+
+      // Show success message and return to crypto wallets list
+      await ctx.reply(
+        `✅ <b>ĐÃ LƯU ĐỊA CHỈ VÍ</b>\n\n` +
+          `Địa chỉ ví đã được lưu thành công!\n\n` +
+          `📮 Địa chỉ: <code>${text}</code>`,
+        {
+          parse_mode: 'HTML',
+          reply_markup: await Keyboards.mainMenu(userId),
+        }
+      );
+      return;
     }
 
     userStates.set(userId, state);
@@ -1860,14 +2125,27 @@ export class TelegramService {
       state.isNewPaymentInfo = false;
     }
 
-    userStates.set(userId, state);
-
-    // Show confirmation screen with all collected details
+    // Check if this is being added from the menu (no amount in state)
     if (!state.amount) {
-      logger.error({ userId, state }, 'Missing amount for sell confirmation');
-      await ctx.reply(Messages.ERROR_GENERIC());
+      // Clear user state
+      userStates.delete(userId);
+
+      // Show success message and return to bank accounts list
+      await ctx.reply(
+        `✅ <b>ĐÃ LƯU TÀI KHOẢN NGÂN HÀNG</b>\n\n` +
+          `Tài khoản ngân hàng đã được lưu thành công!\n\n` +
+          `🏛️ Ngân hàng: <b>${bank.short_name}</b>\n` +
+          `👤 Chủ TK: <b>${fullNameUpper}</b>\n` +
+          `💳 Số TK: <code>${accountNumberInput}</code>`,
+        {
+          parse_mode: 'HTML',
+          reply_markup: await Keyboards.mainMenu(userId),
+        }
+      );
       return;
     }
+
+    userStates.set(userId, state);
 
     // Fetch exchange rates and calculate fees
     let rates;
@@ -2221,6 +2499,89 @@ export class TelegramService {
       default:
         return Messages.ORDER_STATUS_UPDATE(orderId, `State ${state}`);
     }
+  }
+
+  /**
+   * Handle delete bank index input
+   */
+  private async handleDeleteBankIndexInput(
+    ctx: any,
+    userId: number,
+    state: UserState,
+    text: string
+  ): Promise<void> {
+    const index = parseInt(text);
+
+    // Validate index
+    if (
+      isNaN(index) ||
+      index < 1 ||
+      !state.savedBankAccounts ||
+      index > state.savedBankAccounts.length
+    ) {
+      await ctx.reply(Messages.INVALID_DELETE_INDEX(), { parse_mode: 'HTML' });
+      return;
+    }
+
+    // Get the selected bank account (index is 1-based)
+    const selectedAccount = state.savedBankAccounts[index - 1];
+
+    // Find bank name
+    const bank = banks.find((b) => b.id === selectedAccount.bank_id);
+    const bankName = bank ? bank.short_name : 'N/A';
+
+    // Store the payment info ID in state for confirmation
+    state.paymentInfoId = selectedAccount.id;
+    state.waitingFor = undefined;
+    userStates.set(userId, state);
+
+    logger.info(
+      { userId, index, paymentInfoId: selectedAccount.id },
+      'User selected bank account to delete'
+    );
+
+    // Show confirmation dialog
+    await ctx.reply(Messages.CONFIRM_DELETE_BANK(bankName, selectedAccount.bank_account || 'N/A'), {
+      parse_mode: 'HTML',
+      reply_markup: Keyboards.confirmDelete(),
+    });
+  }
+
+  /**
+   * Handle delete wallet index input
+   */
+  private async handleDeleteWalletIndexInput(
+    ctx: any,
+    userId: number,
+    state: UserState,
+    text: string
+  ): Promise<void> {
+    const index = parseInt(text);
+
+    // Validate index
+    if (isNaN(index) || index < 1 || !state.savedWallets || index > state.savedWallets.length) {
+      await ctx.reply(Messages.INVALID_DELETE_INDEX(), { parse_mode: 'HTML' });
+      return;
+    }
+
+    // Get the selected wallet (index is 1-based)
+    const selectedWallet = state.savedWallets[index - 1];
+
+    // Store the payment info ID in state for confirmation
+    state.paymentInfoId = selectedWallet.id;
+    state.waitingFor = undefined;
+    userStates.set(userId, state);
+
+    logger.info(
+      { userId, index, paymentInfoId: selectedWallet.id },
+      'User selected wallet to delete'
+    );
+
+    // Show confirmation dialog
+    await ctx.reply(Messages.CONFIRM_DELETE_WALLET(selectedWallet.wallet_address || 'N/A'), {
+      parse_mode: 'HTML',
+      reply_markup: Keyboards.confirmDelete(),
+    });
   }
 
   /**
