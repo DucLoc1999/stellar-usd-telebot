@@ -92,6 +92,14 @@ export class PaymentService {
 
   private async callDepositAPI(requestData: Usdt247CreateDepositRequest): Promise<Usdt247Order> {
     try {
+      logger.info(
+        {
+          url: `${this.apiBaseUrl}/deposit`,
+          requestBody: requestData,
+        },
+        'Sending deposit API request'
+      );
+
       const response = await fetch(`${this.apiBaseUrl}/deposit`, {
         method: 'POST',
         headers: {
@@ -108,7 +116,14 @@ export class PaymentService {
 
       if (!response.ok) {
         const errorText = await response.text();
-        logger.error({ status: response.status, errorText }, 'Deposit API returned error status');
+        logger.error(
+          {
+            status: response.status,
+            errorText,
+            requestBody: requestData,
+          },
+          'Deposit API returned error status'
+        );
         throw new Error(`USDT247 API error: ${response.status} - ${errorText}`);
       }
 
@@ -119,6 +134,11 @@ export class PaymentService {
           hasData: !!apiResponse.data,
           hasOrder: !!apiResponse.data?.order,
           orderId: apiResponse.data?.order?.id,
+          orderAmount: apiResponse.data?.order?.amount,
+          orderCurrency: apiResponse.data?.order?.currency,
+          orderRate: apiResponse.data?.order?.rate,
+          bodyAmount: apiResponse.data?.order?.body?.amount,
+          payDataAmount: apiResponse.data?.order?.pay_data?.amount,
         },
         'Deposit API JSON response parsed'
       );
