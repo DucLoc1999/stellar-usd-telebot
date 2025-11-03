@@ -341,15 +341,35 @@ export const Messages = {
  * Keyboard Layouts
  */
 export class Keyboards {
-  static mainMenu(): InlineKeyboard {
+  static async mainMenu(chatId: number): Promise<InlineKeyboard> {
+    // Fetch user data to check KYC status
+    const user = await teleUserService.findByChatId(chatId);
+    const isKyc = user?.is_kyc ?? false;
+
+    // Check if user has any saved bank accounts
+    const savedBankAccounts = await paymentInformationService.findByTypeAndChatId(chatId, 'BANK');
+    const hasBankAccounts = savedBankAccounts.length > 0;
+
+    // Check if user has any saved crypto wallets
+    const savedWallets = await paymentInformationService.findByTypeAndChatId(chatId, 'CRYPTO');
+    const hasWallets = savedWallets.length > 0;
+
+    // Status indicators
+    const kycIndicator = isKyc ? '🟢' : '🔴';
+    const bankIndicator = hasBankAccounts ? '🟢' : '🔴';
+    const walletIndicator = hasWallets ? '🟢' : '🔴';
+
     return new InlineKeyboard()
       .text('💱 Kiểm tra tỷ giá', 'check_rate')
       .row()
       .text('💰 Mua USDT', 'buy_usdt')
       .text('💸 Bán USDT', 'sell_usdt')
       .row()
-      .text('🔐 Xác minh KYC', 'kyc')
-      .text('👤 Thông tin TK', 'account_info');
+      .text(`🔐 Xác minh KYC ${kycIndicator}`, 'kyc')
+      .text(`🏦 Ngân hàng ${bankIndicator}`, 'bank_accounts')
+      .row()
+      .text(`💎 Ví crypto ${walletIndicator}`, 'crypto_wallets')
+      .text('👤 Tài khoản', 'account_info');
   }
 
   static buyAmountSelection(): InlineKeyboard {
@@ -556,7 +576,7 @@ export class TelegramService {
         // Send welcome message
         await ctx.reply(Messages.WELCOME(firstName), {
           parse_mode: 'HTML',
-          reply_markup: Keyboards.mainMenu(),
+          reply_markup: await Keyboards.mainMenu(chatId),
         });
       } catch (error) {
         logger.error({ error }, 'Error handling /start command');
@@ -596,6 +616,109 @@ export class TelegramService {
         parse_mode: 'HTML',
         reply_markup: Keyboards.backToMenu(),
       });
+    });
+
+    // Bank accounts callback - show saved bank accounts
+    this.bot.callbackQuery('bank_accounts', async (ctx) => {
+      await ctx.answerCallbackQuery();
+
+      try {
+        const chatId = ctx.chat?.id;
+
+        if (!chatId) {
+          logger.error('Missing chat ID in bank_accounts callback');
+          await ctx.editMessageText(Messages.ERROR_GENERIC(), {
+            parse_mode: 'HTML',
+            reply_markup: Keyboards.backToMenu(),
+          });
+          return;
+        }
+
+        // Fetch saved bank accounts
+        logger.info({ chatId }, 'Fetching saved bank accounts');
+        const savedBankAccounts = await paymentInformationService.findByTypeAndChatId(
+          chatId,
+          'BANK'
+        );
+
+        logger.info(
+          { chatId, bankAccountsCount: savedBankAccounts.length },
+          'Bank accounts retrieved'
+        );
+
+        // Display saved bank accounts
+        let message = `🏦 <b>NGÂN HÀNG ĐÃ LƯU</b>\n\n`;
+
+        if (savedBankAccounts.length === 0) {
+          message += `❌ Bạn chưa lưu tài khoản ngân hàng nào.\n\n`;
+          message += `💡 Khi thực hiện giao dịch BÁN USDT, bạn có thể lưu thông tin ngân hàng để sử dụng lại sau.`;
+        } else {
+          savedBankAccounts.forEach((account, index) => {
+            message += `<b>${index + 1}. ${account.full_name || 'N/A'}</b>\n`;
+            message += `   🏛️ Bank ID: ${account.bank_id || 'N/A'}\n`;
+            message += `   💳 Số TK: <code>${account.bank_account || 'N/A'}</code>\n\n`;
+          });
+        }
+
+        await ctx.editMessageText(message, {
+          parse_mode: 'HTML',
+          reply_markup: Keyboards.backToMenu(),
+        });
+      } catch (error) {
+        logger.error({ error }, 'Error fetching bank accounts');
+        await ctx.editMessageText(Messages.ERROR_GENERIC(), {
+          parse_mode: 'HTML',
+          reply_markup: Keyboards.backToMenu(),
+        });
+      }
+    });
+
+    // Crypto wallets callback - show saved crypto wallets
+    this.bot.callbackQuery('crypto_wallets', async (ctx) => {
+      await ctx.answerCallbackQuery();
+
+      try {
+        const chatId = ctx.chat?.id;
+
+        if (!chatId) {
+          logger.error('Missing chat ID in crypto_wallets callback');
+          await ctx.editMessageText(Messages.ERROR_GENERIC(), {
+            parse_mode: 'HTML',
+            reply_markup: Keyboards.backToMenu(),
+          });
+          return;
+        }
+
+        // Fetch saved crypto wallets
+        logger.info({ chatId }, 'Fetching saved crypto wallets');
+        const savedWallets = await paymentInformationService.findByTypeAndChatId(chatId, 'CRYPTO');
+
+        logger.info({ chatId, walletsCount: savedWallets.length }, 'Crypto wallets retrieved');
+
+        // Display saved crypto wallets
+        let message = `💎 <b>VÍ CRYPTO ĐÃ LƯU</b>\n\n`;
+
+        if (savedWallets.length === 0) {
+          message += `❌ Bạn chưa lưu địa chỉ ví crypto nào.\n\n`;
+          message += `💡 Khi thực hiện giao dịch MUA USDT, bạn có thể lưu địa chỉ ví để sử dụng lại sau.`;
+        } else {
+          savedWallets.forEach((wallet, index) => {
+            message += `<b>${index + 1}. Ví ${index + 1}</b>\n`;
+            message += `📮 Địa chỉ: <code>${wallet.wallet_address || 'N/A'}</code>\n\n`;
+          });
+        }
+
+        await ctx.editMessageText(message, {
+          parse_mode: 'HTML',
+          reply_markup: Keyboards.backToMenu(),
+        });
+      } catch (error) {
+        logger.error({ error }, 'Error fetching crypto wallets');
+        await ctx.editMessageText(Messages.ERROR_GENERIC(), {
+          parse_mode: 'HTML',
+          reply_markup: Keyboards.backToMenu(),
+        });
+      }
     });
 
     // Account info callback
@@ -1143,7 +1266,7 @@ export class TelegramService {
       userStates.delete(userId);
       await ctx.editMessageText(Messages.PAYMENT_CANCELLED(), {
         parse_mode: 'HTML',
-        reply_markup: Keyboards.mainMenu(),
+        reply_markup: await Keyboards.mainMenu(userId),
       });
     });
 
@@ -1155,7 +1278,7 @@ export class TelegramService {
       const firstName = ctx.from?.first_name || 'bạn';
       await ctx.editMessageText(Messages.WELCOME(firstName), {
         parse_mode: 'HTML',
-        reply_markup: Keyboards.mainMenu(),
+        reply_markup: await Keyboards.mainMenu(userId),
       });
     });
 
