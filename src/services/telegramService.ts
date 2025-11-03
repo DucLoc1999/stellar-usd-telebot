@@ -100,11 +100,18 @@ export const Messages = {
     `Vui lòng kiểm tra lại tên ngân hàng.\n\n` +
     `💡 Gợi ý: VIETCOMBANK, TECHCOMBANK, BIDV, AGRIBANK, VCB, TCB, MB, ACB, VPB, TPB, SACOMBANK, HDBANK, SHB, VIB, MSB, OCB, EXIMBANK, SCB, SEABANK, ABBANK, VIETINBANK, LIENVIETPOSTBANK, PVCOMBANK, BAOVIETBANK, GPBANK, NAMABANK, PGBANK, VIETABANK, VIETBANK, OCEANBANK, CBBANK, KIENLONGBANK, DONGABANK, WOORIBANK, PUBLICBANK, NONGHYUP, INDOVINABANK, SHINHAN, STANDARDCHARTERED, ANZ, HSBC, HONGKONG, CIMB, UOB, MAYBANK, BANGKOK, MIZUHO, MUFG, SMBC, DEUTSCHE, BNP, CITIBANK`,
 
-  ORDER_SUMMARY_BUY: (amount: string, wallet: string) =>
+  ORDER_SUMMARY_BUY: (
+    vndAmount: string,
+    wallet: string,
+    usdtAmount: number,
+    buyRate: number,
+    gatewayFee: number
+  ) =>
     `📋 <b>XÁC NHẬN ĐƠN HÀNG - MUA USDT</b>\n\n` +
-    `💵 Số tiền: <b>${amount} VND</b>\n` +
-    `📮 Địa chỉ ví nhận: <code>${wallet}</code>\n` +
-    `🌐 Mạng: BNB Chain (BSC)\n\n` +
+    `Đơn hàng MUA <b>${usdtAmount.toFixed(2)} USDT</b> x <b>${buyRate.toLocaleString('vi-VN')}đ</b>\n\n` +
+    `🌐 Mạng: BSC | ⚡ Phí gas: $0.00\n` +
+    `💰 Thành tiền: <b>${parseFloat(vndAmount).toLocaleString('vi-VN')}đ</b> | 💳 Phí dịch vụ: <b>${Math.round(gatewayFee).toLocaleString('vi-VN')}đ</b>\n` +
+    `📮 Ví nhận: <code>${wallet}</code>\n\n` +
     `⚠️ Vui lòng kiểm tra kỹ thông tin trước khi thanh toán!`,
 
   ORDER_SUMMARY_SELL: (amount: string) =>
@@ -113,12 +120,20 @@ export const Messages = {
     `🌐 Mạng: BNB Chain (BSC)\n\n` +
     `⚠️ Vui lòng kiểm tra kỹ thông tin trước khi chuyển USDT!`,
 
-  SELL_CONFIRMATION: (amount: string, bankName: string, fullName: string, accountNumber: string) =>
-    `💸 <b>XÁC NHẬN BÁN USDT</b>\n\n` +
-    `💰 Số lượng: <b>${amount} USDT</b>\n` +
-    `🏦 Ngân hàng: <b>${bankName}</b>\n` +
-    `👤 Tên tài khoản: <b>${fullName}</b>\n` +
-    `💳 Số tài khoản: <code>${accountNumber}</code>\n\n` +
+  SELL_CONFIRMATION: (
+    amount: string,
+    bankName: string,
+    fullName: string,
+    accountNumber: string,
+    sellRate: number,
+    totalVND: number,
+    serviceFee: number
+  ) =>
+    `💸 <b>XÁC NHẬN ĐƠN HÀNG - BÁN USDT</b>\n\n` +
+    `Đơn hàng BÁN <b>${amount} USDT</b> x <b>${sellRate.toLocaleString('vi-VN')}đ</b>\n\n` +
+    `🌐 Mạng: BSC | ⚡ Phí gas: $0.00\n` +
+    `💰 Thành tiền: <b>${Math.round(totalVND).toLocaleString('vi-VN')}đ</b> |  💳 Phí dịch vụ: <b>${Math.round(serviceFee).toLocaleString('vi-VN')}đ</b>\n` +
+    `🏦 Bank nhận: <code>${bankName}</code> | <code>${accountNumber}</code> | <code>${fullName}</code>\n\n` +
     `⚠️ Vui lòng kiểm tra kỹ thông tin trước khi xác nhận!`,
 
   PAYMENT_QR_MESSAGE: (bankName?: string, accountNumber?: string, accountName?: string) => {
@@ -823,7 +838,14 @@ export class TelegramService {
 
     // Use saved wallet callback
     this.bot.callbackQuery(/^use_saved_wallet_\d+$/, async (ctx) => {
-      await ctx.answerCallbackQuery();
+      // Answer callback query immediately to avoid timeout
+      try {
+        await ctx.answerCallbackQuery();
+      } catch (error) {
+        // Callback query might already be answered or expired - log and continue
+        logger.debug({ error, userId: ctx.from.id }, 'Failed to answer callback query');
+      }
+
       const userId = ctx.from.id;
       const paymentInfoId = parseInt(ctx.callbackQuery.data.replace('use_saved_wallet_', ''));
       const state = userStates.get(userId);
@@ -851,8 +873,44 @@ export class TelegramService {
         'Using saved wallet'
       );
 
+      // Fetch exchange rates and calculate fees
+      let rates;
+      try {
+        rates = await this.fetchExchangeRates();
+      } catch (error) {
+        logger.error({ error, userId }, 'Failed to fetch exchange rates');
+        rates = null;
+      }
+
+      if (!rates) {
+        try {
+          await ctx.editMessageText(Messages.RATE_UNAVAILABLE(), {
+            parse_mode: 'HTML',
+            reply_markup: Keyboards.backToMenu(),
+          });
+        } catch (error) {
+          // If edit fails, try sending a new message
+          await ctx.reply(Messages.RATE_UNAVAILABLE(), {
+            parse_mode: 'HTML',
+            reply_markup: Keyboards.backToMenu(),
+          });
+        }
+        return;
+      }
+
+      const vndAmount = parseFloat(state.amount!);
+      const usdtAmount = vndAmount / rates.buy;
+      const gatewayFeesPercent = parseFloat(process.env.GATEWAY_FEES || '0.5');
+      const gatewayFee = vndAmount * (gatewayFeesPercent / 100);
+
       await ctx.editMessageText(
-        Messages.ORDER_SUMMARY_BUY(state.amount!, paymentInfo.wallet_address),
+        Messages.ORDER_SUMMARY_BUY(
+          state.amount!,
+          paymentInfo.wallet_address,
+          usdtAmount,
+          rates.buy,
+          gatewayFee
+        ),
         {
           parse_mode: 'HTML',
           reply_markup: Keyboards.confirmPayment(),
@@ -885,7 +943,14 @@ export class TelegramService {
 
     // Use saved bank account callback
     this.bot.callbackQuery(/^use_saved_bank_\d+$/, async (ctx) => {
-      await ctx.answerCallbackQuery();
+      // Answer callback query immediately to avoid timeout
+      try {
+        await ctx.answerCallbackQuery();
+      } catch (error) {
+        // Callback query might already be answered or expired - log and continue
+        logger.debug({ error, userId: ctx.from.id }, 'Failed to answer callback query');
+      }
+
       const userId = ctx.from.id;
       const paymentInfoId = parseInt(ctx.callbackQuery.data.replace('use_saved_bank_', ''));
       const state = userStates.get(userId);
@@ -929,12 +994,45 @@ export class TelegramService {
         'Using saved bank account'
       );
 
+      // Fetch exchange rates and calculate fees
+      let rates;
+      try {
+        rates = await this.fetchExchangeRates();
+      } catch (error) {
+        logger.error({ error, userId }, 'Failed to fetch exchange rates');
+        rates = null;
+      }
+
+      if (!rates) {
+        try {
+          await ctx.editMessageText(Messages.RATE_UNAVAILABLE(), {
+            parse_mode: 'HTML',
+            reply_markup: Keyboards.backToMenu(),
+          });
+        } catch (error) {
+          // If edit fails, try sending a new message
+          await ctx.reply(Messages.RATE_UNAVAILABLE(), {
+            parse_mode: 'HTML',
+            reply_markup: Keyboards.backToMenu(),
+          });
+        }
+        return;
+      }
+
+      const usdtAmount = parseFloat(state.amount!);
+      const totalVND = usdtAmount * rates.sell;
+      const gatewayFeesPercent = parseFloat(process.env.GATEWAY_FEES || '0.5');
+      const serviceFee = totalVND * (gatewayFeesPercent / 100);
+
       await ctx.editMessageText(
         Messages.SELL_CONFIRMATION(
           state.amount!,
           bank.short_name,
           paymentInfo.full_name,
-          paymentInfo.bank_account
+          paymentInfo.bank_account,
+          rates.sell,
+          totalVND,
+          serviceFee
         ),
         {
           parse_mode: 'HTML',
@@ -1077,9 +1175,47 @@ export class TelegramService {
       }
     });
 
-    // Error handler
+    // Error handler with better error classification
     this.bot.catch((err) => {
-      console.error('Bot error:', err);
+      const error = err.error;
+
+      // Handle expected errors gracefully
+      if (error?.error_code === 403) {
+        // User blocked the bot - this is normal, log at info level
+        logger.info(
+          {
+            errorCode: error.error_code,
+            description: error.description,
+            userId: err.ctx?.from?.id,
+          },
+          'User blocked the bot'
+        );
+        return;
+      }
+
+      if (error?.error_code === 400 && error?.description?.includes('query is too old')) {
+        // Callback query timeout - user took too long or clicked multiple times
+        logger.warn(
+          {
+            errorCode: error.error_code,
+            description: error.description,
+            userId: err.ctx?.from?.id,
+          },
+          'Callback query timeout or duplicate click'
+        );
+        return;
+      }
+
+      // Log unexpected errors at error level
+      logger.error(
+        {
+          error: err,
+          errorCode: error?.error_code,
+          description: error?.description,
+          userId: err.ctx?.from?.id,
+        },
+        'Unexpected bot error'
+      );
     });
   }
 
@@ -1227,10 +1363,35 @@ export class TelegramService {
 
     userStates.set(userId, state);
 
-    await ctx.reply(Messages.ORDER_SUMMARY_BUY(state.amount!, text), {
-      parse_mode: 'HTML',
-      reply_markup: Keyboards.confirmPayment(),
-    });
+    // Fetch exchange rates and calculate fees
+    let rates;
+    try {
+      rates = await this.fetchExchangeRates();
+    } catch (error) {
+      logger.error({ error, userId }, 'Failed to fetch exchange rates');
+      rates = null;
+    }
+
+    if (!rates) {
+      await ctx.reply(Messages.RATE_UNAVAILABLE(), {
+        parse_mode: 'HTML',
+        reply_markup: Keyboards.backToMenu(),
+      });
+      return;
+    }
+
+    const vndAmount = parseFloat(state.amount!);
+    const usdtAmount = vndAmount / rates.buy;
+    const gatewayFeesPercent = parseFloat(process.env.GATEWAY_FEES || '0.5');
+    const gatewayFee = vndAmount * (gatewayFeesPercent / 100);
+
+    await ctx.reply(
+      Messages.ORDER_SUMMARY_BUY(state.amount!, text, usdtAmount, rates.buy, gatewayFee),
+      {
+        parse_mode: 'HTML',
+        reply_markup: Keyboards.confirmPayment(),
+      }
+    );
   }
 
   /**
@@ -1323,8 +1484,38 @@ export class TelegramService {
 
     userStates.set(userId, state);
 
+    // Fetch exchange rates and calculate fees
+    let rates;
+    try {
+      rates = await this.fetchExchangeRates();
+    } catch (error) {
+      logger.error({ error, userId }, 'Failed to fetch exchange rates');
+      rates = null;
+    }
+
+    if (!rates) {
+      await ctx.reply(Messages.RATE_UNAVAILABLE(), {
+        parse_mode: 'HTML',
+        reply_markup: Keyboards.backToMenu(),
+      });
+      return;
+    }
+
+    const usdtAmount = parseFloat(state.amount);
+    const totalVND = usdtAmount * rates.sell;
+    const gatewayFeesPercent = parseFloat(process.env.GATEWAY_FEES || '0.5');
+    const serviceFee = totalVND * (gatewayFeesPercent / 100);
+
     await ctx.reply(
-      Messages.SELL_CONFIRMATION(state.amount, state.bankName, state.fullName, text),
+      Messages.SELL_CONFIRMATION(
+        state.amount,
+        state.bankName,
+        state.fullName,
+        text,
+        rates.sell,
+        totalVND,
+        serviceFee
+      ),
       {
         parse_mode: 'HTML',
         reply_markup: Keyboards.confirmPayment(),
@@ -1453,8 +1644,38 @@ export class TelegramService {
       return;
     }
 
+    // Fetch exchange rates and calculate fees
+    let rates;
+    try {
+      rates = await this.fetchExchangeRates();
+    } catch (error) {
+      logger.error({ error, userId }, 'Failed to fetch exchange rates');
+      rates = null;
+    }
+
+    if (!rates) {
+      await ctx.reply(Messages.RATE_UNAVAILABLE(), {
+        parse_mode: 'HTML',
+        reply_markup: Keyboards.backToMenu(),
+      });
+      return;
+    }
+
+    const usdtAmount = parseFloat(state.amount);
+    const totalVND = usdtAmount * rates.sell;
+    const gatewayFeesPercent = parseFloat(process.env.GATEWAY_FEES || '0.5');
+    const serviceFee = totalVND * (gatewayFeesPercent / 100);
+
     await ctx.reply(
-      Messages.SELL_CONFIRMATION(state.amount, bank.short_name, fullNameUpper, accountNumberInput),
+      Messages.SELL_CONFIRMATION(
+        state.amount,
+        bank.short_name,
+        fullNameUpper,
+        accountNumberInput,
+        rates.sell,
+        totalVND,
+        serviceFee
+      ),
       {
         parse_mode: 'HTML',
         reply_markup: Keyboards.confirmPayment(),
