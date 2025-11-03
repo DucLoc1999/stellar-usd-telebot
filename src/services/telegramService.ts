@@ -196,12 +196,13 @@ export const Messages = {
     `🏦 <b>CHỌN TÀI KHOẢN NGÂN HÀNG</b>\n\n` +
     `Bạn có các tài khoản ngân hàng đã lưu. Vui lòng chọn một tài khoản hoặc thêm tài khoản mới:`,
 
-  CONFIRM_DELETE_BANK: (bankName: string, accountNumber: string) =>
+  CONFIRM_DELETE_BANK: (bankName: string, accountNumber: string, fullName?: string) =>
     `⚠️ <b>XÁC NHẬN XÓA</b>\n\n` +
     `Bạn có chắc muốn xóa tài khoản ngân hàng?\n\n` +
     `🏛️ Ngân hàng: <b>${bankName}</b>\n` +
-    `💳 Số TK: <code>${accountNumber}</code>\n\n` +
-    `⚠️ Hành động này không thể hoàn tác!`,
+    `💳 Số TK: <code>${accountNumber}</code>\n` +
+    (fullName ? `👤 Chủ TK: <b>${fullName}</b>\n` : '') +
+    `\n⚠️ Hành động này không thể hoàn tác!`,
 
   CONFIRM_DELETE_WALLET: (walletAddress: string) =>
     `⚠️ <b>XÁC NHẬN XÓA</b>\n\n` +
@@ -217,12 +218,36 @@ export const Messages = {
     `Không thể xóa thông tin thanh toán.\n` +
     `Vui lòng thử lại hoặc liên hệ support!`,
 
-  ENTER_DELETE_BANK_INDEX: () =>
-    `🗑️ <b>XÓA TÀI KHOẢN NGÂN HÀNG</b>\n\n` +
-    `Vui lòng nhập số thứ tự tài khoản muốn xóa (ví dụ: 1, 2):`,
+  ENTER_DELETE_BANK_INDEX: (accounts: any[]) => {
+    let message = `🗑️ <b>XÓA TÀI KHOẢN NGÂN HÀNG</b>\n\n`;
+    message += `Danh sách tài khoản:\n\n`;
 
-  ENTER_DELETE_WALLET_INDEX: () =>
-    `🗑️ <b>XÓA VÍ CRYPTO</b>\n\n` + `Vui lòng nhập số thứ tự ví muốn xóa (ví dụ: 1, 2):`,
+    accounts.forEach((account, index) => {
+      const bank = banks.find((b) => b.id === account.bank_id);
+      const bankName = bank ? bank.short_name : 'N/A';
+
+      message += `<b>${index + 1}. ${account.full_name || 'N/A'}</b>\n`;
+      message += `   🏛️ Ngân hàng: ${bankName}\n`;
+      message += `   💳 Số TK: <code>${account.bank_account || 'N/A'}</code>\n\n`;
+    });
+
+    message += `Vui lòng nhập số thứ tự tài khoản muốn xóa (ví dụ: 1, 2):`;
+    return message;
+  },
+
+  ENTER_DELETE_WALLET_INDEX: (wallets: any[]) => {
+    let message = `🗑️ <b>XÓA VÍ CRYPTO</b>\n\n`;
+    message += `Danh sách ví:\n\n`;
+
+    wallets.forEach((wallet, index) => {
+      const address = wallet.wallet_address || 'N/A';
+
+      message += `<b>${index + 1}.</b> <code>${address}</code>\n`;
+    });
+
+    message += `\nVui lòng nhập số thứ tự ví muốn xóa (ví dụ: 1, 2):`;
+    return message;
+  },
 
   INVALID_DELETE_INDEX: () =>
     `❌ <b>SỐ THỨ TỰ KHÔNG HỢP LỆ</b>\n\n` + `Vui lòng nhập một số hợp lệ từ danh sách.`,
@@ -849,7 +874,7 @@ export class TelegramService {
         savedBankAccounts: savedBankAccounts,
       });
 
-      await ctx.editMessageText(Messages.ENTER_DELETE_BANK_INDEX(), {
+      await ctx.editMessageText(Messages.ENTER_DELETE_BANK_INDEX(savedBankAccounts), {
         parse_mode: 'HTML',
         reply_markup: Keyboards.backToMenu(),
       });
@@ -871,7 +896,7 @@ export class TelegramService {
         savedWallets: savedWallets,
       });
 
-      await ctx.editMessageText(Messages.ENTER_DELETE_WALLET_INDEX(), {
+      await ctx.editMessageText(Messages.ENTER_DELETE_WALLET_INDEX(savedWallets), {
         parse_mode: 'HTML',
         reply_markup: Keyboards.backToMenu(),
       });
@@ -2541,10 +2566,17 @@ export class TelegramService {
     );
 
     // Show confirmation dialog
-    await ctx.reply(Messages.CONFIRM_DELETE_BANK(bankName, selectedAccount.bank_account || 'N/A'), {
-      parse_mode: 'HTML',
-      reply_markup: Keyboards.confirmDelete(),
-    });
+    await ctx.reply(
+      Messages.CONFIRM_DELETE_BANK(
+        bankName,
+        selectedAccount.bank_account || 'N/A',
+        selectedAccount.full_name
+      ),
+      {
+        parse_mode: 'HTML',
+        reply_markup: Keyboards.confirmDelete(),
+      }
+    );
   }
 
   /**
