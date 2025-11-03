@@ -31,12 +31,12 @@ export const Messages = {
     `Hệ thống đang bảo trì hoặc có lỗi kết nối.\n` +
     `Vui lòng thử lại sau ít phút.`,
 
-  BUY_SELECT_AMOUNT: () => `💰 <b>MUA USDT</b>\n\n` + `Vui lòng chọn số tiền VND muốn mua USDT:`,
+  BUY_SELECT_AMOUNT: () => `💰 <b>MUA USDT</b>\n\n` + `Vui lòng chọn số lượng USDT muốn mua:`,
 
   SELL_SELECT_AMOUNT: () => `💸 <b>BÁN USDT</b>\n\n` + `Vui lòng chọn số lượng USDT muốn bán:`,
 
   ENTER_CUSTOM_AMOUNT_BUY: () =>
-    `✏️ Vui lòng nhập số tiền VND muốn mua USDT:\n\n` + `📊 Ví dụ: 100000, 500000, 1000000`,
+    `✏️ Vui lòng nhập số lượng USDT muốn mua:\n\n` + `📊 Ví dụ: 10, 50, 100`,
 
   ENTER_CUSTOM_AMOUNT_SELL: () =>
     `✏️ Vui lòng nhập số lượng USDT muốn bán:\n\n` + `📊 Ví dụ: 10, 50, 100`,
@@ -101,16 +101,16 @@ export const Messages = {
     `💡 Gợi ý: VIETCOMBANK, TECHCOMBANK, BIDV, AGRIBANK, VCB, TCB, MB, ACB, VPB, TPB, SACOMBANK, HDBANK, SHB, VIB, MSB, OCB, EXIMBANK, SCB, SEABANK, ABBANK, VIETINBANK, LIENVIETPOSTBANK, PVCOMBANK, BAOVIETBANK, GPBANK, NAMABANK, PGBANK, VIETABANK, VIETBANK, OCEANBANK, CBBANK, KIENLONGBANK, DONGABANK, WOORIBANK, PUBLICBANK, NONGHYUP, INDOVINABANK, SHINHAN, STANDARDCHARTERED, ANZ, HSBC, HONGKONG, CIMB, UOB, MAYBANK, BANGKOK, MIZUHO, MUFG, SMBC, DEUTSCHE, BNP, CITIBANK`,
 
   ORDER_SUMMARY_BUY: (
-    vndAmount: string,
+    usdtAmount: string,
     wallet: string,
-    usdtAmount: number,
+    vndAmount: number,
     buyRate: number,
     gatewayFee: number
   ) =>
     `📋 <b>XÁC NHẬN ĐƠN HÀNG - MUA USDT</b>\n\n` +
-    `Đơn hàng MUA <b>${usdtAmount.toFixed(2)} USDT</b> x <b>${buyRate.toLocaleString('vi-VN')}đ</b>\n\n` +
+    `Đơn hàng MUA <b>${usdtAmount} USDT</b> x <b>${buyRate.toLocaleString('vi-VN')}đ</b>\n\n` +
     `🌐 Mạng: BSC | ⚡ Phí gas: $0.00\n` +
-    `💰 Thành tiền: <b>${parseFloat(vndAmount).toLocaleString('vi-VN')}đ</b> | 💳 Phí dịch vụ: <b>${Math.round(gatewayFee).toLocaleString('vi-VN')}đ</b>\n` +
+    `💰 Thành tiền: <b>${Math.round(vndAmount).toLocaleString('vi-VN')}đ</b> | 💳 Phí dịch vụ: <b>${Math.round(gatewayFee).toLocaleString('vi-VN')}đ</b>\n` +
     `📮 Ví nhận: <code>${wallet}</code>\n\n` +
     `⚠️ Vui lòng kiểm tra kỹ thông tin trước khi thanh toán!`,
 
@@ -136,13 +136,22 @@ export const Messages = {
     `🏦 Bank nhận: <code>${bankName}</code> | <code>${accountNumber}</code> | <code>${fullName}</code>\n\n` +
     `⚠️ Vui lòng kiểm tra kỹ thông tin trước khi xác nhận!`,
 
-  PAYMENT_QR_MESSAGE: (bankName?: string, accountNumber?: string, accountName?: string) => {
+  PAYMENT_QR_MESSAGE: (
+    bankName?: string,
+    accountNumber?: string,
+    accountName?: string,
+    vndAmount?: number
+  ) => {
     let message = `🏦 <b>THÔNG TIN CHUYỂN KHOẢN</b>\n\n`;
 
     if (bankName && accountNumber && accountName) {
       message += `🏛️ Ngân hàng: <b>${bankName}</b>\n`;
       message += `💳 Số tài khoản: <code>${accountNumber}</code>\n`;
       message += `👤 Chủ tài khoản: <b>${accountName}</b>\n\n`;
+    }
+
+    if (vndAmount) {
+      message += `💰 Số tiền: <code>${Math.round(vndAmount).toLocaleString('vi-VN')}đ</code>\n\n`;
     }
 
     message += `💰 Vui lòng quét mã QR bên dưới để thanh toán`;
@@ -154,8 +163,9 @@ export const Messages = {
     `⏰ Sau khi thanh toán, USDT sẽ được chuyển vào ví của bạn trong vòng 3-30 giây.\n\n` +
     `📞 Liên hệ support nếu có vấn đề!`,
 
-  PAYMENT_SELL_ADDRESS: (recipientAddress: string) =>
+  PAYMENT_SELL_ADDRESS: (recipientAddress: string, usdtAmount?: string) =>
     `📮 <b>ĐỊA CHỈ VÍ NHẬN USDT</b>\n\n` +
+    (usdtAmount ? `💰 Số lượng: <code>${usdtAmount} USDT</code>\n\n` : '') +
     `Vui lòng chuyển USDT đến địa chỉ:\n\n` +
     `<code>${recipientAddress}</code>\n\n` +
     `🌐 Mạng: <b>BNB Chain (BSC)</b>\n` +
@@ -344,10 +354,10 @@ export class Keyboards {
 
   static buyAmountSelection(): InlineKeyboard {
     return new InlineKeyboard()
-      .text('100,000 VND', 'buy_amount_100000')
-      .text('200,000 VND', 'buy_amount_200000')
+      .text('10 USDT', 'buy_amount_10')
+      .text('20 USDT', 'buy_amount_20')
       .row()
-      .text('500,000 VND', 'buy_amount_500000')
+      .text('50 USDT', 'buy_amount_50')
       .text('✏️ Nhập số khác', 'buy_custom')
       .row()
       .text('🔙 Quay lại Menu', 'back_to_menu');
@@ -898,8 +908,8 @@ export class TelegramService {
         return;
       }
 
-      const vndAmount = parseFloat(state.amount!);
-      const usdtAmount = vndAmount / rates.buy;
+      const usdtAmount = parseFloat(state.amount!);
+      const vndAmount = usdtAmount * rates.buy;
       const gatewayFeesPercent = parseFloat(process.env.GATEWAY_FEES || '0.5');
       const gatewayFee = vndAmount * (gatewayFeesPercent / 100);
 
@@ -907,7 +917,7 @@ export class TelegramService {
         Messages.ORDER_SUMMARY_BUY(
           state.amount!,
           paymentInfo.wallet_address,
-          usdtAmount,
+          vndAmount,
           rates.buy,
           gatewayFee
         ),
@@ -1177,7 +1187,7 @@ export class TelegramService {
 
     // Error handler with better error classification
     this.bot.catch((err) => {
-      const error = err.error;
+      const error = err.error as any;
 
       // Handle expected errors gracefully
       if (error?.error_code === 403) {
@@ -1380,13 +1390,13 @@ export class TelegramService {
       return;
     }
 
-    const vndAmount = parseFloat(state.amount!);
-    const usdtAmount = vndAmount / rates.buy;
+    const usdtAmount = parseFloat(state.amount!);
+    const vndAmount = usdtAmount * rates.buy;
     const gatewayFeesPercent = parseFloat(process.env.GATEWAY_FEES || '0.5');
     const gatewayFee = vndAmount * (gatewayFeesPercent / 100);
 
     await ctx.reply(
-      Messages.ORDER_SUMMARY_BUY(state.amount!, text, usdtAmount, rates.buy, gatewayFee),
+      Messages.ORDER_SUMMARY_BUY(state.amount!, text, vndAmount, rates.buy, gatewayFee),
       {
         parse_mode: 'HTML',
         reply_markup: Keyboards.confirmPayment(),
@@ -1693,21 +1703,46 @@ export class TelegramService {
       return;
     }
 
+    // Fetch exchange rates to calculate VND amount from USDT amount
+    const rates = await this.fetchExchangeRates();
+    if (!rates) {
+      await ctx.reply(Messages.RATE_UNAVAILABLE(), {
+        parse_mode: 'HTML',
+        reply_markup: Keyboards.backToMenu(),
+      });
+      return;
+    }
+
+    // Calculate VND amount from USDT amount
+    const usdtAmount = parseFloat(state.amount);
+    const vndAmount = Math.round(usdtAmount * rates.buy);
+
+    // Calculate gateway fee (service fee)
+    const gatewayFeesPercent = parseFloat(process.env.GATEWAY_FEES || '0.5');
+    const gatewayFee = Math.round(vndAmount * (gatewayFeesPercent / 100));
+
+    // Calculate total amount including service fee
+    const totalAmount = vndAmount + gatewayFee;
+
     logger.info(
       {
         userId,
-        amount: state.amount,
+        usdtAmount: state.amount,
+        vndAmount: vndAmount.toString(),
+        gatewayFee: gatewayFee.toString(),
+        totalAmount: totalAmount.toString(),
+        buyRate: rates.buy,
         wallet: state.walletAddress,
         chainId: telegramConfig.chainId,
         tokenAddress: telegramConfig.tokenAddress,
       },
-      'Calling deposit API'
+      'Calling deposit API with total VND amount'
     );
 
-    // Call deposit API
+    // Call deposit API with total VND amount (integer, no decimals)
     const order = await paymentService.processDeposit({
       chat_id: userId,
-      amount: state.amount,
+      amount: totalAmount.toString(), // VND amount as integer string (e.g., "279390")
       chain_id: telegramConfig.chainId,
       token_address: telegramConfig.tokenAddress,
       recipient: state.walletAddress,
@@ -1736,12 +1771,13 @@ export class TelegramService {
     if (order.pay_data?.qr_code) {
       logger.info({ orderId: order.id }, 'Generating QR code');
 
-      // Send bank information message
+      // Send bank information message with VND amount
       await ctx.reply(
         Messages.PAYMENT_QR_MESSAGE(
           bankInfo?.bankName,
           bankInfo?.bankAccountNumber,
-          bankInfo?.bankAccountName
+          bankInfo?.bankAccountName,
+          totalAmount
         ),
         { parse_mode: 'HTML' }
       );
@@ -1845,8 +1881,8 @@ export class TelegramService {
         'Sending recipient address to user'
       );
 
-      // Send wallet address message
-      await ctx.reply(Messages.PAYMENT_SELL_ADDRESS(recipientAddress), {
+      // Send wallet address message with USDT amount
+      await ctx.reply(Messages.PAYMENT_SELL_ADDRESS(recipientAddress, state.amount), {
         parse_mode: 'HTML',
       });
 
