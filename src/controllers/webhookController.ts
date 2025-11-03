@@ -137,21 +137,42 @@ export class WebhookController {
       logger.info(logData, 'Webhook processed successfully');
 
       // Enqueue Telegram notification for sequential delivery
+      // Only send notifications for state changes, NOT for processing_state changes
       try {
         const order = await db('orders').where('id', stateChange.orderId).first<Order>();
         if (order && order.chat_id) {
-          await notificationQueueService.enqueueNotification({
-            chatId: order.chat_id,
-            orderId: stateChange.orderId,
-            state: stateChange.newState,
-            processingState: stateChange.newProcessingState,
-            timestamp: event.ts,
-            eventId: event.id,
-          });
-          logger.info(
-            { chatId: order.chat_id, orderId: stateChange.orderId, eventId: event.id },
-            'Notification enqueued for delivery'
-          );
+          // Check if the main order state has changed
+          const hasStateChanged = stateChange.oldState !== stateChange.newState;
+
+          if (hasStateChanged) {
+            await notificationQueueService.enqueueNotification({
+              chatId: order.chat_id,
+              orderId: stateChange.orderId,
+              state: stateChange.newState,
+              processingState: stateChange.newProcessingState,
+              timestamp: event.ts,
+              eventId: event.id,
+            });
+            logger.info(
+              {
+                chatId: order.chat_id,
+                orderId: stateChange.orderId,
+                eventId: event.id,
+                stateChange: `${stateChange.oldState} -> ${stateChange.newState}`,
+              },
+              'Notification enqueued for state change'
+            );
+          } else {
+            logger.info(
+              {
+                chatId: order.chat_id,
+                orderId: stateChange.orderId,
+                eventId: event.id,
+                processingStateChange: `${stateChange.oldProcessingState} -> ${stateChange.newProcessingState}`,
+              },
+              'Skipping notification - only processing_state changed (no state change)'
+            );
+          }
         }
       } catch (notificationError) {
         // Log but don't fail the webhook processing
