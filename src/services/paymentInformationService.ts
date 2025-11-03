@@ -116,6 +116,36 @@ export class PaymentInformationService {
       throw error;
     }
   }
+
+  /**
+   * Delete a payment information record by ID
+   */
+  async deleteById(id: number, chatId: number): Promise<boolean> {
+    try {
+      logger.info({ id, chatId }, 'Deleting payment information');
+
+      // Verify the record belongs to the user before deleting
+      const record = await db(this.tableName).where({ id, chat_id: chatId }).first();
+
+      if (!record) {
+        logger.warn({ id, chatId }, 'Payment information not found or does not belong to user');
+        return false;
+      }
+
+      const deletedCount = await db(this.tableName).where({ id, chat_id: chatId }).delete();
+
+      if (deletedCount > 0) {
+        logger.info({ id, chatId, type: record.type }, 'Payment information deleted successfully');
+        return true;
+      }
+
+      return false;
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      logger.error({ id, chatId, error: errorMessage }, 'Error deleting payment information');
+      throw error;
+    }
+  }
 }
 
 export default new PaymentInformationService();
