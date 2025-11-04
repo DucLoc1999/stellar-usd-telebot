@@ -74,3 +74,32 @@ export interface CreatePaymentInformationRequest {
   full_name?: string;
   bank_account?: string;
 }
+
+export interface Kyc {
+  id?: number;
+  chat_id: number;
+  phone: string;
+  id_number: string;
+  name: string;
+  dob: Date;
+  sex: string;
+  nationality: string;
+  home: string;
+  address: string;
+  doe: Date;
+  created_at?: Date;
+  updated_at?: Date;
+}
+
+export interface CreateKycRequest {
+  chat_id: number;
+  phone: string;
+  id_number: string;
+  name: string;
+  dob: Date;
+  sex: string;
+  nationality: string;
+  home: string;
+  address: string;
+  doe: Date;
+}

@@ -1,11 +1,15 @@
-import { Bot, InlineKeyboard, InputFile } from 'grammy';
+import { Bot, InlineKeyboard, InputFile, Keyboard } from 'grammy';
 import { telegramConfig } from '../config/app';
 import paymentService from './paymentService';
 import paymentInformationService from './paymentInformationService';
 import teleUserService from './teleUserService';
+import kycService from './kycService';
+import fptAiVisionService from './fptAiVisionService';
 import { logger } from '../config/logger';
 import { banks } from '../models/webhook';
-import type { PaymentInformation } from '../models/types';
+import type { PaymentInformation, Kyc } from '../models/types';
+import fs from 'fs';
+import path from 'path';
 
 /**
  * Message Templates (Vietnamese)
@@ -262,11 +266,138 @@ export const Messages = {
   KYC_INFO: () =>
     `🔐 <b>XÁC MINH DANH TÍNH (KYC)</b>\n\n` +
     `Để đảm bảo an toàn và tuân thủ quy định, chúng tôi yêu cầu xác minh danh tính cho các giao dịch lớn.\n\n` +
-    `<b>Quy trình KYC:</b>\n` +
-    `1️⃣ Cung cấp CMND/CCCD\n` +
-    `2️⃣ Chụp ảnh selfie với giấy tờ\n` +
-    `3️⃣ Xác minh số điện thoại\n\n` +
+    `<b>Quy trình KYC:</b>\n\n` +
+    `1️⃣ Xác minh số điện thoại\n` +
+    `2️⃣ Cung cấp CMND/CCCD\n\n` +
     `📞 Liên hệ support để được hướng dẫn chi tiết!`,
+
+  KYC_NOT_COMPLETED: () =>
+    `🔐 <b>XÁC MINH DANH TÍNH (KYC)</b>\n\n` +
+    `Bạn chưa hoàn thành xác minh danh tính.\n\n` +
+    `Để sử dụng đầy đủ các tính năng giao dịch, vui lòng hoàn thành quy trình KYC.\n\n` +
+    `<b>Quy trình KYC bao gồm:</b>\n\n` +
+    `1️⃣ Xác minh số điện thoại\n` +
+    `2️⃣ Cung cấp thông tin CMND/CCCD\n` +
+    `3️⃣ Xác nhận thông tin cá nhân\n\n` +
+    `Nhấn nút bên dưới để bắt đầu!`,
+
+  KYC_COMPLETED: (kyc: Kyc) => {
+    const birthDate = new Date(kyc.dob);
+    const expireDate = new Date(kyc.doe);
+
+    return (
+      `✅ <b>THÔNG TIN KYC</b>\n\n` +
+      `<b>Trạng thái:</b> ✅ Đã xác minh\n\n` +
+      `<b>Thông tin cá nhân:</b>\n` +
+      `📱 Số điện thoại: <code>${kyc.phone}</code>\n` +
+      `👤 Họ tên: <b>${kyc.name}</b>\n` +
+      `🆔 Số CMND/CCCD: <code>${kyc.id_number}</code>\n` +
+      `🎂 Ngày sinh: ${birthDate.toLocaleDateString('vi-VN')}\n` +
+      `⚧️ Giới tính: ${kyc.sex}\n` +
+      `🌍 Quốc tịch: ${kyc.nationality}\n` +
+      `🏠 Quê quán: ${kyc.home}\n` +
+      `📍 Địa chỉ: ${kyc.address}\n` +
+      `📅 Ngày hết hạn: ${expireDate.toLocaleDateString('vi-VN')}\n\n` +
+      `💡 Thông tin KYC của bạn đã được xác minh và lưu trữ an toàn.`
+    );
+  },
+
+  KYC_REQUEST_PHONE: () =>
+    `📱 <b>XÁC MINH SỐ ĐIỆN THOẠI</b>\n\n` +
+    `Vui lòng chia sẻ số điện thoại của bạn để tiếp tục.\n\n` +
+    `Bạn có thể:\n` +
+    `• Nhấn nút "📱 Chia sẻ số điện thoại" bên dưới\n` +
+    `• Hoặc nhập số điện thoại thủ công\n\n` +
+    `📝 Định dạng: 0xxxxxxxxx hoặc +84xxxxxxxxx`,
+
+  KYC_INVALID_PHONE: () =>
+    `❌ <b>SỐ ĐIỆN THOẠI KHÔNG HỢP LỆ</b>\n\n` +
+    `Vui lòng nhập số điện thoại hợp lệ.\n\n` +
+    `📝 Định dạng chấp nhận:\n` +
+    `• 0xxxxxxxxx (10 chữ số)\n` +
+    `• +84xxxxxxxxx (bắt đầu với +84)\n\n` +
+    `Vui lòng thử lại!`,
+
+  KYC_PHONE_RECEIVED: (phoneNumber: string) =>
+    `✅ <b>ĐÃ NHẬN SỐ ĐIỆN THOẠI</b>\n\n` +
+    `📱 Số điện thoại: <code>${phoneNumber}</code>\n\n` +
+    `Cảm ơn bạn! Chúng tôi sẽ tiếp tục với các bước tiếp theo của quy trình KYC.`,
+
+  KYC_REQUEST_ID_CARD: () =>
+    `📸 <b>CHỤP ẢNH CCCD</b>\n\n` +
+    `Vui lòng gửi ảnh <b>mặt trước</b> của Căn cước công dân (CCCD) của bạn.\n\n` +
+    `📝 <b>Lưu ý:</b>\n` +
+    `• Ảnh phải rõ nét, không bị mờ\n` +
+    `• Đảm bảo đầy đủ 4 góc của CCCD\n` +
+    `• Không chụp qua màn hình\n` +
+    `• Ánh sáng đủ, không bị lóa\n\n` +
+    `📷 Nhấn nút 📎 và chọn ảnh từ thư viện hoặc chụp ảnh mới.`,
+
+  KYC_PROCESSING_IMAGE: () =>
+    `⏳ <b>ĐANG XỬ LÝ ẢNH...</b>\n\n` +
+    `Vui lòng đợi trong giây lát, chúng tôi đang trích xuất thông tin từ CCCD của bạn.`,
+
+  KYC_ID_CARD_EXTRACTED: (idData: any) => {
+    const formatDate = (dateStr: string) => {
+      if (!dateStr) return 'N/A';
+      try {
+        const parts = dateStr.split('/');
+        if (parts.length === 3) {
+          return `${parts[0]}/${parts[1]}/${parts[2]}`;
+        }
+        return dateStr;
+      } catch {
+        return dateStr;
+      }
+    };
+
+    return (
+      `✅ <b>THÔNG TIN ĐÃ TRÍCH XUẤT</b>\n\n` +
+      `Vui lòng kiểm tra thông tin bên dưới:\n\n` +
+      `🆔 Số CCCD: <code>${idData.id || 'N/A'}</code>\n` +
+      `👤 Họ tên: <b>${idData.name || 'N/A'}</b>\n` +
+      `🎂 Ngày sinh: ${formatDate(idData.dob)}\n` +
+      `⚧️ Giới tính: ${idData.sex || 'N/A'}\n` +
+      `🌍 Quốc tịch: ${idData.nationality || 'N/A'}\n` +
+      `🏠 Quê quán: ${idData.home || 'N/A'}\n` +
+      `📍 Địa chỉ: ${idData.address || 'N/A'}\n` +
+      `📅 Ngày hết hạn: ${formatDate(idData.doe)}\n\n` +
+      `❓ Thông tin có chính xác không?`
+    );
+  },
+
+  KYC_IMAGE_ERROR: () =>
+    `❌ <b>LỖI XỬ LÝ ẢNH</b>\n\n` +
+    `Không thể trích xuất thông tin từ ảnh CCCD.\n\n` +
+    `<b>Nguyên nhân có thể:</b>\n` +
+    `• Ảnh không rõ nét hoặc bị mờ\n` +
+    `• Không phải ảnh CCCD hợp lệ\n` +
+    `• Ảnh bị che khuất hoặc thiếu góc\n` +
+    `• Ánh sáng không đủ\n\n` +
+    `Vui lòng chụp lại ảnh CCCD của bạn.`,
+
+  KYC_SAVE_SUCCESS: () =>
+    `🎉 <b>HOÀN TẤT KYC</b>\n\n` +
+    `✅ Thông tin KYC của bạn đã được lưu thành công!\n\n` +
+    `Bạn có thể bắt đầu sử dụng đầy đủ các tính năng giao dịch của bot.\n\n` +
+    `💡 Nhấn nút bên dưới để quay lại menu chính.`,
+
+  KYC_SAVE_ERROR: () =>
+    `❌ <b>LỖI LƯU THÔNG TIN</b>\n\n` +
+    `Có lỗi xảy ra khi lưu thông tin KYC của bạn.\n\n` +
+    `Vui lòng thử lại hoặc liên hệ support để được hỗ trợ.`,
+
+  KYC_ID_ALREADY_REGISTERED: (idNumberLast4: string) =>
+    `⚠️ <b>SỐ CCCD ĐÃ ĐƯỢC ĐĂNG KÝ</b>\n\n` +
+    `Số CCCD này (***${idNumberLast4}) đã được đăng ký với một tài khoản Telegram khác.\n\n` +
+    `<b>Lưu ý:</b>\n` +
+    `• Mỗi số CCCD chỉ có thể xác minh cho một tài khoản duy nhất\n` +
+    `• Điều này nhằm đảm bảo an toàn và tuân thủ quy định\n\n` +
+    `<b>Bạn có thể:</b>\n` +
+    `• Sử dụng CCCD khác để xác minh\n` +
+    `• Liên hệ support nếu bạn cho rằng đây là lỗi\n` +
+    `• Liên hệ support nếu cần chuyển xác minh sang tài khoản này\n\n` +
+    `📞 Vui lòng liên hệ support để được hỗ trợ!`,
 
   ACCOUNT_INFO: (
     chatId: number,
@@ -471,6 +602,45 @@ export class Keyboards {
     return new InlineKeyboard().text('🔙 Quay lại Menu', 'back_to_menu');
   }
 
+  static kycStart(): InlineKeyboard {
+    return new InlineKeyboard()
+      .text('🚀 Bắt đầu KYC', 'start_kyc')
+      .row()
+      .text('🔙 Quay lại Menu', 'back_to_menu');
+  }
+
+  static kycPhoneRequest(): Keyboard {
+    return new Keyboard()
+      .requestContact('📱 Chia sẻ số điện thoại')
+      .resized()
+      .oneTime();
+  }
+
+  static kycCancel(): InlineKeyboard {
+    return new InlineKeyboard()
+      .text('❌ Hủy', 'cancel_kyc')
+      .row()
+      .text('🔙 Quay lại Menu', 'back_to_menu');
+  }
+
+  static kycIdCardConfirmation(): InlineKeyboard {
+    return new InlineKeyboard()
+      .text('✅ Tiếp tục', 'kyc_confirm_id_card')
+      .row()
+      .text('📸 Chụp lại', 'kyc_recapture_id_card')
+      .row()
+      .text('❌ Hủy', 'cancel_kyc');
+  }
+
+  static kycDuplicateIdError(): InlineKeyboard {
+    return new InlineKeyboard()
+      .text('📸 Thử CCCD khác', 'kyc_try_different_id')
+      .row()
+      .text('📞 Liên hệ Support', 'contact_support')
+      .row()
+      .text('🔙 Quay lại Menu', 'back_to_menu');
+  }
+
   static qrCodeWithCancel(orderId: string): InlineKeyboard {
     return new InlineKeyboard()
       .text('❌ Hủy đơn hàng', `cancel_order_${orderId}`)
@@ -609,7 +779,7 @@ export class Keyboards {
  * User State Management
  */
 interface UserState {
-  action?: 'buy' | 'sell';
+  action?: 'buy' | 'sell' | 'kyc';
   amount?: string;
   walletAddress?: string;
   waitingFor?:
@@ -621,7 +791,10 @@ interface UserState {
     | 'account_number'
     | 'bank_details_single' // Single-input for bank details
     | 'delete_bank_index' // Waiting for bank account index to delete
-    | 'delete_wallet_index'; // Waiting for wallet index to delete
+    | 'delete_wallet_index' // Waiting for wallet index to delete
+    | 'kyc_phone' // Waiting for phone number input
+    | 'kyc_id_card' // Waiting for ID card photo
+    | 'kyc_processing'; // Processing ID card photo (prevents duplicate processing)
   bankId?: number;
   bankName?: string;
   fullName?: string;
@@ -632,6 +805,10 @@ interface UserState {
   orderId?: string; // Order ID for cancellation
   savedBankAccounts?: any[]; // Saved bank accounts for deletion
   savedWallets?: any[]; // Saved wallets for deletion
+  // KYC-related fields
+  kycPhoneNumber?: string;
+  kycIdCardData?: any; // Extracted ID card data from FPT AI
+  lastProcessedPhotoId?: string; // Track last processed photo to prevent duplicates
 }
 
 const userStates = new Map<number, UserState>();
@@ -732,10 +909,193 @@ export class TelegramService {
       }
     });
 
-    // KYC callback
+    // KYC callback - Check KYC status and display appropriate information
     this.bot.callbackQuery('kyc', async (ctx) => {
       await ctx.answerCallbackQuery();
-      await ctx.editMessageText(Messages.KYC_INFO(), {
+
+      try {
+        const chatId = ctx.chat?.id;
+
+        if (!chatId) {
+          logger.error('Missing chat ID in kyc callback');
+          await ctx.editMessageText(Messages.ERROR_GENERIC(), {
+            parse_mode: 'HTML',
+            reply_markup: Keyboards.backToMenu(),
+          });
+          return;
+        }
+
+        // Check if user has completed KYC
+        logger.info({ chatId }, 'Checking KYC status');
+        const kycRecord = await kycService.findByChatId(chatId);
+
+        if (kycRecord) {
+          // User has completed KYC - display KYC information
+          logger.info({ chatId, kycId: kycRecord.id }, 'User has completed KYC');
+          await ctx.editMessageText(Messages.KYC_COMPLETED(kycRecord), {
+            parse_mode: 'HTML',
+            reply_markup: Keyboards.backToMenu(),
+          });
+        } else {
+          // User has NOT completed KYC - show start KYC button
+          logger.info({ chatId }, 'User has not completed KYC');
+          await ctx.editMessageText(Messages.KYC_NOT_COMPLETED(), {
+            parse_mode: 'HTML',
+            reply_markup: Keyboards.kycStart(),
+          });
+        }
+      } catch (error) {
+        logger.error({ error }, 'Error checking KYC status');
+        await ctx.editMessageText(Messages.ERROR_GENERIC(), {
+          parse_mode: 'HTML',
+          reply_markup: Keyboards.backToMenu(),
+        });
+      }
+    });
+
+    // Start KYC callback - Begin KYC process with phone number collection
+    this.bot.callbackQuery('start_kyc', async (ctx) => {
+      await ctx.answerCallbackQuery();
+
+      try {
+        const userId = ctx.from.id;
+
+        logger.info({ userId }, 'User started KYC process');
+
+        // Set user state to wait for phone number
+        userStates.set(userId, {
+          action: 'kyc',
+          waitingFor: 'kyc_phone',
+        });
+
+        // Send message with phone request keyboard
+        await ctx.editMessageText(Messages.KYC_REQUEST_PHONE(), {
+          parse_mode: 'HTML',
+          reply_markup: Keyboards.kycCancel(),
+        });
+
+        // Send a separate message with the contact request keyboard
+        await ctx.reply(
+          `📱 Nhấn nút bên dưới để chia sẻ số điện thoại hoặc nhập thủ công:`,
+          {
+            reply_markup: Keyboards.kycPhoneRequest(),
+          }
+        );
+      } catch (error) {
+        logger.error({ error }, 'Error starting KYC process');
+        await ctx.editMessageText(Messages.ERROR_GENERIC(), {
+          parse_mode: 'HTML',
+          reply_markup: Keyboards.backToMenu(),
+        });
+      }
+    });
+
+    // Cancel KYC callback
+    this.bot.callbackQuery('cancel_kyc', async (ctx) => {
+      await ctx.answerCallbackQuery();
+      const userId = ctx.from.id;
+
+      logger.info({ userId }, 'User cancelled KYC process');
+
+      // Clear user state
+      userStates.delete(userId);
+
+      const firstName = ctx.from?.first_name || 'bạn';
+      await ctx.editMessageText(Messages.WELCOME(firstName), {
+        parse_mode: 'HTML',
+        reply_markup: await Keyboards.mainMenu(userId),
+      });
+    });
+
+    // KYC ID card confirmation callback
+    this.bot.callbackQuery('kyc_confirm_id_card', async (ctx) => {
+      await ctx.answerCallbackQuery();
+      const userId = ctx.from.id;
+      const state = userStates.get(userId);
+
+      if (!state || !state.kycIdCardData || !state.kycPhoneNumber) {
+        await ctx.editMessageText(Messages.ERROR_GENERIC(), {
+          parse_mode: 'HTML',
+          reply_markup: Keyboards.backToMenu(),
+        });
+        return;
+      }
+
+      try {
+        // saveKycData handles duplicate ID errors internally
+        // It will show appropriate message and not throw for duplicate errors
+        await this.saveKycData(ctx, userId, state);
+      } catch (error) {
+        // This catch block only handles unexpected errors (not duplicate ID)
+        logger.error({ error, userId }, 'Unexpected error saving KYC data');
+        await ctx.editMessageText(Messages.KYC_SAVE_ERROR(), {
+          parse_mode: 'HTML',
+          reply_markup: Keyboards.backToMenu(),
+        });
+      }
+    });
+
+    // KYC recapture ID card callback
+    this.bot.callbackQuery('kyc_recapture_id_card', async (ctx) => {
+      await ctx.answerCallbackQuery();
+      const userId = ctx.from.id;
+      const state = userStates.get(userId);
+
+      if (!state) {
+        return;
+      }
+
+      logger.info({ userId }, 'User requested to recapture ID card');
+
+      // Clear ID card data and allow new photo upload
+      state.kycIdCardData = undefined;
+      state.lastProcessedPhotoId = undefined; // Clear to allow new photo
+      state.waitingFor = 'kyc_id_card';
+      userStates.set(userId, state);
+
+      await ctx.editMessageText(Messages.KYC_REQUEST_ID_CARD(), {
+        parse_mode: 'HTML',
+        reply_markup: Keyboards.kycCancel(),
+      });
+    });
+
+    // KYC try different ID card callback (after duplicate error)
+    this.bot.callbackQuery('kyc_try_different_id', async (ctx) => {
+      await ctx.answerCallbackQuery();
+      const userId = ctx.from.id;
+      const state = userStates.get(userId);
+
+      if (!state) {
+        return;
+      }
+
+      logger.info({ userId }, 'User requested to try different ID card after duplicate error');
+
+      // Clear ID card data and allow new photo upload
+      state.kycIdCardData = undefined;
+      state.lastProcessedPhotoId = undefined; // Clear to allow new photo
+      state.waitingFor = 'kyc_id_card';
+      userStates.set(userId, state);
+
+      await ctx.editMessageText(Messages.KYC_REQUEST_ID_CARD(), {
+        parse_mode: 'HTML',
+        reply_markup: Keyboards.kycCancel(),
+      });
+    });
+
+    // Contact support callback
+    this.bot.callbackQuery('contact_support', async (ctx) => {
+      await ctx.answerCallbackQuery();
+
+      const supportMessage =
+        `📞 <b>LIÊN HỆ SUPPORT</b>\n\n` +
+        `Vui lòng liên hệ với đội ngũ hỗ trợ của chúng tôi:\n\n` +
+        `📧 Email: support@usdt247.com\n` +
+        `💬 Telegram: @usdt247support\n` +
+        `📱 Hotline: 1900-xxxx\n\n` +
+        `Chúng tôi sẽ hỗ trợ bạn trong thời gian sớm nhất!`;
+
+      await ctx.editMessageText(supportMessage, {
         parse_mode: 'HTML',
         reply_markup: Keyboards.backToMenu(),
       });
@@ -1642,6 +2002,106 @@ export class TelegramService {
       });
     });
 
+    // Contact handler - for phone number sharing
+    this.bot.on('message:contact', async (ctx) => {
+      const userId = ctx.from.id;
+      const state = userStates.get(userId);
+
+      if (!state || state.waitingFor !== 'kyc_phone') {
+        return;
+      }
+
+      try {
+        const contact = ctx.message.contact;
+        const phoneNumber = contact.phone_number;
+
+        logger.info({ userId, phoneNumber }, 'Received phone number via contact sharing');
+
+        // Validate phone number
+        if (this.validateVietnamesePhoneNumber(phoneNumber)) {
+          // Store phone number in state
+          state.kycPhoneNumber = phoneNumber;
+          state.waitingFor = 'kyc_id_card'; // Move to ID card collection
+          userStates.set(userId, state);
+
+          await ctx.reply(Messages.KYC_PHONE_RECEIVED(phoneNumber), {
+            parse_mode: 'HTML',
+            reply_markup: { remove_keyboard: true },
+          });
+
+          // Request ID card photo
+          await ctx.reply(Messages.KYC_REQUEST_ID_CARD(), {
+            parse_mode: 'HTML',
+            reply_markup: Keyboards.kycCancel(),
+          });
+
+          logger.info({ userId, phoneNumber }, 'Phone number validated, requesting ID card');
+        } else {
+          await ctx.reply(Messages.KYC_INVALID_PHONE(), {
+            parse_mode: 'HTML',
+          });
+        }
+      } catch (error) {
+        logger.error({ error, userId }, 'Error handling contact message');
+        await ctx.reply(Messages.ERROR_GENERIC());
+      }
+    });
+
+    // Photo handler - for ID card images
+    this.bot.on('message:photo', async (ctx) => {
+      const userId = ctx.from.id;
+      const state = userStates.get(userId);
+
+      // Only process if waiting for ID card
+      if (!state || state.waitingFor !== 'kyc_id_card') {
+        return;
+      }
+
+      // Get the largest photo (best quality) to check file_unique_id
+      const photos = ctx.message.photo;
+      if (!photos || photos.length === 0) {
+        logger.error({ userId }, 'No photos found in message');
+        return;
+      }
+
+      const photo = photos[photos.length - 1];
+      if (!photo) {
+        logger.error({ userId }, 'Failed to get photo from array');
+        return;
+      }
+
+      const photoUniqueId = photo.file_unique_id;
+
+      // Deduplication: Check if we've already processed this exact photo
+      if (state.lastProcessedPhotoId === photoUniqueId) {
+        logger.info(
+          { userId, photoUniqueId },
+          'Ignoring duplicate photo - already processed this image'
+        );
+        return;
+      }
+
+      // Prevent concurrent processing by immediately changing state
+      state.waitingFor = 'kyc_processing';
+      state.lastProcessedPhotoId = photoUniqueId;
+      userStates.set(userId, state);
+
+      logger.info({ userId, photoUniqueId }, 'Starting ID card photo processing');
+
+      try {
+        await this.handleKycIdCardPhoto(ctx, userId, state);
+      } catch (error) {
+        logger.error({ error, userId }, 'Error handling ID card photo');
+
+        // Reset state to allow retry
+        state.waitingFor = 'kyc_id_card';
+        state.lastProcessedPhotoId = undefined;
+        userStates.set(userId, state);
+
+        await ctx.reply(Messages.ERROR_GENERIC());
+      }
+    });
+
     // Text message handler
     this.bot.on('message:text', async (ctx) => {
       const userId = ctx.from.id;
@@ -1653,7 +2113,9 @@ export class TelegramService {
 
       const text = ctx.message.text.trim();
 
-      if (state.waitingFor === 'buy_amount') {
+      if (state.waitingFor === 'kyc_phone') {
+        await this.handleKycPhoneInput(ctx, userId, state, text);
+      } else if (state.waitingFor === 'buy_amount') {
         await this.handleBuyAmountInput(ctx, userId, state, text);
       } else if (state.waitingFor === 'sell_amount') {
         await this.handleSellAmountInput(ctx, userId, state, text);
@@ -1733,6 +2195,64 @@ export class TelegramService {
       console.error('Error fetching exchange rates:', error);
       return null;
     }
+  }
+
+  /**
+   * Validate Vietnamese phone number
+   * Accepts formats: 0xxxxxxxxx (10 digits) or +84xxxxxxxxx
+   */
+  private validateVietnamesePhoneNumber(phoneNumber: string): boolean {
+    // Remove all spaces and dashes
+    const cleaned = phoneNumber.replace(/[\s-]/g, '');
+
+    // Pattern 1: 0xxxxxxxxx (10 digits starting with 0)
+    const pattern1 = /^0\d{9}$/;
+
+    // Pattern 2: +84xxxxxxxxx (starts with +84, followed by 9-10 digits)
+    const pattern2 = /^\+84\d{9,10}$/;
+
+    // Pattern 3: 84xxxxxxxxx (starts with 84, followed by 9-10 digits)
+    const pattern3 = /^84\d{9,10}$/;
+
+    return pattern1.test(cleaned) || pattern2.test(cleaned) || pattern3.test(cleaned);
+  }
+
+  /**
+   * Handle KYC phone number input (manual entry)
+   */
+  private async handleKycPhoneInput(
+    ctx: any,
+    userId: number,
+    state: UserState,
+    text: string
+  ): Promise<void> {
+    logger.info({ userId, phoneInput: text }, 'Processing manual phone number input');
+
+    // Validate phone number
+    if (!this.validateVietnamesePhoneNumber(text)) {
+      await ctx.reply(Messages.KYC_INVALID_PHONE(), {
+        parse_mode: 'HTML',
+      });
+      return;
+    }
+
+    // Store phone number in state
+    state.kycPhoneNumber = text;
+    state.waitingFor = 'kyc_id_card'; // Move to ID card collection
+    userStates.set(userId, state);
+
+    await ctx.reply(Messages.KYC_PHONE_RECEIVED(text), {
+      parse_mode: 'HTML',
+      reply_markup: { remove_keyboard: true },
+    });
+
+    // Request ID card photo
+    await ctx.reply(Messages.KYC_REQUEST_ID_CARD(), {
+      parse_mode: 'HTML',
+      reply_markup: Keyboards.kycCancel(),
+    });
+
+    logger.info({ userId, phoneNumber: text }, 'Phone number validated, requesting ID card');
   }
 
   /**
@@ -2614,6 +3134,206 @@ export class TelegramService {
       parse_mode: 'HTML',
       reply_markup: Keyboards.confirmDelete(),
     });
+  }
+
+  /**
+   * Handle KYC ID card photo upload
+   * Note: State locking (waitingFor = 'kyc_processing') is handled by the caller
+   */
+  private async handleKycIdCardPhoto(ctx: any, userId: number, state: UserState): Promise<void> {
+    logger.info({ userId }, 'Processing ID card photo');
+
+    // Show processing message
+    await ctx.reply(Messages.KYC_PROCESSING_IMAGE(), {
+      parse_mode: 'HTML',
+    });
+
+    try {
+      // Get the largest photo (best quality)
+      const photos = ctx.message.photo;
+      const photo = photos[photos.length - 1];
+
+      logger.info(
+        { userId, fileId: photo.file_id, fileUniqueId: photo.file_unique_id },
+        'Downloading photo from Telegram'
+      );
+
+      // Download the photo
+      const file = await ctx.api.getFile(photo.file_id);
+      const filePath = file.file_path;
+
+      if (!filePath) {
+        throw new Error('Failed to get file path');
+      }
+
+      // Create data directory if it doesn't exist
+      const dataDir = path.join(process.cwd(), 'data');
+      if (!fs.existsSync(dataDir)) {
+        fs.mkdirSync(dataDir, { recursive: true });
+      }
+
+      // Save image to /data folder with chat_id as filename
+      const localFilePath = path.join(dataDir, `${userId}.jpg`);
+      const fileUrl = `https://api.telegram.org/file/bot${telegramConfig.botToken}/${filePath}`;
+
+      // Download and save the file
+      const axios = require('axios');
+      const response = await axios.get(fileUrl, { responseType: 'stream' });
+      const writer = fs.createWriteStream(localFilePath);
+
+      response.data.pipe(writer);
+
+      await new Promise<void>((resolve, reject) => {
+        writer.on('finish', () => resolve());
+        writer.on('error', reject);
+      });
+
+      logger.info({ userId, localFilePath }, 'ID card image saved to disk');
+
+      // Call FPT AI Vision API (this is the expensive operation we want to avoid duplicating)
+      logger.info({ userId }, 'Calling FPT AI Vision API');
+      const idData = await fptAiVisionService.recognizeIdCard(localFilePath);
+      logger.info({ userId, idData }, 'FPT AI Vision API call successful');
+
+      // Store extracted data in state and clear waiting state
+      state.kycIdCardData = idData;
+      state.waitingFor = undefined; // Clear waiting state - user needs to confirm
+      userStates.set(userId, state);
+
+      logger.info({ userId }, 'ID card data extracted and stored in state');
+
+      // Display extracted information and ask for confirmation
+      await ctx.reply(Messages.KYC_ID_CARD_EXTRACTED(idData), {
+        parse_mode: 'HTML',
+        reply_markup: Keyboards.kycIdCardConfirmation(),
+      });
+    } catch (error) {
+      logger.error({ error, userId }, 'Error processing ID card photo');
+
+      // Show error message and allow retry
+      await ctx.reply(Messages.KYC_IMAGE_ERROR(), {
+        parse_mode: 'HTML',
+        reply_markup: Keyboards.kycCancel(),
+      });
+
+      // Reset state to allow retry
+      state.waitingFor = 'kyc_id_card';
+      state.lastProcessedPhotoId = undefined; // Clear so user can retry with same or different photo
+      userStates.set(userId, state);
+
+      // Re-throw to let caller know there was an error
+      throw error;
+    }
+  }
+
+  /**
+   * Save KYC data to database
+   */
+  private async saveKycData(ctx: any, userId: number, state: UserState): Promise<void> {
+    const idData = state.kycIdCardData;
+    const phoneNumber = state.kycPhoneNumber;
+
+    if (!idData || !phoneNumber) {
+      throw new Error('Missing KYC data');
+    }
+
+    logger.info({ userId }, 'Saving KYC data to database');
+
+    try {
+      // Parse dates
+      const dob = fptAiVisionService.parseDate(idData.dob);
+      const doe = fptAiVisionService.parseDate(idData.doe);
+
+      if (!dob || !doe) {
+        throw new Error('Invalid date format in ID card data');
+      }
+
+      // Create KYC record
+      await kycService.create({
+        chat_id: userId,
+        phone: phoneNumber,
+        id_number: idData.id,
+        name: idData.name,
+        dob: dob,
+        sex: idData.sex,
+        nationality: idData.nationality,
+        home: idData.home,
+        address: idData.address,
+        doe: doe,
+      });
+
+      // Update is_kyc flag in tele_users table
+      await teleUserService.updateKycStatus(userId, true);
+
+      logger.info({ userId }, 'KYC data saved successfully');
+
+      // Clear user state
+      userStates.delete(userId);
+
+      // Show success message
+      await ctx.editMessageText(Messages.KYC_SAVE_SUCCESS(), {
+        parse_mode: 'HTML',
+        reply_markup: Keyboards.backToMenu(),
+      });
+    } catch (error: any) {
+      // Check if this is a duplicate ID number error
+      const isDuplicateError = this.isDuplicateKeyError(error);
+
+      if (isDuplicateError) {
+        // Log for fraud detection (only last 4 digits for privacy)
+        const idNumberLast4 = idData.id ? idData.id.slice(-4) : 'unknown';
+        logger.warn(
+          {
+            userId,
+            idNumberLast4,
+            errorCode: error.code,
+            errorMessage: error.message,
+          },
+          'Duplicate ID card number detected - ID already registered to another account'
+        );
+
+        // DO NOT update is_kyc flag
+        // DO NOT clear user state - allow them to try with different ID
+
+        // Show user-friendly error message
+        await ctx.editMessageText(Messages.KYC_ID_ALREADY_REGISTERED(idNumberLast4), {
+          parse_mode: 'HTML',
+          reply_markup: Keyboards.kycDuplicateIdError(),
+        });
+
+        // Don't re-throw - we've handled this error
+        return;
+      }
+
+      // For other errors, log and re-throw
+      logger.error({ error, userId }, 'Error saving KYC data to database');
+      throw error;
+    }
+  }
+
+  /**
+   * Check if error is a duplicate key constraint violation
+   * MySQL error code 1062 = ER_DUP_ENTRY
+   */
+  private isDuplicateKeyError(error: any): boolean {
+    if (!error) return false;
+
+    // Check MySQL error code
+    if (error.code === 'ER_DUP_ENTRY' || error.errno === 1062) {
+      return true;
+    }
+
+    // Check error message for duplicate key patterns
+    const errorMessage = error.message?.toLowerCase() || '';
+    if (
+      errorMessage.includes('duplicate') ||
+      errorMessage.includes('unique constraint') ||
+      errorMessage.includes('duplicate entry')
+    ) {
+      return true;
+    }
+
+    return false;
   }
 
   /**
