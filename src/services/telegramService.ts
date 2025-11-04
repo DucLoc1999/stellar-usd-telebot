@@ -2948,7 +2948,14 @@ export class TelegramService {
         reply_markup: Keyboards.qrCodeWithCancel(order.id),
       });
 
-      logger.info({ orderId: order.id }, 'QR code image sent successfully - order flow complete');
+      logger.info({ orderId: order.id }, 'QR code image sent successfully');
+
+      // Step 4: Send processing status notification (after QR code)
+      await ctx.reply(Messages.ORDER_STATE_PROCESSING(order.id), {
+        parse_mode: 'HTML',
+      });
+
+      logger.info({ orderId: order.id }, 'Processing status notification sent - order flow complete');
     } else {
       logger.error({ orderId: order.id, payData: order.pay_data }, 'No QR code in order response');
       await ctx.reply(Messages.ERROR_GENERIC());
@@ -3063,7 +3070,14 @@ export class TelegramService {
         reply_markup: Keyboards.qrCodeWithCancel(order.id),
       });
 
-      logger.info({ userId, orderId: order.id }, 'Sell flow completed successfully with QR code');
+      logger.info({ userId, orderId: order.id }, 'QR code sent successfully');
+
+      // Send processing status notification (after QR code)
+      await ctx.reply(Messages.ORDER_STATE_PROCESSING(order.id), {
+        parse_mode: 'HTML',
+      });
+
+      logger.info({ userId, orderId: order.id }, 'Processing status notification sent - sell flow complete');
     } else {
       logger.error(
         {
