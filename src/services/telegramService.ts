@@ -833,6 +833,9 @@ interface UserState {
   lastProcessedPhotoId?: string; // Track last processed photo to prevent duplicates
 }
 
+// Track user-initiated order cancellations to prevent duplicate notifications
+const userCancelledOrders = new Set<string>();
+
 const userStates = new Map<number, UserState>();
 
 /**
@@ -2016,6 +2019,15 @@ export class TelegramService {
       const userId = ctx.from.id;
       const orderId = ctx.match[1];
 
+      if (!orderId) {
+        logger.error({ userId }, 'Order ID not found in callback data');
+        await ctx.reply(Messages.ERROR_GENERIC(), {
+          parse_mode: 'HTML',
+          reply_markup: await Keyboards.mainMenu(userId),
+        });
+        return;
+      }
+
       logger.info({ userId, orderId }, 'User requested to cancel order');
 
       try {
@@ -2045,7 +2057,17 @@ export class TelegramService {
         );
 
         if (response.ok) {
-          // Order cancelled successfully
+          // Track this as a user-initiated cancellation to prevent duplicate webhook notification
+          userCancelledOrders.add(orderId);
+          logger.info({ userId, orderId }, 'Marked order as user-cancelled to suppress webhook notification');
+
+          // Auto-remove from set after 60 seconds (in case webhook arrives late)
+          setTimeout(() => {
+            userCancelledOrders.delete(orderId);
+            logger.debug({ orderId }, 'Removed order from user-cancelled tracking set');
+          }, 60000);
+
+          // Order cancelled successfully - send user-friendly message
           await ctx.reply(Messages.ORDER_CANCELLED(), {
             parse_mode: 'HTML',
             reply_markup: await Keyboards.mainMenu(userId),
@@ -2897,9 +2919,9 @@ export class TelegramService {
 
     // Generate and send QR code from pay_data.qr_code
     if (order.pay_data?.qr_code) {
-      logger.info({ orderId: order.id }, 'Generating QR code');
+      logger.info({ orderId: order.id }, 'Starting QR code flow - sending bank info first');
 
-      // Send bank information message with VND amount
+      // Step 1: Send bank information message with VND amount
       await ctx.reply(
         Messages.PAYMENT_QR_MESSAGE(
           bankInfo?.bankName,
@@ -2909,20 +2931,24 @@ export class TelegramService {
         ),
         { parse_mode: 'HTML' }
       );
+      logger.info({ orderId: order.id }, 'Bank information message sent');
 
+      // Step 2: Generate QR code
+      logger.info({ orderId: order.id }, 'Generating QR code image');
       const qrCodeImage = await this.generateQRCode(order.pay_data.qr_code);
       logger.info(
         { orderId: order.id, qrCodeSize: qrCodeImage.length },
-        'QR code generated, sending to user'
+        'QR code generated successfully'
       );
 
+      // Step 3: Send QR code image with cancel button
       await ctx.replyWithPhoto(new InputFile(qrCodeImage), {
         caption: Messages.PAYMENT_QR_CAPTION(),
         parse_mode: 'HTML',
         reply_markup: Keyboards.qrCodeWithCancel(order.id),
       });
 
-      logger.info({ orderId: order.id }, 'QR code sent successfully');
+      logger.info({ orderId: order.id }, 'QR code image sent successfully - order flow complete');
     } else {
       logger.error({ orderId: order.id, payData: order.pay_data }, 'No QR code in order response');
       await ctx.reply(Messages.ERROR_GENERIC());
@@ -3099,6 +3125,17 @@ export class TelegramService {
     state: number,
     processingState?: number
   ): Promise<void> {
+    // Check if this is a user-initiated cancellation (state 5 = Cancelled)
+    if (state === 5 && userCancelledOrders.has(orderId)) {
+      logger.info(
+        { chatId, orderId, state },
+        'Skipping webhook notification for user-cancelled order (user already notified)'
+      );
+      // Remove from tracking set since we've handled it
+      userCancelledOrders.delete(orderId);
+      return;
+    }
+
     // Only use the main order state for notifications
     // Ignore processing_state parameter completely
     const message = this.getOrderStateMessage(orderId, state);
