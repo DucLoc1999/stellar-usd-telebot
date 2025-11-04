@@ -11,7 +11,7 @@ export class TeleUserService {
       INSERT INTO ${this.tableName} 
         (chat_id, first_name, last_name, username, is_kyc, created_at, updated_at)
       VALUES 
-        (?, ?, ?, ?, true, NOW(), NOW())
+        (?, ?, ?, ?, false, NOW(), NOW())
       ON DUPLICATE KEY UPDATE
         first_name = VALUES(first_name),
         last_name = VALUES(last_name),
