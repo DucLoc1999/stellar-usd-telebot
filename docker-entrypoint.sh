@@ -10,6 +10,12 @@ if [ -d "/app/logs" ]; then
   chmod -R 755 /app/logs
 fi
 
+if [ -d "/app/data" ]; then
+  echo "Fixing permissions for /app/data directory..."
+  chown -R node:node /app/data
+  chmod -R 755 /app/data
+fi
+
 # Switch to node user and execute the main command
 echo "Starting application as node user..."
 exec su-exec node "$@"

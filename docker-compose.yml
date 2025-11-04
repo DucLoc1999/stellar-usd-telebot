@@ -76,7 +76,9 @@ services:
       # Mount logs directory to persist logs on host
       # The docker-entrypoint.sh script automatically fixes permissions at startup
       # This works correctly on Linux with host network mode
+      # Update data folder
       - ./logs:/app/logs
+      - ./data:/app/data
 
     healthcheck:
       test:
