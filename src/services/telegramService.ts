@@ -836,6 +836,10 @@ interface UserState {
 // Track user-initiated order cancellations to prevent duplicate notifications
 const userCancelledOrders = new Set<string>();
 
+// Track newly created orders to skip initial PROCESSING webhook notification
+// (we send the processing notification manually after QR code)
+const newlyCreatedOrders = new Set<string>();
+
 const userStates = new Map<number, UserState>();
 
 /**
@@ -2950,6 +2954,16 @@ export class TelegramService {
 
       logger.info({ orderId: order.id }, 'QR code image sent successfully');
 
+      // Track this order to skip initial PROCESSING webhook notification
+      newlyCreatedOrders.add(order.id);
+      logger.info({ orderId: order.id }, 'Marked order to skip initial PROCESSING webhook notification');
+
+      // Auto-remove from set after 10 seconds (webhook should arrive by then)
+      setTimeout(() => {
+        newlyCreatedOrders.delete(order.id);
+        logger.debug({ orderId: order.id }, 'Removed order from newly created tracking set');
+      }, 10000);
+
       // Step 4: Send processing status notification (after QR code)
       await ctx.reply(Messages.ORDER_STATE_PROCESSING(order.id), {
         parse_mode: 'HTML',
@@ -3072,6 +3086,16 @@ export class TelegramService {
 
       logger.info({ userId, orderId: order.id }, 'QR code sent successfully');
 
+      // Track this order to skip initial PROCESSING webhook notification
+      newlyCreatedOrders.add(order.id);
+      logger.info({ orderId: order.id }, 'Marked order to skip initial PROCESSING webhook notification');
+
+      // Auto-remove from set after 10 seconds (webhook should arrive by then)
+      setTimeout(() => {
+        newlyCreatedOrders.delete(order.id);
+        logger.debug({ orderId: order.id }, 'Removed order from newly created tracking set');
+      }, 10000);
+
       // Send processing status notification (after QR code)
       await ctx.reply(Messages.ORDER_STATE_PROCESSING(order.id), {
         parse_mode: 'HTML',
@@ -3147,6 +3171,18 @@ export class TelegramService {
       );
       // Remove from tracking set since we've handled it
       userCancelledOrders.delete(orderId);
+      return;
+    }
+
+    // Check if this is initial PROCESSING state for a newly created order
+    // (we send the processing notification manually after QR code)
+    if (state === 2 && newlyCreatedOrders.has(orderId)) {
+      logger.info(
+        { chatId, orderId, state },
+        'Skipping initial PROCESSING webhook notification (will be sent after QR code)'
+      );
+      // Remove from tracking set since we've handled it
+      newlyCreatedOrders.delete(orderId);
       return;
     }
 
