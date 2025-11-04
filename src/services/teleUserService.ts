@@ -33,6 +33,15 @@ export class TeleUserService {
   async findByChatId(chatId: number): Promise<TeleUser | undefined> {
     return db(this.tableName).where({ chat_id: chatId }).first();
   }
+
+  /**
+   * Update KYC status for a user
+   */
+  async updateKycStatus(chatId: number, isKyc: boolean): Promise<void> {
+    await db(this.tableName)
+      .where({ chat_id: chatId })
+      .update({ is_kyc: isKyc, updated_at: db.fn.now() });
+  }
 }
 
 export default new TeleUserService();
