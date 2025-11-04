@@ -263,6 +263,21 @@ export const Messages = {
     `Bạn cần xác minh danh tính (KYC) để thực hiện giao dịch.\n\n` +
     `📞 Vui lòng liên hệ support để được hướng dẫn!`,
 
+  KYC_REQUIRED_FOR_TRADING: () =>
+    `🔐 <b>YÊU CẦU XÁC MINH DANH TÍNH</b>\n\n` +
+    `Để đảm bảo an toàn và tuân thủ quy định, bạn cần hoàn thành xác minh danh tính (KYC) trước khi mua/bán USDT.\n\n` +
+    `<b>Lợi ích của KYC:</b>\n` +
+    `✅ Bảo vệ tài khoản của bạn\n` +
+    `✅ Tuân thủ quy định pháp luật\n` +
+    `✅ Giao dịch an toàn và minh bạch\n` +
+    `✅ Hạn mức giao dịch cao hơn\n\n` +
+    `<b>Quy trình KYC nhanh chóng:</b>\n` +
+    `1️⃣ Xác minh số điện thoại\n` +
+    `2️⃣ Chụp ảnh CCCD/CMND\n` +
+    `3️⃣ Xác nhận thông tin\n\n` +
+    `⏱️ Chỉ mất 2-3 phút để hoàn thành!\n\n` +
+    `Nhấn nút bên dưới để bắt đầu xác minh ngay.`,
+
   KYC_INFO: () =>
     `🔐 <b>XÁC MINH DANH TÍNH (KYC)</b>\n\n` +
     `Để đảm bảo an toàn và tuân thủ quy định, chúng tôi yêu cầu xác minh danh tính cho các giao dịch lớn.\n\n` +
@@ -605,6 +620,13 @@ export class Keyboards {
   static kycStart(): InlineKeyboard {
     return new InlineKeyboard()
       .text('🚀 Bắt đầu KYC', 'start_kyc')
+      .row()
+      .text('🔙 Quay lại Menu', 'back_to_menu');
+  }
+
+  static kycRequiredForTrading(): InlineKeyboard {
+    return new InlineKeyboard()
+      .text('🔐 Xác minh KYC ngay', 'start_kyc')
       .row()
       .text('🔙 Quay lại Menu', 'back_to_menu');
   }
@@ -1453,11 +1475,45 @@ export class TelegramService {
     this.bot.callbackQuery('buy_usdt', async (ctx) => {
       await ctx.answerCallbackQuery();
       const userId = ctx.from.id;
-      userStates.set(userId, { action: 'buy' });
-      await ctx.editMessageText(Messages.BUY_SELECT_AMOUNT(), {
-        parse_mode: 'HTML',
-        reply_markup: Keyboards.buyAmountSelection(),
-      });
+
+      try {
+        // Check KYC status before allowing buy
+        logger.info({ userId }, 'Checking KYC status for buy USDT');
+        const user = await teleUserService.findByChatId(userId);
+
+        if (!user) {
+          logger.warn({ userId }, 'User not found in database for buy USDT');
+          await ctx.editMessageText(Messages.ERROR_GENERIC(), {
+            parse_mode: 'HTML',
+            reply_markup: Keyboards.backToMenu(),
+          });
+          return;
+        }
+
+        // Check if user has completed KYC
+        if (!user.is_kyc) {
+          logger.info({ userId, isKyc: user.is_kyc }, 'User attempted to buy USDT without KYC');
+          await ctx.editMessageText(Messages.KYC_REQUIRED_FOR_TRADING(), {
+            parse_mode: 'HTML',
+            reply_markup: Keyboards.kycRequiredForTrading(),
+          });
+          return;
+        }
+
+        // User is KYC verified, proceed with buy flow
+        logger.info({ userId, isKyc: user.is_kyc }, 'User is KYC verified, proceeding with buy flow');
+        userStates.set(userId, { action: 'buy' });
+        await ctx.editMessageText(Messages.BUY_SELECT_AMOUNT(), {
+          parse_mode: 'HTML',
+          reply_markup: Keyboards.buyAmountSelection(),
+        });
+      } catch (error) {
+        logger.error({ error, userId }, 'Error checking KYC status for buy USDT');
+        await ctx.editMessageText(Messages.ERROR_GENERIC(), {
+          parse_mode: 'HTML',
+          reply_markup: Keyboards.backToMenu(),
+        });
+      }
     });
 
     // Buy amount preset buttons
@@ -1506,11 +1562,45 @@ export class TelegramService {
     this.bot.callbackQuery('sell_usdt', async (ctx) => {
       await ctx.answerCallbackQuery();
       const userId = ctx.from.id;
-      userStates.set(userId, { action: 'sell' });
-      await ctx.editMessageText(Messages.SELL_SELECT_AMOUNT(), {
-        parse_mode: 'HTML',
-        reply_markup: Keyboards.sellAmountSelection(),
-      });
+
+      try {
+        // Check KYC status before allowing sell
+        logger.info({ userId }, 'Checking KYC status for sell USDT');
+        const user = await teleUserService.findByChatId(userId);
+
+        if (!user) {
+          logger.warn({ userId }, 'User not found in database for sell USDT');
+          await ctx.editMessageText(Messages.ERROR_GENERIC(), {
+            parse_mode: 'HTML',
+            reply_markup: Keyboards.backToMenu(),
+          });
+          return;
+        }
+
+        // Check if user has completed KYC
+        if (!user.is_kyc) {
+          logger.info({ userId, isKyc: user.is_kyc }, 'User attempted to sell USDT without KYC');
+          await ctx.editMessageText(Messages.KYC_REQUIRED_FOR_TRADING(), {
+            parse_mode: 'HTML',
+            reply_markup: Keyboards.kycRequiredForTrading(),
+          });
+          return;
+        }
+
+        // User is KYC verified, proceed with sell flow
+        logger.info({ userId, isKyc: user.is_kyc }, 'User is KYC verified, proceeding with sell flow');
+        userStates.set(userId, { action: 'sell' });
+        await ctx.editMessageText(Messages.SELL_SELECT_AMOUNT(), {
+          parse_mode: 'HTML',
+          reply_markup: Keyboards.sellAmountSelection(),
+        });
+      } catch (error) {
+        logger.error({ error, userId }, 'Error checking KYC status for sell USDT');
+        await ctx.editMessageText(Messages.ERROR_GENERIC(), {
+          parse_mode: 'HTML',
+          reply_markup: Keyboards.backToMenu(),
+        });
+      }
     });
 
     // Sell amount preset buttons
