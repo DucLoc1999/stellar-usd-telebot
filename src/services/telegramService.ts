@@ -2465,18 +2465,6 @@ export class TelegramService {
 
   /**
    * Parse sex/gender field from FPT AI Vision API response
-   * API returns format: "NAM/M" or "NỮ/F"
-   * Returns the Vietnamese part for display (e.g., "NAM" or "NỮ")
-   */
-  private parseSexForDisplay(sex: string | undefined): string {
-    if (!sex) return 'N/A';
-    // Extract Vietnamese part (before the slash)
-    const parts = sex.split('/');
-    return parts[0] || sex;
-  }
-
-  /**
-   * Parse sex/gender field from FPT AI Vision API response
    * API returns different formats for different document types:
    * - CCCD: "NAM" or "NỮ" (Vietnamese only)
    * - Passport: "NAM/M" or "NỮ/F" (Vietnamese/English format)
@@ -2504,44 +2492,6 @@ export class TelegramService {
 
     // Fallback: return as-is if format is unrecognized
     return sex;
-  }
-
-  /**
-   * Handle KYC phone number input (manual entry)
-   */
-  private async handleKycPhoneInput(
-    ctx: any,
-    userId: number,
-    state: UserState,
-    text: string
-  ): Promise<void> {
-    logger.info({ userId, phoneInput: text }, 'Processing manual phone number input');
-
-    // Validate phone number
-    if (!this.validateVietnamesePhoneNumber(text)) {
-      await ctx.reply(Messages.KYC_INVALID_PHONE(), {
-        parse_mode: 'HTML',
-      });
-      return;
-    }
-
-    // Store phone number in state
-    state.kycPhoneNumber = text;
-    state.waitingFor = 'kyc_id_card'; // Move to ID card collection
-    userStates.set(userId, state);
-
-    await ctx.reply(Messages.KYC_PHONE_RECEIVED(text), {
-      parse_mode: 'HTML',
-      reply_markup: { remove_keyboard: true },
-    });
-
-    // Request ID card photo
-    await ctx.reply(Messages.KYC_REQUEST_ID_CARD(), {
-      parse_mode: 'HTML',
-      reply_markup: Keyboards.kycCancel(),
-    });
-
-    logger.info({ userId, phoneNumber: text }, 'Phone number validated, requesting ID card');
   }
 
   /**
