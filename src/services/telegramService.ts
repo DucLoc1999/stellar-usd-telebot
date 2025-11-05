@@ -713,15 +713,6 @@ export class Keyboards {
       .text('🔙 Quay lại Menu', 'back_to_menu');
   }
 
-  static qrCodeWithCancelAndSupport(orderId: string): InlineKeyboard {
-    return new InlineKeyboard()
-      .text('📞 Liên hệ hỗ trợ', 'contact_support')
-      .row()
-      .text('❌ Hủy đơn hàng', `cancel_order_${orderId}`)
-      .row()
-      .text('🔙 Quay lại Menu', 'back_to_menu');
-  }
-
   static bankAccountsList(accounts: any[]): InlineKeyboard {
     const keyboard = new InlineKeyboard();
 
@@ -3231,11 +3222,11 @@ export class TelegramService {
         'QR code generated successfully'
       );
 
-      // Step 3: Send QR code image with cancel and support buttons
+      // Step 3: Send QR code image with cancel button
       await ctx.replyWithPhoto(new InputFile(qrCodeImage), {
         caption: Messages.PAYMENT_QR_CAPTION(),
         parse_mode: 'HTML',
-        reply_markup: Keyboards.qrCodeWithCancelAndSupport(order.id),
+        reply_markup: Keyboards.qrCodeWithCancel(order.id),
       });
 
       logger.info({ orderId: order.id }, 'QR code image sent successfully');
@@ -3383,7 +3374,7 @@ export class TelegramService {
           `⏰ Sau khi chuyển USDT, tiền VND sẽ được chuyển vào tài khoản của bạn trong vòng 3-30 giây.\n\n` +
           `📞 Liên hệ support nếu có vấn đề!`,
         parse_mode: 'HTML',
-        reply_markup: Keyboards.qrCodeWithCancelAndSupport(order.id),
+        reply_markup: Keyboards.qrCodeWithCancel(order.id),
       });
 
       logger.info({ userId, orderId: order.id }, 'QR code sent successfully');
