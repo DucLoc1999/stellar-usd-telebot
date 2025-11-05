@@ -42,6 +42,29 @@ export class TeleUserService {
       .where({ chat_id: chatId })
       .update({ is_kyc: isKyc, updated_at: db.fn.now() });
   }
+
+  /**
+   * Increment KYC attempt counter for a user
+   */
+  async incrementKycAttempts(chatId: number): Promise<void> {
+    await db(this.tableName)
+      .where({ chat_id: chatId })
+      .increment('time_kyc', 1)
+      .update({ updated_at: db.fn.now() });
+  }
+
+  /**
+   * Check if user has exceeded KYC attempt limit
+   * @param chatId - User's chat ID
+   * @returns true if user has exceeded limit (time_kyc >= 3), false otherwise
+   */
+  async hasExceededKycAttempts(chatId: number): Promise<boolean> {
+    const user = await this.findByChatId(chatId);
+    if (!user) {
+      return false;
+    }
+    return (user.time_kyc || 0) >= 3;
+  }
 }
 
 export default new TeleUserService();

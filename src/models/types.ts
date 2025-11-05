@@ -33,6 +33,7 @@ export interface TeleUser {
   last_name?: string;
   username: string;
   is_kyc?: boolean;
+  time_kyc?: number;
   created_at?: Date;
   updated_at?: Date;
 }

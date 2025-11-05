@@ -256,8 +256,6 @@ export const Messages = {
   INVALID_DELETE_INDEX: () =>
     `❌ <b>SỐ THỨ TỰ KHÔNG HỢP LỆ</b>\n\n` + `Vui lòng nhập một số hợp lệ từ danh sách.`,
 
-  ERROR_GENERIC: () => `❌ Có lỗi xảy ra. Vui lòng thử lại sau!`,
-
   KYC_REQUIRED: () =>
     `🔐 <b>YÊU CẦU XÁC MINH KYC</b>\n\n` +
     `Bạn cần xác minh danh tính (KYC) để thực hiện giao dịch.\n\n` +
@@ -273,8 +271,7 @@ export const Messages = {
     `✅ Hạn mức giao dịch cao hơn\n\n` +
     `<b>Quy trình KYC nhanh chóng:</b>\n` +
     `1️⃣ Xác minh số điện thoại\n` +
-    `2️⃣ Chụp ảnh CCCD/CMND\n` +
-    `3️⃣ Xác nhận thông tin\n\n` +
+    `2️⃣ Chụp ảnh CCCD/CMND/Passport\n\n` +
     `⏱️ Chỉ mất 2-3 phút để hoàn thành!\n\n` +
     `Nhấn nút bên dưới để bắt đầu xác minh ngay.`,
 
@@ -283,7 +280,7 @@ export const Messages = {
     `Để đảm bảo an toàn và tuân thủ quy định, chúng tôi yêu cầu xác minh danh tính cho các giao dịch lớn.\n\n` +
     `<b>Quy trình KYC:</b>\n\n` +
     `1️⃣ Xác minh số điện thoại\n` +
-    `2️⃣ Cung cấp CMND/CCCD\n\n` +
+    `2️⃣ Cung cấp CCCD/CMND/Passport\n\n` +
     `📞 Liên hệ support để được hướng dẫn chi tiết!`,
 
   KYC_NOT_COMPLETED: () =>
@@ -292,15 +289,14 @@ export const Messages = {
     `Để sử dụng đầy đủ các tính năng giao dịch, vui lòng hoàn thành quy trình KYC.\n\n` +
     `<b>Quy trình KYC bao gồm:</b>\n\n` +
     `1️⃣ Xác minh số điện thoại\n` +
-    `2️⃣ Cung cấp thông tin CMND/CCCD\n` +
-    `3️⃣ Xác nhận thông tin cá nhân\n\n` +
+    `2️⃣ Cung cấp thông tin CCCD/CMND/Passport\n\n` +
     `Nhấn nút bên dưới để bắt đầu!`,
 
   KYC_COMPLETED: (kyc: Kyc) => {
     return (
       `✅ <b>THÔNG TIN KYC</b>\n\n` +
       `Quý khách đã hoàn thành KYC với tên: <b>${kyc.name}</b> - <code>${kyc.phone}</code>\n\n` +
-      `💡 Thông tin KYC của bạn đã được xác minh và lưu trữ an toàn.`
+      `💡 Thông tin KYC của bạn đã được xác minh và mã hoá bằng công nghệ zk.`
     );
   },
 
@@ -418,11 +414,12 @@ export const Messages = {
     `• Ánh sáng không đủ\n\n` +
     `Vui lòng chụp lại ảnh CCCD của bạn.`,
 
-  KYC_SAVE_SUCCESS: () =>
+  KYC_SAVE_SUCCESS: (name: string, phoneNumber: string) =>
     `🎉 <b>HOÀN TẤT KYC</b>\n\n` +
     `✅ Thông tin KYC của bạn đã được lưu thành công!\n\n` +
-    `Bạn có thể bắt đầu sử dụng đầy đủ các tính năng giao dịch của bot.\n\n` +
-    `💡 Nhấn nút bên dưới để quay lại menu chính.`,
+    `👤 Họ tên: <b>${name}</b>\n` +
+    `📱 Số điện thoại: <b>${phoneNumber}</b>\n\n` +
+    `💡 Thông tin KYC của bạn đã được xác minh và mã hoá bằng công nghệ zk.`,
 
   KYC_SAVE_ERROR: () =>
     `❌ <b>LỖI LƯU THÔNG TIN</b>\n\n` +
@@ -440,6 +437,11 @@ export const Messages = {
     `• Liên hệ support nếu bạn cho rằng đây là lỗi\n` +
     `• Liên hệ support nếu cần chuyển xác minh sang tài khoản này\n\n` +
     `📞 Vui lòng liên hệ support để được hỗ trợ!`,
+
+  KYC_ATTEMPTS_EXCEEDED: () =>
+    `🚫 <b>VƯỢT QUÁ SỐ LẦN XÁC MINH</b>\n\n` +
+    `Bạn đã vượt quá số lần xác minh KYC cho phép.\n\n` +
+    `Vui lòng liên hệ bộ phận hỗ trợ để được giúp đỡ.`,
 
   ACCOUNT_INFO: (
     chatId: number,
@@ -616,7 +618,9 @@ export class Keyboards {
       .text(`🏦 Ngân hàng ${bankIndicator}`, 'bank_accounts')
       .row()
       .text(`💎 Ví crypto ${walletIndicator}`, 'crypto_wallets')
-      .text('👤 Tài khoản', 'account_info');
+      .text('👤 Tài khoản', 'account_info')
+      .row()
+      .text('📞 Liên hệ hỗ trợ', 'contact_support');
   }
 
   static buyAmountSelection(): InlineKeyboard {
@@ -686,15 +690,6 @@ export class Keyboards {
       .text('🔙 Quay lại Menu', 'back_to_menu');
   }
 
-  static kycIdCardConfirmation(): InlineKeyboard {
-    return new InlineKeyboard()
-      .text('✅ Tiếp tục', 'kyc_confirm_id_card')
-      .row()
-      .text('📸 Chụp lại', 'kyc_recapture_id_card')
-      .row()
-      .text('❌ Hủy', 'cancel_kyc');
-  }
-
   static kycDuplicateIdError(): InlineKeyboard {
     return new InlineKeyboard()
       .text('📸 Thử CCCD khác', 'kyc_try_different_id')
@@ -704,8 +699,24 @@ export class Keyboards {
       .text('🔙 Quay lại Menu', 'back_to_menu');
   }
 
+  static kycAttemptsExceeded(): InlineKeyboard {
+    return new InlineKeyboard()
+      .text('📞 Liên hệ hỗ trợ', 'contact_support')
+      .row()
+      .text('🔙 Quay lại Menu', 'back_to_menu');
+  }
+
   static qrCodeWithCancel(orderId: string): InlineKeyboard {
     return new InlineKeyboard()
+      .text('❌ Hủy đơn hàng', `cancel_order_${orderId}`)
+      .row()
+      .text('🔙 Quay lại Menu', 'back_to_menu');
+  }
+
+  static qrCodeWithCancelAndSupport(orderId: string): InlineKeyboard {
+    return new InlineKeyboard()
+      .text('📞 Liên hệ hỗ trợ', 'contact_support')
+      .row()
       .text('❌ Hủy đơn hàng', `cancel_order_${orderId}`)
       .row()
       .text('🔙 Quay lại Menu', 'back_to_menu');
@@ -925,7 +936,12 @@ export class TelegramService {
             { chatId, firstName },
             'Missing required user information in /start command'
           );
-          await ctx.reply(Messages.ERROR_GENERIC());
+          await ctx.reply(
+            `❌ <b>Lỗi khởi tạo</b>\n\n` +
+            `Không thể lấy thông tin tài khoản của bạn.\n\n` +
+            `Vui lòng thử lại hoặc liên hệ support!`,
+            { parse_mode: 'HTML' }
+          );
           return;
         }
 
@@ -951,7 +967,12 @@ export class TelegramService {
         });
       } catch (error) {
         logger.error({ error }, 'Error handling /start command');
-        await ctx.reply(Messages.ERROR_GENERIC());
+        await ctx.reply(
+          `❌ <b>Lỗi hệ thống</b>\n\n` +
+          `Có lỗi xảy ra khi khởi động bot.\n\n` +
+          `Vui lòng thử lại sau!`,
+          { parse_mode: 'HTML' }
+        );
       }
     });
 
@@ -989,10 +1010,15 @@ export class TelegramService {
 
         if (!chatId) {
           logger.error('Missing chat ID in kyc callback');
-          await ctx.editMessageText(Messages.ERROR_GENERIC(), {
-            parse_mode: 'HTML',
-            reply_markup: Keyboards.backToMenu(),
-          });
+          await ctx.editMessageText(
+            `❌ <b>Lỗi hệ thống</b>\n\n` +
+            `Không thể xác định tài khoản của bạn.\n\n` +
+            `Vui lòng thử lại!`,
+            {
+              parse_mode: 'HTML',
+              reply_markup: Keyboards.backToMenu(),
+            }
+          );
           return;
         }
 
@@ -1017,10 +1043,15 @@ export class TelegramService {
         }
       } catch (error) {
         logger.error({ error }, 'Error checking KYC status');
-        await ctx.editMessageText(Messages.ERROR_GENERIC(), {
-          parse_mode: 'HTML',
-          reply_markup: Keyboards.backToMenu(),
-        });
+        await ctx.editMessageText(
+          `❌ <b>Lỗi kiểm tra KYC</b>\n\n` +
+          `Không thể kiểm tra trạng thái KYC của bạn.\n\n` +
+          `Vui lòng thử lại sau!`,
+          {
+            parse_mode: 'HTML',
+            reply_markup: Keyboards.backToMenu(),
+          }
+        );
       }
     });
 
@@ -1032,6 +1063,17 @@ export class TelegramService {
         const userId = ctx.from.id;
 
         logger.info({ userId }, 'User started KYC process');
+
+        // Check if user has exceeded KYC attempt limit
+        const hasExceeded = await teleUserService.hasExceededKycAttempts(userId);
+        if (hasExceeded) {
+          logger.warn({ userId }, 'User has exceeded KYC attempt limit');
+          await ctx.editMessageText(Messages.KYC_ATTEMPTS_EXCEEDED(), {
+            parse_mode: 'HTML',
+            reply_markup: Keyboards.kycAttemptsExceeded(),
+          });
+          return;
+        }
 
         // Set user state to wait for phone number
         userStates.set(userId, {
@@ -1051,10 +1093,15 @@ export class TelegramService {
         });
       } catch (error) {
         logger.error({ error }, 'Error starting KYC process');
-        await ctx.editMessageText(Messages.ERROR_GENERIC(), {
-          parse_mode: 'HTML',
-          reply_markup: Keyboards.backToMenu(),
-        });
+        await ctx.editMessageText(
+          `❌ <b>Lỗi khởi động KYC</b>\n\n` +
+          `Không thể bắt đầu quy trình KYC.\n\n` +
+          `Vui lòng thử lại sau!`,
+          {
+            parse_mode: 'HTML',
+            reply_markup: Keyboards.backToMenu(),
+          }
+        );
       }
     });
 
@@ -1082,10 +1129,15 @@ export class TelegramService {
       const state = userStates.get(userId);
 
       if (!state || !state.kycPhoneNumber) {
-        await ctx.editMessageText(Messages.ERROR_GENERIC(), {
-          parse_mode: 'HTML',
-          reply_markup: Keyboards.backToMenu(),
-        });
+        await ctx.editMessageText(
+          `❌ <b>Lỗi trạng thái</b>\n\n` +
+          `Phiên KYC đã hết hạn hoặc không hợp lệ.\n\n` +
+          `Vui lòng bắt đầu lại quy trình KYC!`,
+          {
+            parse_mode: 'HTML',
+            reply_markup: Keyboards.backToMenu(),
+          }
+        );
         return;
       }
 
@@ -1109,10 +1161,15 @@ export class TelegramService {
       const state = userStates.get(userId);
 
       if (!state || !state.kycPhoneNumber) {
-        await ctx.editMessageText(Messages.ERROR_GENERIC(), {
-          parse_mode: 'HTML',
-          reply_markup: Keyboards.backToMenu(),
-        });
+        await ctx.editMessageText(
+          `❌ <b>Lỗi trạng thái</b>\n\n` +
+          `Phiên KYC đã hết hạn hoặc không hợp lệ.\n\n` +
+          `Vui lòng bắt đầu lại quy trình KYC!`,
+          {
+            parse_mode: 'HTML',
+            reply_markup: Keyboards.backToMenu(),
+          }
+        );
         return;
       }
 
@@ -1127,34 +1184,6 @@ export class TelegramService {
         parse_mode: 'HTML',
         reply_markup: Keyboards.kycCancel(),
       });
-    });
-
-    // KYC ID card confirmation callback
-    this.bot.callbackQuery('kyc_confirm_id_card', async (ctx) => {
-      await ctx.answerCallbackQuery();
-      const userId = ctx.from.id;
-      const state = userStates.get(userId);
-
-      if (!state || !state.kycIdCardData || !state.kycPhoneNumber) {
-        await ctx.editMessageText(Messages.ERROR_GENERIC(), {
-          parse_mode: 'HTML',
-          reply_markup: Keyboards.backToMenu(),
-        });
-        return;
-      }
-
-      try {
-        // saveKycData handles duplicate ID errors internally
-        // It will show appropriate message and not throw for duplicate errors
-        await this.saveKycData(ctx, userId, state);
-      } catch (error) {
-        // This catch block only handles unexpected errors (not duplicate ID)
-        logger.error({ error, userId }, 'Unexpected error saving KYC data');
-        await ctx.editMessageText(Messages.KYC_SAVE_ERROR(), {
-          parse_mode: 'HTML',
-          reply_markup: Keyboards.backToMenu(),
-        });
-      }
     });
 
     // KYC recapture ID card callback
@@ -1224,9 +1253,7 @@ export class TelegramService {
       const supportMessage =
         `📞 <b>LIÊN HỆ SUPPORT</b>\n\n` +
         `Vui lòng liên hệ với đội ngũ hỗ trợ của chúng tôi:\n\n` +
-        `📧 Email: support@usdt247.com\n` +
-        `💬 Telegram: @usdt247support\n` +
-        `📱 Hotline: 1900-xxxx\n\n` +
+        `💬 Telegram: @usdt247shopsupport\n\n` +
         `Chúng tôi sẽ hỗ trợ bạn trong thời gian sớm nhất!`;
 
       await ctx.editMessageText(supportMessage, {
@@ -1244,10 +1271,15 @@ export class TelegramService {
 
         if (!chatId) {
           logger.error('Missing chat ID in bank_accounts callback');
-          await ctx.editMessageText(Messages.ERROR_GENERIC(), {
-            parse_mode: 'HTML',
-            reply_markup: Keyboards.backToMenu(),
-          });
+          await ctx.editMessageText(
+            `❌ <b>Lỗi hệ thống</b>\n\n` +
+            `Không thể xác định tài khoản của bạn.\n\n` +
+            `Vui lòng thử lại!`,
+            {
+              parse_mode: 'HTML',
+              reply_markup: Keyboards.backToMenu(),
+            }
+          );
           return;
         }
 
@@ -1292,10 +1324,15 @@ export class TelegramService {
         }
       } catch (error) {
         logger.error({ error }, 'Error fetching bank accounts');
-        await ctx.editMessageText(Messages.ERROR_GENERIC(), {
-          parse_mode: 'HTML',
-          reply_markup: Keyboards.backToMenu(),
-        });
+        await ctx.editMessageText(
+          `❌ <b>Lỗi tải dữ liệu</b>\n\n` +
+          `Không thể tải danh sách ngân hàng.\n\n` +
+          `Vui lòng thử lại sau!`,
+          {
+            parse_mode: 'HTML',
+            reply_markup: Keyboards.backToMenu(),
+          }
+        );
       }
     });
 
@@ -1308,10 +1345,15 @@ export class TelegramService {
 
         if (!chatId) {
           logger.error('Missing chat ID in crypto_wallets callback');
-          await ctx.editMessageText(Messages.ERROR_GENERIC(), {
-            parse_mode: 'HTML',
-            reply_markup: Keyboards.backToMenu(),
-          });
+          await ctx.editMessageText(
+            `❌ <b>Lỗi hệ thống</b>\n\n` +
+            `Không thể xác định tài khoản của bạn.\n\n` +
+            `Vui lòng thử lại!`,
+            {
+              parse_mode: 'HTML',
+              reply_markup: Keyboards.backToMenu(),
+            }
+          );
           return;
         }
 
@@ -1345,10 +1387,15 @@ export class TelegramService {
         }
       } catch (error) {
         logger.error({ error }, 'Error fetching crypto wallets');
-        await ctx.editMessageText(Messages.ERROR_GENERIC(), {
-          parse_mode: 'HTML',
-          reply_markup: Keyboards.backToMenu(),
-        });
+        await ctx.editMessageText(
+          `❌ <b>Lỗi tải dữ liệu</b>\n\n` +
+          `Không thể tải danh sách ví crypto.\n\n` +
+          `Vui lòng thử lại sau!`,
+          {
+            parse_mode: 'HTML',
+            reply_markup: Keyboards.backToMenu(),
+          }
+        );
       }
     });
 
@@ -1404,10 +1451,15 @@ export class TelegramService {
 
       if (!state || !state.paymentInfoId) {
         logger.error({ userId }, 'No payment info ID in state for deletion');
-        await ctx.editMessageText(Messages.ERROR_GENERIC(), {
-          parse_mode: 'HTML',
-          reply_markup: Keyboards.backToMenu(),
-        });
+        await ctx.editMessageText(
+          `❌ <b>Lỗi trạng thái</b>\n\n` +
+          `Phiên làm việc đã hết hạn.\n\n` +
+          `Vui lòng thử lại!`,
+          {
+            parse_mode: 'HTML',
+            reply_markup: Keyboards.backToMenu(),
+          }
+        );
         return;
       }
 
@@ -1514,10 +1566,15 @@ export class TelegramService {
 
         if (!chatId) {
           logger.error('Missing chat ID in account_info callback');
-          await ctx.editMessageText(Messages.ERROR_GENERIC(), {
-            parse_mode: 'HTML',
-            reply_markup: Keyboards.backToMenu(),
-          });
+          await ctx.editMessageText(
+            `❌ <b>Lỗi hệ thống</b>\n\n` +
+            `Không thể xác định tài khoản của bạn.\n\n` +
+            `Vui lòng thử lại!`,
+            {
+              parse_mode: 'HTML',
+              reply_markup: Keyboards.backToMenu(),
+            }
+          );
           return;
         }
 
@@ -1586,10 +1643,15 @@ export class TelegramService {
         );
       } catch (error) {
         logger.error({ error }, 'Error fetching user information');
-        await ctx.editMessageText(Messages.ERROR_GENERIC(), {
-          parse_mode: 'HTML',
-          reply_markup: Keyboards.backToMenu(),
-        });
+        await ctx.editMessageText(
+          `❌ <b>Lỗi tải thông tin</b>\n\n` +
+          `Không thể tải thông tin tài khoản.\n\n` +
+          `Vui lòng thử lại sau!`,
+          {
+            parse_mode: 'HTML',
+            reply_markup: Keyboards.backToMenu(),
+          }
+        );
       }
     });
 
@@ -1605,10 +1667,15 @@ export class TelegramService {
 
         if (!user) {
           logger.warn({ userId }, 'User not found in database for buy USDT');
-          await ctx.editMessageText(Messages.ERROR_GENERIC(), {
-            parse_mode: 'HTML',
-            reply_markup: Keyboards.backToMenu(),
-          });
+          await ctx.editMessageText(
+            `❌ <b>Lỗi tài khoản</b>\n\n` +
+            `Không tìm thấy thông tin tài khoản của bạn.\n\n` +
+            `Vui lòng liên hệ support!`,
+            {
+              parse_mode: 'HTML',
+              reply_markup: Keyboards.backToMenu(),
+            }
+          );
           return;
         }
 
@@ -1634,10 +1701,15 @@ export class TelegramService {
         });
       } catch (error) {
         logger.error({ error, userId }, 'Error checking KYC status for buy USDT');
-        await ctx.editMessageText(Messages.ERROR_GENERIC(), {
-          parse_mode: 'HTML',
-          reply_markup: Keyboards.backToMenu(),
-        });
+        await ctx.editMessageText(
+          `❌ <b>Lỗi kiểm tra KYC</b>\n\n` +
+          `Không thể kiểm tra trạng thái KYC.\n\n` +
+          `Vui lòng thử lại sau!`,
+          {
+            parse_mode: 'HTML',
+            reply_markup: Keyboards.backToMenu(),
+          }
+        );
       }
     });
 
@@ -1695,10 +1767,15 @@ export class TelegramService {
 
         if (!user) {
           logger.warn({ userId }, 'User not found in database for sell USDT');
-          await ctx.editMessageText(Messages.ERROR_GENERIC(), {
-            parse_mode: 'HTML',
-            reply_markup: Keyboards.backToMenu(),
-          });
+          await ctx.editMessageText(
+            `❌ <b>Lỗi tài khoản</b>\n\n` +
+            `Không tìm thấy thông tin tài khoản của bạn.\n\n` +
+            `Vui lòng liên hệ support!`,
+            {
+              parse_mode: 'HTML',
+              reply_markup: Keyboards.backToMenu(),
+            }
+          );
           return;
         }
 
@@ -1724,10 +1801,15 @@ export class TelegramService {
         });
       } catch (error) {
         logger.error({ error, userId }, 'Error checking KYC status for sell USDT');
-        await ctx.editMessageText(Messages.ERROR_GENERIC(), {
-          parse_mode: 'HTML',
-          reply_markup: Keyboards.backToMenu(),
-        });
+        await ctx.editMessageText(
+          `❌ <b>Lỗi kiểm tra KYC</b>\n\n` +
+          `Không thể kiểm tra trạng thái KYC.\n\n` +
+          `Vui lòng thử lại sau!`,
+          {
+            parse_mode: 'HTML',
+            reply_markup: Keyboards.backToMenu(),
+          }
+        );
       }
     });
 
@@ -1787,7 +1869,12 @@ export class TelegramService {
       const state = userStates.get(userId);
 
       if (!state || state.action !== 'sell') {
-        await ctx.reply(Messages.ERROR_GENERIC());
+        await ctx.reply(
+          `❌ <b>Lỗi trạng thái</b>\n\n` +
+          `Phiên làm việc đã hết hạn.\n\n` +
+          `Vui lòng bắt đầu lại!`,
+          { parse_mode: 'HTML' }
+        );
         return;
       }
 
@@ -1795,7 +1882,12 @@ export class TelegramService {
       const selectedBank = banks.find((b) => b.id === bankId);
       if (!selectedBank) {
         logger.error({ userId, bankId }, 'Bank not found');
-        await ctx.reply(Messages.ERROR_GENERIC());
+        await ctx.reply(
+          `❌ <b>Lỗi ngân hàng</b>\n\n` +
+          `Không tìm thấy thông tin ngân hàng.\n\n` +
+          `Vui lòng thử lại!`,
+          { parse_mode: 'HTML' }
+        );
         return;
       }
 
@@ -1821,7 +1913,12 @@ export class TelegramService {
       const state = userStates.get(userId);
 
       if (!state || state.action !== 'sell') {
-        await ctx.reply(Messages.ERROR_GENERIC());
+        await ctx.reply(
+          `❌ <b>Lỗi trạng thái</b>\n\n` +
+          `Phiên làm việc đã hết hạn.\n\n` +
+          `Vui lòng bắt đầu lại!`,
+          { parse_mode: 'HTML' }
+        );
         return;
       }
 
@@ -1852,7 +1949,12 @@ export class TelegramService {
       const state = userStates.get(userId);
 
       if (!state || state.action !== 'buy') {
-        await ctx.reply(Messages.ERROR_GENERIC());
+        await ctx.reply(
+          `❌ <b>Lỗi trạng thái</b>\n\n` +
+          `Phiên làm việc đã hết hạn.\n\n` +
+          `Vui lòng bắt đầu lại!`,
+          { parse_mode: 'HTML' }
+        );
         return;
       }
 
@@ -1860,7 +1962,12 @@ export class TelegramService {
       const paymentInfo = await paymentInformationService.findById(paymentInfoId);
       if (!paymentInfo || !paymentInfo.wallet_address) {
         logger.error({ userId, paymentInfoId }, 'Saved wallet not found');
-        await ctx.reply(Messages.ERROR_GENERIC());
+        await ctx.reply(
+          `❌ <b>Lỗi ví</b>\n\n` +
+          `Không tìm thấy thông tin ví đã lưu.\n\n` +
+          `Vui lòng thử lại!`,
+          { parse_mode: 'HTML' }
+        );
         return;
       }
 
@@ -1926,7 +2033,12 @@ export class TelegramService {
       const state = userStates.get(userId);
 
       if (!state || state.action !== 'buy') {
-        await ctx.reply(Messages.ERROR_GENERIC());
+        await ctx.reply(
+          `❌ <b>Lỗi trạng thái</b>\n\n` +
+          `Phiên làm việc đã hết hạn.\n\n` +
+          `Vui lòng bắt đầu lại!`,
+          { parse_mode: 'HTML' }
+        );
         return;
       }
 
@@ -1957,7 +2069,12 @@ export class TelegramService {
       const state = userStates.get(userId);
 
       if (!state || state.action !== 'sell') {
-        await ctx.reply(Messages.ERROR_GENERIC());
+        await ctx.reply(
+          `❌ <b>Lỗi trạng thái</b>\n\n` +
+          `Phiên làm việc đã hết hạn.\n\n` +
+          `Vui lòng bắt đầu lại!`,
+          { parse_mode: 'HTML' }
+        );
         return;
       }
 
@@ -1970,7 +2087,12 @@ export class TelegramService {
         !paymentInfo.bank_account
       ) {
         logger.error({ userId, paymentInfoId }, 'Saved bank account not found');
-        await ctx.reply(Messages.ERROR_GENERIC());
+        await ctx.reply(
+          `❌ <b>Lỗi ngân hàng</b>\n\n` +
+          `Không tìm thấy thông tin ngân hàng đã lưu.\n\n` +
+          `Vui lòng thử lại!`,
+          { parse_mode: 'HTML' }
+        );
         return;
       }
 
@@ -1978,7 +2100,12 @@ export class TelegramService {
       const bank = banks.find((b) => b.id === paymentInfo.bank_id);
       if (!bank) {
         logger.error({ userId, bankId: paymentInfo.bank_id }, 'Bank not found');
-        await ctx.reply(Messages.ERROR_GENERIC());
+        await ctx.reply(
+          `❌ <b>Lỗi ngân hàng</b>\n\n` +
+          `Không tìm thấy thông tin ngân hàng.\n\n` +
+          `Vui lòng thử lại!`,
+          { parse_mode: 'HTML' }
+        );
         return;
       }
 
@@ -2049,7 +2176,12 @@ export class TelegramService {
       const state = userStates.get(userId);
 
       if (!state || state.action !== 'sell') {
-        await ctx.reply(Messages.ERROR_GENERIC());
+        await ctx.reply(
+          `❌ <b>Lỗi trạng thái</b>\n\n` +
+          `Phiên làm việc đã hết hạn.\n\n` +
+          `Vui lòng bắt đầu lại!`,
+          { parse_mode: 'HTML' }
+        );
         return;
       }
 
@@ -2078,7 +2210,12 @@ export class TelegramService {
 
       if (!state || !state.action || !state.amount) {
         logger.warn({ userId }, 'Invalid state for payment confirmation');
-        await ctx.reply(Messages.ERROR_GENERIC());
+        await ctx.reply(
+          `❌ <b>Lỗi trạng thái</b>\n\n` +
+          `Phiên làm việc đã hết hạn.\n\n` +
+          `Vui lòng bắt đầu lại!`,
+          { parse_mode: 'HTML' }
+        );
         return;
       }
 
@@ -2146,10 +2283,15 @@ export class TelegramService {
 
       if (!orderId) {
         logger.error({ userId }, 'Order ID not found in callback data');
-        await ctx.reply(Messages.ERROR_GENERIC(), {
-          parse_mode: 'HTML',
-          reply_markup: await Keyboards.mainMenu(userId),
-        });
+        await ctx.reply(
+          `❌ <b>Lỗi đơn hàng</b>\n\n` +
+          `Không tìm thấy mã đơn hàng.\n\n` +
+          `Vui lòng thử lại!`,
+          {
+            parse_mode: 'HTML',
+            reply_markup: await Keyboards.mainMenu(userId),
+          }
+        );
         return;
       }
 
@@ -2160,10 +2302,15 @@ export class TelegramService {
         const partnerAppKey = process.env.PARTNER_APP_KEY;
         if (!partnerAppKey) {
           logger.error('PARTNER_APP_KEY not configured');
-          await ctx.reply(Messages.ERROR_GENERIC(), {
-            parse_mode: 'HTML',
-            reply_markup: await Keyboards.mainMenu(userId),
-          });
+          await ctx.reply(
+            `❌ <b>Lỗi cấu hình</b>\n\n` +
+            `Hệ thống chưa được cấu hình đúng.\n\n` +
+            `Vui lòng liên hệ support!`,
+            {
+              parse_mode: 'HTML',
+              reply_markup: await Keyboards.mainMenu(userId),
+            }
+          );
           return;
         }
 
@@ -2286,7 +2433,12 @@ export class TelegramService {
         }
       } catch (error) {
         logger.error({ error, userId }, 'Error handling contact message');
-        await ctx.reply(Messages.ERROR_GENERIC());
+        await ctx.reply(
+          `❌ <b>Lỗi xử lý số điện thoại</b>\n\n` +
+          `Không thể xử lý số điện thoại của bạn.\n\n` +
+          `Vui lòng thử lại!`,
+          { parse_mode: 'HTML' }
+        );
       }
     });
 
@@ -2341,7 +2493,8 @@ export class TelegramService {
         state.lastProcessedPhotoId = undefined;
         userStates.set(userId, state);
 
-        await ctx.reply(Messages.ERROR_GENERIC());
+        // Don't show error message here - handleKycIdCardPhoto already showed a specific error message
+        // Showing another generic error would be redundant and confusing
       }
     });
 
@@ -2715,7 +2868,12 @@ export class TelegramService {
     // Show confirmation screen with all collected details
     if (!state.amount || !state.bankName || !state.fullName || !state.bankId) {
       logger.error({ userId, state }, 'Missing required fields for sell confirmation');
-      await ctx.reply(Messages.ERROR_GENERIC());
+      await ctx.reply(
+        `❌ <b>Lỗi thông tin</b>\n\n` +
+        `Thiếu thông tin cần thiết để xác nhận giao dịch.\n\n` +
+        `Vui lòng bắt đầu lại!`,
+        { parse_mode: 'HTML' }
+      );
       return;
     }
 
@@ -2976,7 +3134,12 @@ export class TelegramService {
   private async handleBuyConfirmation(ctx: any, userId: number, state: UserState): Promise<void> {
     if (!state.amount || !state.walletAddress) {
       logger.error({ userId, state }, 'Missing amount or wallet address in buy confirmation');
-      await ctx.reply(Messages.ERROR_GENERIC());
+      await ctx.reply(
+        `❌ <b>Lỗi thông tin</b>\n\n` +
+        `Thiếu thông tin số lượng hoặc địa chỉ ví.\n\n` +
+        `Vui lòng bắt đầu lại!`,
+        { parse_mode: 'HTML' }
+      );
       return;
     }
 
@@ -3068,11 +3231,11 @@ export class TelegramService {
         'QR code generated successfully'
       );
 
-      // Step 3: Send QR code image with cancel button
+      // Step 3: Send QR code image with cancel and support buttons
       await ctx.replyWithPhoto(new InputFile(qrCodeImage), {
         caption: Messages.PAYMENT_QR_CAPTION(),
         parse_mode: 'HTML',
-        reply_markup: Keyboards.qrCodeWithCancel(order.id),
+        reply_markup: Keyboards.qrCodeWithCancelAndSupport(order.id),
       });
 
       logger.info({ orderId: order.id }, 'QR code image sent successfully');
@@ -3101,7 +3264,12 @@ export class TelegramService {
       );
     } else {
       logger.error({ orderId: order.id, payData: order.pay_data }, 'No QR code in order response');
-      await ctx.reply(Messages.ERROR_GENERIC());
+      await ctx.reply(
+        `❌ <b>Lỗi tạo đơn hàng</b>\n\n` +
+        `Không thể tạo mã QR thanh toán.\n\n` +
+        `Vui lòng thử lại hoặc liên hệ support!`,
+        { parse_mode: 'HTML' }
+      );
     }
   }
 
@@ -3112,7 +3280,12 @@ export class TelegramService {
     // Validate all required fields
     if (!state.amount || !state.bankId || !state.fullName || !state.accountNumber) {
       logger.error({ userId, state }, 'Missing required fields for sell confirmation');
-      await ctx.reply(Messages.ERROR_GENERIC());
+      await ctx.reply(
+        `❌ <b>Lỗi thông tin</b>\n\n` +
+        `Thiếu thông tin cần thiết để xác nhận giao dịch.\n\n` +
+        `Vui lòng bắt đầu lại!`,
+        { parse_mode: 'HTML' }
+      );
       return;
     }
 
@@ -3210,7 +3383,7 @@ export class TelegramService {
           `⏰ Sau khi chuyển USDT, tiền VND sẽ được chuyển vào tài khoản của bạn trong vòng 3-30 giây.\n\n` +
           `📞 Liên hệ support nếu có vấn đề!`,
         parse_mode: 'HTML',
-        reply_markup: Keyboards.qrCodeWithCancel(order.id),
+        reply_markup: Keyboards.qrCodeWithCancelAndSupport(order.id),
       });
 
       logger.info({ userId, orderId: order.id }, 'QR code sent successfully');
@@ -3455,6 +3628,11 @@ export class TelegramService {
   private async handleKycIdCardPhoto(ctx: any, userId: number, state: UserState): Promise<void> {
     logger.info({ userId }, 'Processing ID card photo');
 
+    // Increment KYC attempt counter at the very start
+    // This ensures we count ALL attempts, including those that fail during image processing or FPT API calls
+    await teleUserService.incrementKycAttempts(userId);
+    logger.info({ userId }, 'Incremented KYC attempt counter');
+
     // Show processing message
     await ctx.reply(Messages.KYC_PROCESSING_IMAGE(), {
       parse_mode: 'HTML',
@@ -3510,18 +3688,14 @@ export class TelegramService {
       const idData = await fptAiVisionService.recognizeIdCard(localFilePath, documentType);
       logger.info({ userId, documentType, idData }, 'FPT AI Vision API call successful');
 
-      // Store extracted data in state and clear waiting state
+      // Store extracted data in state
       state.kycIdCardData = idData;
-      state.waitingFor = undefined; // Clear waiting state - user needs to confirm
       userStates.set(userId, state);
 
-      logger.info({ userId }, 'ID card data extracted and stored in state');
+      logger.info({ userId }, 'ID card data extracted, automatically saving to database');
 
-      // Display extracted information and ask for confirmation
-      await ctx.reply(Messages.KYC_ID_CARD_EXTRACTED(idData, documentType), {
-        parse_mode: 'HTML',
-        reply_markup: Keyboards.kycIdCardConfirmation(),
-      });
+      // Automatically save KYC data to database (no confirmation needed)
+      await this.saveKycData(ctx, userId, state);
     } catch (error) {
       logger.error({ error, userId }, 'Error processing ID card photo');
 
@@ -3554,6 +3728,9 @@ export class TelegramService {
     }
 
     logger.info({ userId, documentType }, 'Saving KYC data to database');
+
+    // Note: time_kyc counter is already incremented in handleKycIdCardPhoto
+    // We don't increment here to avoid double-counting
 
     try {
       // Parse dates
@@ -3609,8 +3786,9 @@ export class TelegramService {
       // Clear user state
       userStates.delete(userId);
 
-      // Show success message
-      await ctx.editMessageText(Messages.KYC_SAVE_SUCCESS(), {
+      // Show success message with user's name
+      // Use ctx.reply instead of ctx.editMessageText because ctx is from a photo message, not a callback query
+      await ctx.reply(Messages.KYC_SAVE_SUCCESS(idData.name, phoneNumber), {
         parse_mode: 'HTML',
         reply_markup: Keyboards.backToMenu(),
       });
@@ -3633,9 +3811,11 @@ export class TelegramService {
 
         // DO NOT update is_kyc flag
         // DO NOT clear user state - allow them to try with different ID
+        // Note: time_kyc was already incremented at the start of saveKycData
 
         // Show user-friendly error message
-        await ctx.editMessageText(Messages.KYC_ID_ALREADY_REGISTERED(idNumberLast4), {
+        // Use ctx.reply instead of ctx.editMessageText because ctx is from a photo message
+        await ctx.reply(Messages.KYC_ID_ALREADY_REGISTERED(idNumberLast4), {
           parse_mode: 'HTML',
           reply_markup: Keyboards.kycDuplicateIdError(),
         });
@@ -3644,7 +3824,9 @@ export class TelegramService {
         return;
       }
 
-      // For other errors, log and re-throw
+      // For other errors, just re-throw
+      // Note: We don't increment here because if we reached the success path (line 3588),
+      // we already incremented. We should only increment once per attempt.
       logger.error({ error, userId }, 'Error saving KYC data to database');
       throw error;
     }
