@@ -24,6 +24,10 @@ export interface FptAiVisionIdData {
   id_type?: string;
   address_entities?: any;
   overall_score?: number;
+  // Passport-specific fields
+  passport_number?: string; // Passport number (only for passport documents)
+  id_number?: string; // CCCD number from passport (only for passport documents)
+  pob?: string; // Place of birth (only for passport documents)
 }
 
 export interface FptAiVisionResponse {
@@ -34,20 +38,41 @@ export interface FptAiVisionResponse {
 
 /**
  * Service for interacting with FPT AI Vision API
- * Specifically for Vietnamese ID card recognition
+ * Supports Vietnamese ID card (CCCD) and Passport recognition
  */
 export class FptAiVisionService {
-  private readonly apiUrl = process.env.FPT_API_SERVICE_URL || '';
+  private readonly baseApiUrl = process.env.FPT_API_SERVICE_URL || '';
   private readonly apiKey = process.env.FPT_API_SERVICE_KEY || '';
 
   /**
-   * Recognize Vietnamese ID card from image file
-   * @param imagePath - Path to the image file
-   * @returns Parsed ID card data
+   * Get the full API URL based on document type
+   * @param documentType - Type of document ('cccd' or 'passport')
+   * @returns Full API URL
    */
-  async recognizeIdCard(imagePath: string): Promise<FptAiVisionIdData> {
+  private getApiUrl(documentType: 'cccd' | 'passport'): string {
+    if (documentType === 'passport') {
+      return `${this.baseApiUrl}/passport/vnm`;
+    }
+    // Default to CCCD endpoint
+    return `${this.baseApiUrl}/idr/vnm`;
+  }
+
+  /**
+   * Recognize Vietnamese ID card or Passport from image file
+   * @param imagePath - Path to the image file
+   * @param documentType - Type of document ('cccd' or 'passport')
+   * @returns Parsed document data
+   */
+  async recognizeIdCard(
+    imagePath: string,
+    documentType: 'cccd' | 'passport' = 'cccd'
+  ): Promise<FptAiVisionIdData> {
     try {
-      logger.info({ imagePath }, 'Calling FPT AI Vision API for ID card recognition');
+      const apiUrl = this.getApiUrl(documentType);
+      logger.info(
+        { imagePath, documentType, apiUrl },
+        `Calling FPT AI Vision API for ${documentType.toUpperCase()} recognition`
+      );
 
       // Check if file exists
       if (!fs.existsSync(imagePath)) {
@@ -59,7 +84,7 @@ export class FptAiVisionService {
       formData.append('image', fs.createReadStream(imagePath));
 
       // Make API request
-      const response = await axios.post<FptAiVisionResponse>(this.apiUrl, formData, {
+      const response = await axios.post<FptAiVisionResponse>(apiUrl, formData, {
         headers: {
           ...formData.getHeaders(),
           'api-key': this.apiKey,

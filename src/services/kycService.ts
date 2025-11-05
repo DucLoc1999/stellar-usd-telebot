@@ -33,11 +33,12 @@ export class KycService {
    */
   async create(data: CreateKycRequest): Promise<Kyc> {
     try {
-      logger.info({ chatId: data.chat_id }, 'Creating KYC record');
+      logger.info({ chatId: data.chat_id, type: data.type }, 'Creating KYC record');
 
       const [id] = await db(this.tableName).insert({
         chat_id: data.chat_id,
         phone: data.phone,
+        type: data.type,
         id_number: data.id_number,
         name: data.name,
         dob: data.dob,
@@ -46,6 +47,7 @@ export class KycService {
         home: data.home,
         address: data.address,
         doe: data.doe,
+        passport_number: data.passport_number || null,
       });
 
       const record = await db(this.tableName).where({ id }).first<Kyc>();
@@ -54,7 +56,10 @@ export class KycService {
         throw new Error('Failed to create KYC record');
       }
 
-      logger.info({ chatId: data.chat_id, kycId: id }, 'KYC record created successfully');
+      logger.info(
+        { chatId: data.chat_id, kycId: id, type: data.type },
+        'KYC record created successfully'
+      );
 
       return record;
     } catch (error) {
@@ -71,10 +76,12 @@ export class KycService {
     try {
       logger.info({ chatId }, 'Updating KYC record');
 
-      await db(this.tableName).where({ chat_id: chatId }).update({
-        ...data,
-        updated_at: db.fn.now(),
-      });
+      await db(this.tableName)
+        .where({ chat_id: chatId })
+        .update({
+          ...data,
+          updated_at: db.fn.now(),
+        });
 
       const record = await db(this.tableName).where({ chat_id: chatId }).first<Kyc>();
 
@@ -108,4 +115,3 @@ export class KycService {
 }
 
 export default new KycService();
-

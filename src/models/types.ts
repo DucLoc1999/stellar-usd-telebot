@@ -79,6 +79,7 @@ export interface Kyc {
   id?: number;
   chat_id: number;
   phone: string;
+  type: 'PASSPORT' | 'IDC'; // Document type: PASSPORT or IDC (Identity Card/CCCD)
   id_number: string;
   name: string;
   dob: Date;
@@ -87,6 +88,7 @@ export interface Kyc {
   home: string;
   address: string;
   doe: Date;
+  passport_number?: string; // Passport number (only for PASSPORT type)
   created_at?: Date;
   updated_at?: Date;
 }
@@ -94,6 +96,7 @@ export interface Kyc {
 export interface CreateKycRequest {
   chat_id: number;
   phone: string;
+  type: 'PASSPORT' | 'IDC'; // Document type: PASSPORT or IDC (Identity Card/CCCD)
   id_number: string;
   name: string;
   dob: Date;
@@ -102,4 +105,5 @@ export interface CreateKycRequest {
   home: string;
   address: string;
   doe: Date;
+  passport_number?: string; // Passport number (only for PASSPORT type)
 }
