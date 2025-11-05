@@ -297,22 +297,9 @@ export const Messages = {
     `Nhấn nút bên dưới để bắt đầu!`,
 
   KYC_COMPLETED: (kyc: Kyc) => {
-    const birthDate = new Date(kyc.dob);
-    const expireDate = new Date(kyc.doe);
-
     return (
       `✅ <b>THÔNG TIN KYC</b>\n\n` +
-      `<b>Trạng thái:</b> ✅ Đã xác minh\n\n` +
-      `<b>Thông tin cá nhân:</b>\n` +
-      `📱 Số điện thoại: <code>${kyc.phone}</code>\n` +
-      `👤 Họ tên: <b>${kyc.name}</b>\n` +
-      `🆔 Số CMND/CCCD: <code>${kyc.id_number}</code>\n` +
-      `🎂 Ngày sinh: ${birthDate.toLocaleDateString('vi-VN')}\n` +
-      `⚧️ Giới tính: ${kyc.sex}\n` +
-      `🌍 Quốc tịch: ${kyc.nationality}\n` +
-      `🏠 Quê quán: ${kyc.home}\n` +
-      `📍 Địa chỉ: ${kyc.address}\n` +
-      `📅 Ngày hết hạn: ${expireDate.toLocaleDateString('vi-VN')}\n\n` +
+      `Quý khách đã hoàn thành KYC với tên: <b>${kyc.name}</b> - <code>${kyc.phone}</code>\n\n` +
       `💡 Thông tin KYC của bạn đã được xác minh và lưu trữ an toàn.`
     );
   },
@@ -320,10 +307,7 @@ export const Messages = {
   KYC_REQUEST_PHONE: () =>
     `📱 <b>XÁC MINH SỐ ĐIỆN THOẠI</b>\n\n` +
     `Vui lòng chia sẻ số điện thoại của bạn để tiếp tục.\n\n` +
-    `Bạn có thể:\n` +
-    `• Nhấn nút "📱 Chia sẻ số điện thoại" bên dưới\n` +
-    `• Hoặc nhập số điện thoại thủ công\n\n` +
-    `📝 Định dạng: 0xxxxxxxxx hoặc +84xxxxxxxxx`,
+    `Nhấn nút "📱 Chia sẻ số điện thoại" bên dưới để chia sẻ số điện thoại từ Telegram.`,
 
   KYC_INVALID_PHONE: () =>
     `❌ <b>SỐ ĐIỆN THOẠI KHÔNG HỢP LỆ</b>\n\n` +
@@ -338,6 +322,13 @@ export const Messages = {
     `📱 Số điện thoại: <code>${phoneNumber}</code>\n\n` +
     `Cảm ơn bạn! Chúng tôi sẽ tiếp tục với các bước tiếp theo của quy trình KYC.`,
 
+  KYC_SELECT_DOCUMENT_TYPE: () =>
+    `📄 <b>CHỌN LOẠI GIẤY TỜ</b>\n\n` +
+    `Vui lòng chọn loại giấy tờ bạn muốn sử dụng để xác minh danh tính:\n\n` +
+    `🆔 <b>CMND/CCCD</b> - Chứng minh nhân dân / Căn cước công dân\n` +
+    `🛂 <b>Hộ chiếu</b> - Passport\n\n` +
+    `Nhấn nút bên dưới để chọn:`,
+
   KYC_REQUEST_ID_CARD: () =>
     `📸 <b>CHỤP ẢNH CCCD</b>\n\n` +
     `Vui lòng gửi ảnh <b>mặt trước</b> của Căn cước công dân (CCCD) của bạn.\n\n` +
@@ -348,11 +339,21 @@ export const Messages = {
     `• Ánh sáng đủ, không bị lóa\n\n` +
     `📷 Nhấn nút 📎 và chọn ảnh từ thư viện hoặc chụp ảnh mới.`,
 
-  KYC_PROCESSING_IMAGE: () =>
-    `⏳ <b>ĐANG XỬ LÝ ẢNH...</b>\n\n` +
-    `Vui lòng đợi trong giây lát, chúng tôi đang trích xuất thông tin từ CCCD của bạn.`,
+  KYC_REQUEST_PASSPORT: () =>
+    `📸 <b>CHỤP ẢNH HỘ CHIẾU</b>\n\n` +
+    `Vui lòng gửi ảnh <b>trang thông tin cá nhân</b> của Hộ chiếu (Passport) của bạn.\n\n` +
+    `📝 <b>Lưu ý:</b>\n` +
+    `• Ảnh phải rõ nét, không bị mờ\n` +
+    `• Đảm bảo đầy đủ thông tin trên trang\n` +
+    `• Không chụp qua màn hình\n` +
+    `• Ánh sáng đủ, không bị lóa\n\n` +
+    `📷 Nhấn nút 📎 và chọn ảnh từ thư viện hoặc chụp ảnh mới.`,
 
-  KYC_ID_CARD_EXTRACTED: (idData: any) => {
+  KYC_PROCESSING_IMAGE: () =>
+    `🤖 <b>AI ĐANG XỬ LÝ ẢNH...</b>\n\n` +
+    `Vui lòng đợi trong giây lát, AI của chúng tôi đang tự động phân tích thông tin từ giấy tờ của bạn.`,
+
+  KYC_ID_CARD_EXTRACTED: (idData: any, documentType: 'cccd' | 'passport' = 'cccd') => {
     const formatDate = (dateStr: string) => {
       if (!dateStr) return 'N/A';
       try {
@@ -366,13 +367,39 @@ export const Messages = {
       }
     };
 
+    // Parse sex field for display (extract Vietnamese part)
+    // API returns different formats: CCCD="NAM"/"NỮ", Passport="NAM/M"/"NỮ/F"
+    const formatSex = (sex: string | undefined) => {
+      if (!sex) return 'N/A';
+      const parts = sex.split('/');
+      return parts[0] || sex; // Return Vietnamese part (e.g., "NAM" or "NỮ")
+    };
+
+    // Passport format
+    if (documentType === 'passport') {
+      return (
+        `✅ <b>THÔNG TIN ĐÃ TRÍCH XUẤT</b>\n\n` +
+        `Vui lòng kiểm tra thông tin bên dưới:\n\n` +
+        `🛂 Số hộ chiếu: <code>${idData.passport_number || 'N/A'}</code>\n` +
+        `🆔 Số CCCD: <code>${idData.id_number || idData.id || 'N/A'}</code>\n` +
+        `👤 Họ tên: <b>${idData.name || 'N/A'}</b>\n` +
+        `🎂 Ngày sinh: ${formatDate(idData.dob)}\n` +
+        `⚧️ Giới tính: ${formatSex(idData.sex)}\n` +
+        `🌍 Quốc tịch: ${idData.nationality || 'N/A'}\n` +
+        `🏠 Nơi sinh: ${idData.pob || 'N/A'}\n` +
+        `📅 Ngày hết hạn: ${formatDate(idData.doe)}\n\n` +
+        `❓ Thông tin có chính xác không?`
+      );
+    }
+
+    // CCCD format (default)
     return (
       `✅ <b>THÔNG TIN ĐÃ TRÍCH XUẤT</b>\n\n` +
       `Vui lòng kiểm tra thông tin bên dưới:\n\n` +
       `🆔 Số CCCD: <code>${idData.id || 'N/A'}</code>\n` +
       `👤 Họ tên: <b>${idData.name || 'N/A'}</b>\n` +
       `🎂 Ngày sinh: ${formatDate(idData.dob)}\n` +
-      `⚧️ Giới tính: ${idData.sex || 'N/A'}\n` +
+      `⚧️ Giới tính: ${formatSex(idData.sex)}\n` +
       `🌍 Quốc tịch: ${idData.nationality || 'N/A'}\n` +
       `🏠 Quê quán: ${idData.home || 'N/A'}\n` +
       `📍 Địa chỉ: ${idData.address || 'N/A'}\n` +
@@ -421,13 +448,21 @@ export const Messages = {
     username: string,
     isKyc: boolean,
     savedBankAccounts: PaymentInformation[],
-    savedWallets: PaymentInformation[]
+    savedWallets: PaymentInformation[],
+    phoneNumber?: string | null
   ) => {
     let message =
       `👤 <b>THÔNG TIN TÀI KHOẢN</b>\n\n` +
       `🆔 Chat ID: <code>${chatId}</code>\n` +
       `👤 Họ tên: ${firstName}${lastName ? ' ' + lastName : ''}\n` +
-      `📱 Username: ${username ? '@' + username : 'Chưa có'}\n` +
+      `📱 Username: ${username ? '@' + username : 'Chưa có'}\n`;
+
+    // Add phone number only if KYC is verified and phone number exists
+    if (isKyc && phoneNumber) {
+      message += `📞 Số điện thoại: <code>${phoneNumber}</code>\n`;
+    }
+
+    message +=
       `🔐 Trạng thái KYC: ${isKyc ? '✅ Đã xác minh' : '❌ Chưa xác minh'}\n\n` +
       `💳 <b>THÔNG TIN THANH TOÁN ĐÃ LƯU</b>\n\n`;
 
@@ -632,10 +667,16 @@ export class Keyboards {
   }
 
   static kycPhoneRequest(): Keyboard {
-    return new Keyboard()
-      .requestContact('📱 Chia sẻ số điện thoại')
-      .resized()
-      .oneTime();
+    return new Keyboard().requestContact('📱 Chia sẻ số điện thoại').resized().oneTime();
+  }
+
+  static kycDocumentTypeSelection(): InlineKeyboard {
+    return new InlineKeyboard()
+      .text('🆔 CMND/CCCD', 'kyc_select_cccd')
+      .row()
+      .text('🛂 Hộ chiếu', 'kyc_select_passport')
+      .row()
+      .text('❌ Hủy', 'cancel_kyc');
   }
 
   static kycCancel(): InlineKeyboard {
@@ -829,6 +870,7 @@ interface UserState {
   savedWallets?: any[]; // Saved wallets for deletion
   // KYC-related fields
   kycPhoneNumber?: string;
+  kycDocumentType?: 'cccd' | 'passport'; // Type of document for KYC verification
   kycIdCardData?: any; // Extracted ID card data from FPT AI
   lastProcessedPhotoId?: string; // Track last processed photo to prevent duplicates
 }
@@ -1004,12 +1046,9 @@ export class TelegramService {
         });
 
         // Send a separate message with the contact request keyboard
-        await ctx.reply(
-          `📱 Nhấn nút bên dưới để chia sẻ số điện thoại hoặc nhập thủ công:`,
-          {
-            reply_markup: Keyboards.kycPhoneRequest(),
-          }
-        );
+        await ctx.reply(`📱 Nhấn nút bên dưới để chia sẻ số điện thoại:`, {
+          reply_markup: Keyboards.kycPhoneRequest(),
+        });
       } catch (error) {
         logger.error({ error }, 'Error starting KYC process');
         await ctx.editMessageText(Messages.ERROR_GENERIC(), {
@@ -1033,6 +1072,60 @@ export class TelegramService {
       await ctx.editMessageText(Messages.WELCOME(firstName), {
         parse_mode: 'HTML',
         reply_markup: await Keyboards.mainMenu(userId),
+      });
+    });
+
+    // KYC document type selection - CCCD
+    this.bot.callbackQuery('kyc_select_cccd', async (ctx) => {
+      await ctx.answerCallbackQuery();
+      const userId = ctx.from.id;
+      const state = userStates.get(userId);
+
+      if (!state || !state.kycPhoneNumber) {
+        await ctx.editMessageText(Messages.ERROR_GENERIC(), {
+          parse_mode: 'HTML',
+          reply_markup: Keyboards.backToMenu(),
+        });
+        return;
+      }
+
+      logger.info({ userId }, 'User selected CCCD for KYC verification');
+
+      // Store document type and move to ID card collection
+      state.kycDocumentType = 'cccd';
+      state.waitingFor = 'kyc_id_card';
+      userStates.set(userId, state);
+
+      await ctx.editMessageText(Messages.KYC_REQUEST_ID_CARD(), {
+        parse_mode: 'HTML',
+        reply_markup: Keyboards.kycCancel(),
+      });
+    });
+
+    // KYC document type selection - Passport
+    this.bot.callbackQuery('kyc_select_passport', async (ctx) => {
+      await ctx.answerCallbackQuery();
+      const userId = ctx.from.id;
+      const state = userStates.get(userId);
+
+      if (!state || !state.kycPhoneNumber) {
+        await ctx.editMessageText(Messages.ERROR_GENERIC(), {
+          parse_mode: 'HTML',
+          reply_markup: Keyboards.backToMenu(),
+        });
+        return;
+      }
+
+      logger.info({ userId }, 'User selected Passport for KYC verification');
+
+      // Store document type and move to passport collection
+      state.kycDocumentType = 'passport';
+      state.waitingFor = 'kyc_id_card';
+      userStates.set(userId, state);
+
+      await ctx.editMessageText(Messages.KYC_REQUEST_PASSPORT(), {
+        parse_mode: 'HTML',
+        reply_markup: Keyboards.kycCancel(),
       });
     });
 
@@ -1082,7 +1175,13 @@ export class TelegramService {
       state.waitingFor = 'kyc_id_card';
       userStates.set(userId, state);
 
-      await ctx.editMessageText(Messages.KYC_REQUEST_ID_CARD(), {
+      // Show appropriate message based on document type
+      const message =
+        state.kycDocumentType === 'passport'
+          ? Messages.KYC_REQUEST_PASSPORT()
+          : Messages.KYC_REQUEST_ID_CARD();
+
+      await ctx.editMessageText(message, {
         parse_mode: 'HTML',
         reply_markup: Keyboards.kycCancel(),
       });
@@ -1106,7 +1205,13 @@ export class TelegramService {
       state.waitingFor = 'kyc_id_card';
       userStates.set(userId, state);
 
-      await ctx.editMessageText(Messages.KYC_REQUEST_ID_CARD(), {
+      // Show appropriate message based on document type
+      const message =
+        state.kycDocumentType === 'passport'
+          ? Messages.KYC_REQUEST_PASSPORT()
+          : Messages.KYC_REQUEST_ID_CARD();
+
+      await ctx.editMessageText(message, {
         parse_mode: 'HTML',
         reply_markup: Keyboards.kycCancel(),
       });
@@ -1453,6 +1558,15 @@ export class TelegramService {
           'Payment information retrieved'
         );
 
+        // Fetch KYC information to get phone number if user is KYC verified
+        let phoneNumber: string | null = null;
+        if (teleUser.is_kyc) {
+          const kycRecord = await kycService.findByChatId(chatId);
+          if (kycRecord) {
+            phoneNumber = kycRecord.phone;
+          }
+        }
+
         // Display user information from database
         await ctx.editMessageText(
           Messages.ACCOUNT_INFO(
@@ -1462,7 +1576,8 @@ export class TelegramService {
             teleUser.username || '',
             teleUser.is_kyc ?? false,
             savedBankAccounts,
-            savedWallets
+            savedWallets,
+            phoneNumber
           ),
           {
             parse_mode: 'HTML',
@@ -1508,7 +1623,10 @@ export class TelegramService {
         }
 
         // User is KYC verified, proceed with buy flow
-        logger.info({ userId, isKyc: user.is_kyc }, 'User is KYC verified, proceeding with buy flow');
+        logger.info(
+          { userId, isKyc: user.is_kyc },
+          'User is KYC verified, proceeding with buy flow'
+        );
         userStates.set(userId, { action: 'buy' });
         await ctx.editMessageText(Messages.BUY_SELECT_AMOUNT(), {
           parse_mode: 'HTML',
@@ -1595,7 +1713,10 @@ export class TelegramService {
         }
 
         // User is KYC verified, proceed with sell flow
-        logger.info({ userId, isKyc: user.is_kyc }, 'User is KYC verified, proceeding with sell flow');
+        logger.info(
+          { userId, isKyc: user.is_kyc },
+          'User is KYC verified, proceeding with sell flow'
+        );
         userStates.set(userId, { action: 'sell' });
         await ctx.editMessageText(Messages.SELL_SELECT_AMOUNT(), {
           parse_mode: 'HTML',
@@ -2063,7 +2184,10 @@ export class TelegramService {
         if (response.ok) {
           // Track this as a user-initiated cancellation to prevent duplicate webhook notification
           userCancelledOrders.add(orderId);
-          logger.info({ userId, orderId }, 'Marked order as user-cancelled to suppress webhook notification');
+          logger.info(
+            { userId, orderId },
+            'Marked order as user-cancelled to suppress webhook notification'
+          );
 
           // Auto-remove from set after 60 seconds (in case webhook arrives late)
           setTimeout(() => {
@@ -2137,7 +2261,7 @@ export class TelegramService {
         if (this.validateVietnamesePhoneNumber(phoneNumber)) {
           // Store phone number in state
           state.kycPhoneNumber = phoneNumber;
-          state.waitingFor = 'kyc_id_card'; // Move to ID card collection
+          state.waitingFor = undefined; // Clear waiting state
           userStates.set(userId, state);
 
           await ctx.reply(Messages.KYC_PHONE_RECEIVED(phoneNumber), {
@@ -2145,13 +2269,16 @@ export class TelegramService {
             reply_markup: { remove_keyboard: true },
           });
 
-          // Request ID card photo
-          await ctx.reply(Messages.KYC_REQUEST_ID_CARD(), {
+          // Request document type selection
+          await ctx.reply(Messages.KYC_SELECT_DOCUMENT_TYPE(), {
             parse_mode: 'HTML',
-            reply_markup: Keyboards.kycCancel(),
+            reply_markup: Keyboards.kycDocumentTypeSelection(),
           });
 
-          logger.info({ userId, phoneNumber }, 'Phone number validated, requesting ID card');
+          logger.info(
+            { userId, phoneNumber },
+            'Phone number validated, requesting document type selection'
+          );
         } else {
           await ctx.reply(Messages.KYC_INVALID_PHONE(), {
             parse_mode: 'HTML',
@@ -2229,9 +2356,12 @@ export class TelegramService {
 
       const text = ctx.message.text.trim();
 
-      if (state.waitingFor === 'kyc_phone') {
-        await this.handleKycPhoneInput(ctx, userId, state, text);
-      } else if (state.waitingFor === 'buy_amount') {
+      // Manual phone input is disabled - users must use Telegram's contact sharing feature
+      // Keeping this code for potential future reactivation
+      // if (state.waitingFor === 'kyc_phone') {
+      //   await this.handleKycPhoneInput(ctx, userId, state, text);
+      // } else
+      if (state.waitingFor === 'buy_amount') {
         await this.handleBuyAmountInput(ctx, userId, state, text);
       } else if (state.waitingFor === 'sell_amount') {
         await this.handleSellAmountInput(ctx, userId, state, text);
@@ -2331,6 +2461,49 @@ export class TelegramService {
     const pattern3 = /^84\d{9,10}$/;
 
     return pattern1.test(cleaned) || pattern2.test(cleaned) || pattern3.test(cleaned);
+  }
+
+  /**
+   * Parse sex/gender field from FPT AI Vision API response
+   * API returns format: "NAM/M" or "NỮ/F"
+   * Returns the Vietnamese part for display (e.g., "NAM" or "NỮ")
+   */
+  private parseSexForDisplay(sex: string | undefined): string {
+    if (!sex) return 'N/A';
+    // Extract Vietnamese part (before the slash)
+    const parts = sex.split('/');
+    return parts[0] || sex;
+  }
+
+  /**
+   * Parse sex/gender field from FPT AI Vision API response
+   * API returns different formats for different document types:
+   * - CCCD: "NAM" or "NỮ" (Vietnamese only)
+   * - Passport: "NAM/M" or "NỮ/F" (Vietnamese/English format)
+   * Returns the English abbreviation for database storage (e.g., "M" or "F")
+   */
+  private parseSexForDatabase(sex: string | undefined): string {
+    if (!sex) return 'N/A';
+
+    // Check if format contains slash (Passport format: "NAM/M" or "NỮ/F")
+    if (sex.includes('/')) {
+      const parts = sex.split('/');
+      if (parts.length > 1) {
+        return parts[1] || sex; // Return English abbreviation after slash
+      }
+    }
+
+    // Handle CCCD format (Vietnamese only: "NAM" or "NỮ")
+    // Convert Vietnamese text to English abbreviation
+    const sexUpper = sex.toUpperCase().trim();
+    if (sexUpper === 'NAM') {
+      return 'M';
+    } else if (sexUpper === 'NỮ' || sexUpper === 'NU') {
+      return 'F';
+    }
+
+    // Fallback: return as-is if format is unrecognized
+    return sex;
   }
 
   /**
@@ -2956,7 +3129,10 @@ export class TelegramService {
 
       // Track this order to skip initial PROCESSING webhook notification
       newlyCreatedOrders.add(order.id);
-      logger.info({ orderId: order.id }, 'Marked order to skip initial PROCESSING webhook notification');
+      logger.info(
+        { orderId: order.id },
+        'Marked order to skip initial PROCESSING webhook notification'
+      );
 
       // Auto-remove from set after 10 seconds (webhook should arrive by then)
       setTimeout(() => {
@@ -2969,7 +3145,10 @@ export class TelegramService {
         parse_mode: 'HTML',
       });
 
-      logger.info({ orderId: order.id }, 'Processing status notification sent - order flow complete');
+      logger.info(
+        { orderId: order.id },
+        'Processing status notification sent - order flow complete'
+      );
     } else {
       logger.error({ orderId: order.id, payData: order.pay_data }, 'No QR code in order response');
       await ctx.reply(Messages.ERROR_GENERIC());
@@ -3088,7 +3267,10 @@ export class TelegramService {
 
       // Track this order to skip initial PROCESSING webhook notification
       newlyCreatedOrders.add(order.id);
-      logger.info({ orderId: order.id }, 'Marked order to skip initial PROCESSING webhook notification');
+      logger.info(
+        { orderId: order.id },
+        'Marked order to skip initial PROCESSING webhook notification'
+      );
 
       // Auto-remove from set after 10 seconds (webhook should arrive by then)
       setTimeout(() => {
@@ -3101,7 +3283,10 @@ export class TelegramService {
         parse_mode: 'HTML',
       });
 
-      logger.info({ userId, orderId: order.id }, 'Processing status notification sent - sell flow complete');
+      logger.info(
+        { userId, orderId: order.id },
+        'Processing status notification sent - sell flow complete'
+      );
     } else {
       logger.error(
         {
@@ -3367,10 +3552,13 @@ export class TelegramService {
 
       logger.info({ userId, localFilePath }, 'ID card image saved to disk');
 
+      // Get document type from state (default to 'cccd' for backward compatibility)
+      const documentType = state.kycDocumentType || 'cccd';
+
       // Call FPT AI Vision API (this is the expensive operation we want to avoid duplicating)
-      logger.info({ userId }, 'Calling FPT AI Vision API');
-      const idData = await fptAiVisionService.recognizeIdCard(localFilePath);
-      logger.info({ userId, idData }, 'FPT AI Vision API call successful');
+      logger.info({ userId, documentType }, 'Calling FPT AI Vision API');
+      const idData = await fptAiVisionService.recognizeIdCard(localFilePath, documentType);
+      logger.info({ userId, documentType, idData }, 'FPT AI Vision API call successful');
 
       // Store extracted data in state and clear waiting state
       state.kycIdCardData = idData;
@@ -3380,7 +3568,7 @@ export class TelegramService {
       logger.info({ userId }, 'ID card data extracted and stored in state');
 
       // Display extracted information and ask for confirmation
-      await ctx.reply(Messages.KYC_ID_CARD_EXTRACTED(idData), {
+      await ctx.reply(Messages.KYC_ID_CARD_EXTRACTED(idData, documentType), {
         parse_mode: 'HTML',
         reply_markup: Keyboards.kycIdCardConfirmation(),
       });
@@ -3409,12 +3597,13 @@ export class TelegramService {
   private async saveKycData(ctx: any, userId: number, state: UserState): Promise<void> {
     const idData = state.kycIdCardData;
     const phoneNumber = state.kycPhoneNumber;
+    const documentType = state.kycDocumentType || 'cccd';
 
     if (!idData || !phoneNumber) {
       throw new Error('Missing KYC data');
     }
 
-    logger.info({ userId }, 'Saving KYC data to database');
+    logger.info({ userId, documentType }, 'Saving KYC data to database');
 
     try {
       // Parse dates
@@ -3425,18 +3614,41 @@ export class TelegramService {
         throw new Error('Invalid date format in ID card data');
       }
 
+      // Determine KYC type and extract passport number if applicable
+      const kycType: 'PASSPORT' | 'IDC' = documentType === 'passport' ? 'PASSPORT' : 'IDC';
+      const passportNumber =
+        documentType === 'passport' && idData.passport_number ? idData.passport_number : undefined;
+
+      // Handle home and address fields based on document type
+      // For passports: use pob (place of birth) since passports don't have home/address fields
+      // For CCCD: use the standard home and address fields
+      const home = documentType === 'passport' ? idData.pob || 'N/A' : idData.home || 'N/A';
+      const address = documentType === 'passport' ? idData.pob || 'N/A' : idData.address || 'N/A';
+
+      // Extract ID number based on document type
+      // For passport documents: use id_number (CCCD number from passport)
+      // For CCCD documents: use id (CCCD number)
+      const idNumber = documentType === 'passport' ? idData.id_number : idData.id;
+
+      // Parse sex field for database storage (normalize to English abbreviation)
+      // API returns different formats: CCCD="NAM"/"NỮ", Passport="NAM/M"/"NỮ/F"
+      // Store only the English abbreviation: "M" or "F"
+      const sexForDatabase = this.parseSexForDatabase(idData.sex);
+
       // Create KYC record
       await kycService.create({
         chat_id: userId,
         phone: phoneNumber,
-        id_number: idData.id,
+        type: kycType,
+        id_number: idNumber,
         name: idData.name,
         dob: dob,
-        sex: idData.sex,
+        sex: sexForDatabase,
         nationality: idData.nationality,
-        home: idData.home,
-        address: idData.address,
+        home: home,
+        address: address,
         doe: doe,
+        passport_number: passportNumber,
       });
 
       // Update is_kyc flag in tele_users table
