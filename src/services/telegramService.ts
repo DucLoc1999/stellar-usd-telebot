@@ -3242,6 +3242,22 @@ export class TelegramService {
         'Deposit order created successfully'
       );
 
+      // CRITICAL: Track this order IMMEDIATELY to prevent webhook race condition
+      // The webhook can arrive very quickly after order creation, so we must add
+      // the order to the tracking set BEFORE sending any messages
+      newlyCreatedOrders.add(order.id);
+      logger.info(
+        { orderId: order.id },
+        'Order added to tracking set to prevent duplicate webhook notifications'
+      );
+
+      // Auto-remove from set after 30 seconds (allows for delayed webhooks)
+      // Increased from 10s to 30s to handle cases where webhooks arrive after 10+ seconds
+      setTimeout(() => {
+        newlyCreatedOrders.delete(order.id);
+        logger.debug({ orderId: order.id }, 'Removed order from newly created tracking set');
+      }, 30000);
+
       // Clear user state
       userStates.delete(userId);
 
@@ -3286,19 +3302,6 @@ export class TelegramService {
         } else {
           logger.info({ orderId: order.id }, 'QR code already sent, skipping');
         }
-
-        // Track this order to skip initial PROCESSING webhook notification
-        newlyCreatedOrders.add(order.id);
-        logger.info(
-          { orderId: order.id },
-          'Marked order to skip initial PROCESSING webhook notification'
-        );
-
-        // Auto-remove from set after 10 seconds (webhook should arrive by then)
-        setTimeout(() => {
-          newlyCreatedOrders.delete(order.id);
-          logger.debug({ orderId: order.id }, 'Removed order from newly created tracking set');
-        }, 10000);
 
         // Step 4: Send processing status notification (only if not sent before)
         if (!this.hasMessageBeenSent(order.id, 'processing_status')) {
@@ -3408,6 +3411,22 @@ export class TelegramService {
         'Withdrawal order created successfully - checking for recipient address'
       );
 
+      // CRITICAL: Track this order IMMEDIATELY to prevent webhook race condition
+      // The webhook can arrive very quickly after order creation, so we must add
+      // the order to the tracking set BEFORE sending any messages
+      newlyCreatedOrders.add(order.id);
+      logger.info(
+        { orderId: order.id },
+        'Order added to tracking set to prevent duplicate webhook notifications'
+      );
+
+      // Auto-remove from set after 30 seconds (allows for delayed webhooks)
+      // Increased from 10s to 30s to handle cases where webhooks arrive after 10+ seconds
+      setTimeout(() => {
+        newlyCreatedOrders.delete(order.id);
+        logger.debug({ orderId: order.id }, 'Removed order from newly created tracking set');
+      }, 30000);
+
       // Extract recipient address - try multiple possible locations
       let recipientAddress: string | undefined;
 
@@ -3477,19 +3496,6 @@ export class TelegramService {
         } else {
           logger.info({ orderId: order.id }, 'QR code already sent, skipping');
         }
-
-        // Track this order to skip initial PROCESSING webhook notification
-        newlyCreatedOrders.add(order.id);
-        logger.info(
-          { orderId: order.id },
-          'Marked order to skip initial PROCESSING webhook notification'
-        );
-
-        // Auto-remove from set after 10 seconds (webhook should arrive by then)
-        setTimeout(() => {
-          newlyCreatedOrders.delete(order.id);
-          logger.debug({ orderId: order.id }, 'Removed order from newly created tracking set');
-        }, 10000);
 
         // Send processing status notification (only if not sent before)
         if (!this.hasMessageBeenSent(order.id, 'processing_status')) {
