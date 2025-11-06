@@ -884,6 +884,13 @@ const userCancelledOrders = new Set<string>();
 // (we send the processing notification manually after QR code)
 const newlyCreatedOrders = new Set<string>();
 
+// Track users currently processing orders to prevent duplicate order creation
+const processingUsers = new Set<number>();
+
+// Track which message types have been sent for each order to prevent duplicates
+// Map<orderId, Set<messageType>>
+const sentMessages = new Map<string, Set<string>>();
+
 const userStates = new Map<number, UserState>();
 
 /**
@@ -929,8 +936,8 @@ export class TelegramService {
           );
           await ctx.reply(
             `❌ <b>Lỗi khởi tạo</b>\n\n` +
-            `Không thể lấy thông tin tài khoản của bạn.\n\n` +
-            `Vui lòng thử lại hoặc liên hệ support!`,
+              `Không thể lấy thông tin tài khoản của bạn.\n\n` +
+              `Vui lòng thử lại hoặc liên hệ support!`,
             { parse_mode: 'HTML' }
           );
           return;
@@ -960,8 +967,8 @@ export class TelegramService {
         logger.error({ error }, 'Error handling /start command');
         await ctx.reply(
           `❌ <b>Lỗi hệ thống</b>\n\n` +
-          `Có lỗi xảy ra khi khởi động bot.\n\n` +
-          `Vui lòng thử lại sau!`,
+            `Có lỗi xảy ra khi khởi động bot.\n\n` +
+            `Vui lòng thử lại sau!`,
           { parse_mode: 'HTML' }
         );
       }
@@ -1003,8 +1010,8 @@ export class TelegramService {
           logger.error('Missing chat ID in kyc callback');
           await ctx.editMessageText(
             `❌ <b>Lỗi hệ thống</b>\n\n` +
-            `Không thể xác định tài khoản của bạn.\n\n` +
-            `Vui lòng thử lại!`,
+              `Không thể xác định tài khoản của bạn.\n\n` +
+              `Vui lòng thử lại!`,
             {
               parse_mode: 'HTML',
               reply_markup: Keyboards.backToMenu(),
@@ -1036,8 +1043,8 @@ export class TelegramService {
         logger.error({ error }, 'Error checking KYC status');
         await ctx.editMessageText(
           `❌ <b>Lỗi kiểm tra KYC</b>\n\n` +
-          `Không thể kiểm tra trạng thái KYC của bạn.\n\n` +
-          `Vui lòng thử lại sau!`,
+            `Không thể kiểm tra trạng thái KYC của bạn.\n\n` +
+            `Vui lòng thử lại sau!`,
           {
             parse_mode: 'HTML',
             reply_markup: Keyboards.backToMenu(),
@@ -1086,8 +1093,8 @@ export class TelegramService {
         logger.error({ error }, 'Error starting KYC process');
         await ctx.editMessageText(
           `❌ <b>Lỗi khởi động KYC</b>\n\n` +
-          `Không thể bắt đầu quy trình KYC.\n\n` +
-          `Vui lòng thử lại sau!`,
+            `Không thể bắt đầu quy trình KYC.\n\n` +
+            `Vui lòng thử lại sau!`,
           {
             parse_mode: 'HTML',
             reply_markup: Keyboards.backToMenu(),
@@ -1122,8 +1129,8 @@ export class TelegramService {
       if (!state || !state.kycPhoneNumber) {
         await ctx.editMessageText(
           `❌ <b>Lỗi trạng thái</b>\n\n` +
-          `Phiên KYC đã hết hạn hoặc không hợp lệ.\n\n` +
-          `Vui lòng bắt đầu lại quy trình KYC!`,
+            `Phiên KYC đã hết hạn hoặc không hợp lệ.\n\n` +
+            `Vui lòng bắt đầu lại quy trình KYC!`,
           {
             parse_mode: 'HTML',
             reply_markup: Keyboards.backToMenu(),
@@ -1154,8 +1161,8 @@ export class TelegramService {
       if (!state || !state.kycPhoneNumber) {
         await ctx.editMessageText(
           `❌ <b>Lỗi trạng thái</b>\n\n` +
-          `Phiên KYC đã hết hạn hoặc không hợp lệ.\n\n` +
-          `Vui lòng bắt đầu lại quy trình KYC!`,
+            `Phiên KYC đã hết hạn hoặc không hợp lệ.\n\n` +
+            `Vui lòng bắt đầu lại quy trình KYC!`,
           {
             parse_mode: 'HTML',
             reply_markup: Keyboards.backToMenu(),
@@ -1264,8 +1271,8 @@ export class TelegramService {
           logger.error('Missing chat ID in bank_accounts callback');
           await ctx.editMessageText(
             `❌ <b>Lỗi hệ thống</b>\n\n` +
-            `Không thể xác định tài khoản của bạn.\n\n` +
-            `Vui lòng thử lại!`,
+              `Không thể xác định tài khoản của bạn.\n\n` +
+              `Vui lòng thử lại!`,
             {
               parse_mode: 'HTML',
               reply_markup: Keyboards.backToMenu(),
@@ -1317,8 +1324,8 @@ export class TelegramService {
         logger.error({ error }, 'Error fetching bank accounts');
         await ctx.editMessageText(
           `❌ <b>Lỗi tải dữ liệu</b>\n\n` +
-          `Không thể tải danh sách ngân hàng.\n\n` +
-          `Vui lòng thử lại sau!`,
+            `Không thể tải danh sách ngân hàng.\n\n` +
+            `Vui lòng thử lại sau!`,
           {
             parse_mode: 'HTML',
             reply_markup: Keyboards.backToMenu(),
@@ -1338,8 +1345,8 @@ export class TelegramService {
           logger.error('Missing chat ID in crypto_wallets callback');
           await ctx.editMessageText(
             `❌ <b>Lỗi hệ thống</b>\n\n` +
-            `Không thể xác định tài khoản của bạn.\n\n` +
-            `Vui lòng thử lại!`,
+              `Không thể xác định tài khoản của bạn.\n\n` +
+              `Vui lòng thử lại!`,
             {
               parse_mode: 'HTML',
               reply_markup: Keyboards.backToMenu(),
@@ -1380,8 +1387,8 @@ export class TelegramService {
         logger.error({ error }, 'Error fetching crypto wallets');
         await ctx.editMessageText(
           `❌ <b>Lỗi tải dữ liệu</b>\n\n` +
-          `Không thể tải danh sách ví crypto.\n\n` +
-          `Vui lòng thử lại sau!`,
+            `Không thể tải danh sách ví crypto.\n\n` +
+            `Vui lòng thử lại sau!`,
           {
             parse_mode: 'HTML',
             reply_markup: Keyboards.backToMenu(),
@@ -1443,9 +1450,7 @@ export class TelegramService {
       if (!state || !state.paymentInfoId) {
         logger.error({ userId }, 'No payment info ID in state for deletion');
         await ctx.editMessageText(
-          `❌ <b>Lỗi trạng thái</b>\n\n` +
-          `Phiên làm việc đã hết hạn.\n\n` +
-          `Vui lòng thử lại!`,
+          `❌ <b>Lỗi trạng thái</b>\n\n` + `Phiên làm việc đã hết hạn.\n\n` + `Vui lòng thử lại!`,
           {
             parse_mode: 'HTML',
             reply_markup: Keyboards.backToMenu(),
@@ -1559,8 +1564,8 @@ export class TelegramService {
           logger.error('Missing chat ID in account_info callback');
           await ctx.editMessageText(
             `❌ <b>Lỗi hệ thống</b>\n\n` +
-            `Không thể xác định tài khoản của bạn.\n\n` +
-            `Vui lòng thử lại!`,
+              `Không thể xác định tài khoản của bạn.\n\n` +
+              `Vui lòng thử lại!`,
             {
               parse_mode: 'HTML',
               reply_markup: Keyboards.backToMenu(),
@@ -1636,8 +1641,8 @@ export class TelegramService {
         logger.error({ error }, 'Error fetching user information');
         await ctx.editMessageText(
           `❌ <b>Lỗi tải thông tin</b>\n\n` +
-          `Không thể tải thông tin tài khoản.\n\n` +
-          `Vui lòng thử lại sau!`,
+            `Không thể tải thông tin tài khoản.\n\n` +
+            `Vui lòng thử lại sau!`,
           {
             parse_mode: 'HTML',
             reply_markup: Keyboards.backToMenu(),
@@ -1660,8 +1665,8 @@ export class TelegramService {
           logger.warn({ userId }, 'User not found in database for buy USDT');
           await ctx.editMessageText(
             `❌ <b>Lỗi tài khoản</b>\n\n` +
-            `Không tìm thấy thông tin tài khoản của bạn.\n\n` +
-            `Vui lòng liên hệ support!`,
+              `Không tìm thấy thông tin tài khoản của bạn.\n\n` +
+              `Vui lòng liên hệ support!`,
             {
               parse_mode: 'HTML',
               reply_markup: Keyboards.backToMenu(),
@@ -1694,8 +1699,8 @@ export class TelegramService {
         logger.error({ error, userId }, 'Error checking KYC status for buy USDT');
         await ctx.editMessageText(
           `❌ <b>Lỗi kiểm tra KYC</b>\n\n` +
-          `Không thể kiểm tra trạng thái KYC.\n\n` +
-          `Vui lòng thử lại sau!`,
+            `Không thể kiểm tra trạng thái KYC.\n\n` +
+            `Vui lòng thử lại sau!`,
           {
             parse_mode: 'HTML',
             reply_markup: Keyboards.backToMenu(),
@@ -1760,8 +1765,8 @@ export class TelegramService {
           logger.warn({ userId }, 'User not found in database for sell USDT');
           await ctx.editMessageText(
             `❌ <b>Lỗi tài khoản</b>\n\n` +
-            `Không tìm thấy thông tin tài khoản của bạn.\n\n` +
-            `Vui lòng liên hệ support!`,
+              `Không tìm thấy thông tin tài khoản của bạn.\n\n` +
+              `Vui lòng liên hệ support!`,
             {
               parse_mode: 'HTML',
               reply_markup: Keyboards.backToMenu(),
@@ -1794,8 +1799,8 @@ export class TelegramService {
         logger.error({ error, userId }, 'Error checking KYC status for sell USDT');
         await ctx.editMessageText(
           `❌ <b>Lỗi kiểm tra KYC</b>\n\n` +
-          `Không thể kiểm tra trạng thái KYC.\n\n` +
-          `Vui lòng thử lại sau!`,
+            `Không thể kiểm tra trạng thái KYC.\n\n` +
+            `Vui lòng thử lại sau!`,
           {
             parse_mode: 'HTML',
             reply_markup: Keyboards.backToMenu(),
@@ -1862,8 +1867,8 @@ export class TelegramService {
       if (!state || state.action !== 'sell') {
         await ctx.reply(
           `❌ <b>Lỗi trạng thái</b>\n\n` +
-          `Phiên làm việc đã hết hạn.\n\n` +
-          `Vui lòng bắt đầu lại!`,
+            `Phiên làm việc đã hết hạn.\n\n` +
+            `Vui lòng bắt đầu lại!`,
           { parse_mode: 'HTML' }
         );
         return;
@@ -1875,8 +1880,8 @@ export class TelegramService {
         logger.error({ userId, bankId }, 'Bank not found');
         await ctx.reply(
           `❌ <b>Lỗi ngân hàng</b>\n\n` +
-          `Không tìm thấy thông tin ngân hàng.\n\n` +
-          `Vui lòng thử lại!`,
+            `Không tìm thấy thông tin ngân hàng.\n\n` +
+            `Vui lòng thử lại!`,
           { parse_mode: 'HTML' }
         );
         return;
@@ -1906,8 +1911,8 @@ export class TelegramService {
       if (!state || state.action !== 'sell') {
         await ctx.reply(
           `❌ <b>Lỗi trạng thái</b>\n\n` +
-          `Phiên làm việc đã hết hạn.\n\n` +
-          `Vui lòng bắt đầu lại!`,
+            `Phiên làm việc đã hết hạn.\n\n` +
+            `Vui lòng bắt đầu lại!`,
           { parse_mode: 'HTML' }
         );
         return;
@@ -1942,8 +1947,8 @@ export class TelegramService {
       if (!state || state.action !== 'buy') {
         await ctx.reply(
           `❌ <b>Lỗi trạng thái</b>\n\n` +
-          `Phiên làm việc đã hết hạn.\n\n` +
-          `Vui lòng bắt đầu lại!`,
+            `Phiên làm việc đã hết hạn.\n\n` +
+            `Vui lòng bắt đầu lại!`,
           { parse_mode: 'HTML' }
         );
         return;
@@ -1954,9 +1959,7 @@ export class TelegramService {
       if (!paymentInfo || !paymentInfo.wallet_address) {
         logger.error({ userId, paymentInfoId }, 'Saved wallet not found');
         await ctx.reply(
-          `❌ <b>Lỗi ví</b>\n\n` +
-          `Không tìm thấy thông tin ví đã lưu.\n\n` +
-          `Vui lòng thử lại!`,
+          `❌ <b>Lỗi ví</b>\n\n` + `Không tìm thấy thông tin ví đã lưu.\n\n` + `Vui lòng thử lại!`,
           { parse_mode: 'HTML' }
         );
         return;
@@ -2026,8 +2029,8 @@ export class TelegramService {
       if (!state || state.action !== 'buy') {
         await ctx.reply(
           `❌ <b>Lỗi trạng thái</b>\n\n` +
-          `Phiên làm việc đã hết hạn.\n\n` +
-          `Vui lòng bắt đầu lại!`,
+            `Phiên làm việc đã hết hạn.\n\n` +
+            `Vui lòng bắt đầu lại!`,
           { parse_mode: 'HTML' }
         );
         return;
@@ -2062,8 +2065,8 @@ export class TelegramService {
       if (!state || state.action !== 'sell') {
         await ctx.reply(
           `❌ <b>Lỗi trạng thái</b>\n\n` +
-          `Phiên làm việc đã hết hạn.\n\n` +
-          `Vui lòng bắt đầu lại!`,
+            `Phiên làm việc đã hết hạn.\n\n` +
+            `Vui lòng bắt đầu lại!`,
           { parse_mode: 'HTML' }
         );
         return;
@@ -2080,8 +2083,8 @@ export class TelegramService {
         logger.error({ userId, paymentInfoId }, 'Saved bank account not found');
         await ctx.reply(
           `❌ <b>Lỗi ngân hàng</b>\n\n` +
-          `Không tìm thấy thông tin ngân hàng đã lưu.\n\n` +
-          `Vui lòng thử lại!`,
+            `Không tìm thấy thông tin ngân hàng đã lưu.\n\n` +
+            `Vui lòng thử lại!`,
           { parse_mode: 'HTML' }
         );
         return;
@@ -2093,8 +2096,8 @@ export class TelegramService {
         logger.error({ userId, bankId: paymentInfo.bank_id }, 'Bank not found');
         await ctx.reply(
           `❌ <b>Lỗi ngân hàng</b>\n\n` +
-          `Không tìm thấy thông tin ngân hàng.\n\n` +
-          `Vui lòng thử lại!`,
+            `Không tìm thấy thông tin ngân hàng.\n\n` +
+            `Vui lòng thử lại!`,
           { parse_mode: 'HTML' }
         );
         return;
@@ -2169,8 +2172,8 @@ export class TelegramService {
       if (!state || state.action !== 'sell') {
         await ctx.reply(
           `❌ <b>Lỗi trạng thái</b>\n\n` +
-          `Phiên làm việc đã hết hạn.\n\n` +
-          `Vui lòng bắt đầu lại!`,
+            `Phiên làm việc đã hết hạn.\n\n` +
+            `Vui lòng bắt đầu lại!`,
           { parse_mode: 'HTML' }
         );
         return;
@@ -2203,8 +2206,8 @@ export class TelegramService {
         logger.warn({ userId }, 'Invalid state for payment confirmation');
         await ctx.reply(
           `❌ <b>Lỗi trạng thái</b>\n\n` +
-          `Phiên làm việc đã hết hạn.\n\n` +
-          `Vui lòng bắt đầu lại!`,
+            `Phiên làm việc đã hết hạn.\n\n` +
+            `Vui lòng bắt đầu lại!`,
           { parse_mode: 'HTML' }
         );
         return;
@@ -2275,9 +2278,7 @@ export class TelegramService {
       if (!orderId) {
         logger.error({ userId }, 'Order ID not found in callback data');
         await ctx.reply(
-          `❌ <b>Lỗi đơn hàng</b>\n\n` +
-          `Không tìm thấy mã đơn hàng.\n\n` +
-          `Vui lòng thử lại!`,
+          `❌ <b>Lỗi đơn hàng</b>\n\n` + `Không tìm thấy mã đơn hàng.\n\n` + `Vui lòng thử lại!`,
           {
             parse_mode: 'HTML',
             reply_markup: await Keyboards.mainMenu(userId),
@@ -2295,8 +2296,8 @@ export class TelegramService {
           logger.error('PARTNER_APP_KEY not configured');
           await ctx.reply(
             `❌ <b>Lỗi cấu hình</b>\n\n` +
-            `Hệ thống chưa được cấu hình đúng.\n\n` +
-            `Vui lòng liên hệ support!`,
+              `Hệ thống chưa được cấu hình đúng.\n\n` +
+              `Vui lòng liên hệ support!`,
             {
               parse_mode: 'HTML',
               reply_markup: await Keyboards.mainMenu(userId),
@@ -2426,8 +2427,8 @@ export class TelegramService {
         logger.error({ error, userId }, 'Error handling contact message');
         await ctx.reply(
           `❌ <b>Lỗi xử lý số điện thoại</b>\n\n` +
-          `Không thể xử lý số điện thoại của bạn.\n\n` +
-          `Vui lòng thử lại!`,
+            `Không thể xử lý số điện thoại của bạn.\n\n` +
+            `Vui lòng thử lại!`,
           { parse_mode: 'HTML' }
         );
       }
@@ -2861,8 +2862,8 @@ export class TelegramService {
       logger.error({ userId, state }, 'Missing required fields for sell confirmation');
       await ctx.reply(
         `❌ <b>Lỗi thông tin</b>\n\n` +
-        `Thiếu thông tin cần thiết để xác nhận giao dịch.\n\n` +
-        `Vui lòng bắt đầu lại!`,
+          `Thiếu thông tin cần thiết để xác nhận giao dịch.\n\n` +
+          `Vui lòng bắt đầu lại!`,
         { parse_mode: 'HTML' }
       );
       return;
@@ -3120,147 +3121,220 @@ export class TelegramService {
   }
 
   /**
+   * Check if a message type has been sent for an order
+   */
+  private hasMessageBeenSent(orderId: string, messageType: string): boolean {
+    const orderMessages = sentMessages.get(orderId);
+    return orderMessages ? orderMessages.has(messageType) : false;
+  }
+
+  /**
+   * Mark a message type as sent for an order
+   */
+  private markMessageAsSent(orderId: string, messageType: string): void {
+    let orderMessages = sentMessages.get(orderId);
+    if (!orderMessages) {
+      orderMessages = new Set<string>();
+      sentMessages.set(orderId, orderMessages);
+    }
+    orderMessages.add(messageType);
+
+    logger.debug({ orderId, messageType }, 'Marked message as sent');
+  }
+
+  /**
+   * Clean up tracking data for an order after a delay
+   */
+  private scheduleOrderTrackingCleanup(orderId: string, delayMs: number = 300000): void {
+    setTimeout(() => {
+      sentMessages.delete(orderId);
+      newlyCreatedOrders.delete(orderId);
+      userCancelledOrders.delete(orderId);
+      logger.debug({ orderId }, 'Cleaned up order tracking data');
+    }, delayMs);
+  }
+
+  /**
    * Handle buy confirmation - create deposit order and show QR code
    */
   private async handleBuyConfirmation(ctx: any, userId: number, state: UserState): Promise<void> {
+    // Check if user is already processing an order
+    if (processingUsers.has(userId)) {
+      logger.warn({ userId }, 'User is already processing an order, ignoring duplicate request');
+      await ctx.answerCallbackQuery('⏳ Đơn hàng đang được xử lý, vui lòng đợi...');
+      return;
+    }
+
     if (!state.amount || !state.walletAddress) {
       logger.error({ userId, state }, 'Missing amount or wallet address in buy confirmation');
       await ctx.reply(
         `❌ <b>Lỗi thông tin</b>\n\n` +
-        `Thiếu thông tin số lượng hoặc địa chỉ ví.\n\n` +
-        `Vui lòng bắt đầu lại!`,
+          `Thiếu thông tin số lượng hoặc địa chỉ ví.\n\n` +
+          `Vui lòng bắt đầu lại!`,
         { parse_mode: 'HTML' }
       );
       return;
     }
 
-    // Fetch exchange rates to calculate VND amount from USDT amount
-    const rates = await this.fetchExchangeRates();
-    if (!rates) {
-      await ctx.reply(Messages.RATE_UNAVAILABLE(), {
-        parse_mode: 'HTML',
-        reply_markup: Keyboards.backToMenu(),
-      });
-      return;
-    }
+    // Mark user as processing
+    processingUsers.add(userId);
+    logger.info({ userId }, 'User marked as processing order');
 
-    // Calculate VND amount from USDT amount
-    const usdtAmount = parseFloat(state.amount);
-    const vndAmount = Math.round(usdtAmount * rates.sell);
+    try {
+      // Fetch exchange rates to calculate VND amount from USDT amount
+      const rates = await this.fetchExchangeRates();
+      if (!rates) {
+        await ctx.reply(Messages.RATE_UNAVAILABLE(), {
+          parse_mode: 'HTML',
+          reply_markup: Keyboards.backToMenu(),
+        });
+        return;
+      }
 
-    // Calculate gateway fee (service fee)
-    const gatewayFeesPercent = parseFloat(process.env.GATEWAY_FEES || '0.5');
-    const gatewayFee = Math.round(vndAmount * (gatewayFeesPercent / 100));
+      // Calculate VND amount from USDT amount
+      const usdtAmount = parseFloat(state.amount);
+      const vndAmount = Math.round(usdtAmount * rates.sell);
 
-    // Calculate total amount including service fee
-    const totalAmount = vndAmount + gatewayFee;
+      // Calculate gateway fee (service fee)
+      const gatewayFeesPercent = parseFloat(process.env.GATEWAY_FEES || '0.5');
+      const gatewayFee = Math.round(vndAmount * (gatewayFeesPercent / 100));
 
-    logger.info(
-      {
-        userId,
-        usdtAmount: state.amount,
-        vndAmount: vndAmount.toString(),
-        gatewayFee: gatewayFee.toString(),
-        totalAmount: totalAmount.toString(),
-        buyRate: rates.sell,
-        wallet: state.walletAddress,
-        chainId: telegramConfig.chainId,
-        tokenAddress: telegramConfig.tokenAddress,
-      },
-      'Calling deposit API with total VND amount'
-    );
-
-    // Call deposit API with total VND amount (integer, no decimals)
-    const order = await paymentService.processDeposit({
-      chat_id: userId,
-      amount: totalAmount.toString(), // VND amount as integer string (e.g., "279390")
-      chain_id: telegramConfig.chainId,
-      token_address: telegramConfig.tokenAddress,
-      recipient: state.walletAddress,
-      callback: telegramConfig.callbackUrl,
-    });
-
-    // Extract bank information from order response
-    const bankInfo = order.body?.bankInfo;
-
-    logger.info(
-      {
-        orderId: order.id,
-        hasPayData: !!order.pay_data,
-        hasQrCode: !!order.pay_data?.qr_code,
-        hasBankInfo: !!bankInfo,
-        bankName: bankInfo?.bankName,
-        accountNumber: bankInfo?.bankAccountNumber,
-      },
-      'Deposit order created successfully'
-    );
-
-    // Clear user state
-    userStates.delete(userId);
-
-    // Generate and send QR code from pay_data.qr_code
-    if (order.pay_data?.qr_code) {
-      logger.info({ orderId: order.id }, 'Starting QR code flow - sending bank info first');
-
-      // Step 1: Send bank information message with VND amount
-      await ctx.reply(
-        Messages.PAYMENT_QR_MESSAGE(
-          bankInfo?.bankName,
-          bankInfo?.bankAccountNumber,
-          bankInfo?.bankAccountName,
-          totalAmount
-        ),
-        { parse_mode: 'HTML' }
-      );
-      logger.info({ orderId: order.id }, 'Bank information message sent');
-
-      // Step 2: Generate QR code
-      logger.info({ orderId: order.id }, 'Generating QR code image');
-      const qrCodeImage = await this.generateQRCode(order.pay_data.qr_code);
-      logger.info(
-        { orderId: order.id, qrCodeSize: qrCodeImage.length },
-        'QR code generated successfully'
-      );
-
-      // Step 3: Send QR code image with cancel button
-      await ctx.replyWithPhoto(new InputFile(qrCodeImage), {
-        caption: Messages.PAYMENT_QR_CAPTION(),
-        parse_mode: 'HTML',
-        reply_markup: Keyboards.qrCodeWithCancel(order.id),
-      });
-
-      logger.info({ orderId: order.id }, 'QR code image sent successfully');
-
-      // Track this order to skip initial PROCESSING webhook notification
-      newlyCreatedOrders.add(order.id);
-      logger.info(
-        { orderId: order.id },
-        'Marked order to skip initial PROCESSING webhook notification'
-      );
-
-      // Auto-remove from set after 10 seconds (webhook should arrive by then)
-      setTimeout(() => {
-        newlyCreatedOrders.delete(order.id);
-        logger.debug({ orderId: order.id }, 'Removed order from newly created tracking set');
-      }, 10000);
-
-      // Step 4: Send processing status notification (after QR code)
-      await ctx.reply(Messages.ORDER_STATE_PROCESSING(order.id), {
-        parse_mode: 'HTML',
-      });
+      // Calculate total amount including service fee
+      const totalAmount = vndAmount + gatewayFee;
 
       logger.info(
-        { orderId: order.id },
-        'Processing status notification sent - order flow complete'
+        {
+          userId,
+          usdtAmount: state.amount,
+          vndAmount: vndAmount.toString(),
+          gatewayFee: gatewayFee.toString(),
+          totalAmount: totalAmount.toString(),
+          buyRate: rates.sell,
+          wallet: state.walletAddress,
+          chainId: telegramConfig.chainId,
+          tokenAddress: telegramConfig.tokenAddress,
+        },
+        'Calling deposit API with total VND amount'
       );
-    } else {
-      logger.error({ orderId: order.id, payData: order.pay_data }, 'No QR code in order response');
-      await ctx.reply(
-        `❌ <b>Lỗi tạo đơn hàng</b>\n\n` +
-        `Không thể tạo mã QR thanh toán.\n\n` +
-        `Vui lòng thử lại hoặc liên hệ support!`,
-        { parse_mode: 'HTML' }
+
+      // Call deposit API with total VND amount (integer, no decimals)
+      const order = await paymentService.processDeposit({
+        chat_id: userId,
+        amount: totalAmount.toString(), // VND amount as integer string (e.g., "279390")
+        chain_id: telegramConfig.chainId,
+        token_address: telegramConfig.tokenAddress,
+        recipient: state.walletAddress,
+        callback: telegramConfig.callbackUrl,
+      });
+
+      // Extract bank information from order response
+      const bankInfo = order.body?.bankInfo;
+
+      logger.info(
+        {
+          orderId: order.id,
+          hasPayData: !!order.pay_data,
+          hasQrCode: !!order.pay_data?.qr_code,
+          hasBankInfo: !!bankInfo,
+          bankName: bankInfo?.bankName,
+          accountNumber: bankInfo?.bankAccountNumber,
+        },
+        'Deposit order created successfully'
       );
+
+      // Clear user state
+      userStates.delete(userId);
+
+      // Generate and send QR code from pay_data.qr_code
+      if (order.pay_data?.qr_code) {
+        logger.info({ orderId: order.id }, 'Starting QR code flow - sending bank info first');
+
+        // Step 1: Send bank information message with VND amount (only if not sent before)
+        if (!this.hasMessageBeenSent(order.id, 'bank_info')) {
+          await ctx.reply(
+            Messages.PAYMENT_QR_MESSAGE(
+              bankInfo?.bankName,
+              bankInfo?.bankAccountNumber,
+              bankInfo?.bankAccountName,
+              totalAmount
+            ),
+            { parse_mode: 'HTML' }
+          );
+          this.markMessageAsSent(order.id, 'bank_info');
+          logger.info({ orderId: order.id }, 'Bank information message sent');
+        } else {
+          logger.info({ orderId: order.id }, 'Bank information message already sent, skipping');
+        }
+
+        // Step 2: Generate and send QR code (only if not sent before)
+        if (!this.hasMessageBeenSent(order.id, 'qr_code')) {
+          logger.info({ orderId: order.id }, 'Generating QR code image');
+          const qrCodeImage = await this.generateQRCode(order.pay_data.qr_code);
+          logger.info(
+            { orderId: order.id, qrCodeSize: qrCodeImage.length },
+            'QR code generated successfully'
+          );
+
+          // Step 3: Send QR code image with cancel button
+          await ctx.replyWithPhoto(new InputFile(qrCodeImage), {
+            caption: Messages.PAYMENT_QR_CAPTION(),
+            parse_mode: 'HTML',
+            reply_markup: Keyboards.qrCodeWithCancel(order.id),
+          });
+          this.markMessageAsSent(order.id, 'qr_code');
+          logger.info({ orderId: order.id }, 'QR code image sent successfully');
+        } else {
+          logger.info({ orderId: order.id }, 'QR code already sent, skipping');
+        }
+
+        // Track this order to skip initial PROCESSING webhook notification
+        newlyCreatedOrders.add(order.id);
+        logger.info(
+          { orderId: order.id },
+          'Marked order to skip initial PROCESSING webhook notification'
+        );
+
+        // Auto-remove from set after 10 seconds (webhook should arrive by then)
+        setTimeout(() => {
+          newlyCreatedOrders.delete(order.id);
+          logger.debug({ orderId: order.id }, 'Removed order from newly created tracking set');
+        }, 10000);
+
+        // Step 4: Send processing status notification (only if not sent before)
+        if (!this.hasMessageBeenSent(order.id, 'processing_status')) {
+          await ctx.reply(Messages.ORDER_STATE_PROCESSING(order.id), {
+            parse_mode: 'HTML',
+          });
+          this.markMessageAsSent(order.id, 'processing_status');
+          logger.info(
+            { orderId: order.id },
+            'Processing status notification sent - order flow complete'
+          );
+        } else {
+          logger.info({ orderId: order.id }, 'Processing status already sent, skipping');
+        }
+
+        // Schedule cleanup of tracking data after 5 minutes
+        this.scheduleOrderTrackingCleanup(order.id);
+      } else {
+        logger.error(
+          { orderId: order.id, payData: order.pay_data },
+          'No QR code in order response'
+        );
+        await ctx.reply(
+          `❌ <b>Lỗi tạo đơn hàng</b>\n\n` +
+            `Không thể tạo mã QR thanh toán.\n\n` +
+            `Vui lòng thử lại hoặc liên hệ support!`,
+          { parse_mode: 'HTML' }
+        );
+      }
+    } catch (error) {
+      logger.error({ userId, error }, 'Error in handleBuyConfirmation');
+      throw error;
+    } finally {
+      // Always remove user from processing set
+      processingUsers.delete(userId);
+      logger.info({ userId }, 'User removed from processing set');
     }
   }
 
@@ -3268,160 +3342,200 @@ export class TelegramService {
    * Handle sell confirmation - create withdrawal order and show recipient address
    */
   private async handleSellConfirmation(ctx: any, userId: number, state: UserState): Promise<void> {
+    // Check if user is already processing an order
+    if (processingUsers.has(userId)) {
+      logger.warn({ userId }, 'User is already processing an order, ignoring duplicate request');
+      await ctx.answerCallbackQuery('⏳ Đơn hàng đang được xử lý, vui lòng đợi...');
+      return;
+    }
+
     // Validate all required fields
     if (!state.amount || !state.bankId || !state.fullName || !state.accountNumber) {
       logger.error({ userId, state }, 'Missing required fields for sell confirmation');
       await ctx.reply(
         `❌ <b>Lỗi thông tin</b>\n\n` +
-        `Thiếu thông tin cần thiết để xác nhận giao dịch.\n\n` +
-        `Vui lòng bắt đầu lại!`,
+          `Thiếu thông tin cần thiết để xác nhận giao dịch.\n\n` +
+          `Vui lòng bắt đầu lại!`,
         { parse_mode: 'HTML' }
       );
       return;
     }
 
-    logger.info(
-      {
-        userId,
+    // Mark user as processing
+    processingUsers.add(userId);
+    logger.info({ userId }, 'User marked as processing order');
+
+    try {
+      logger.info(
+        {
+          userId,
+          amount: state.amount,
+          bankId: state.bankId,
+          bankName: state.bankName,
+          fullName: state.fullName,
+          accountNumber: state.accountNumber,
+        },
+        'Processing sell order with complete payment info'
+      );
+
+      // Call withdrawal API with collected payment_info
+      logger.info({ userId }, 'Calling withdrawal API');
+
+      const order = await paymentService.processWithdrawal({
+        chat_id: userId,
         amount: state.amount,
-        bankId: state.bankId,
-        bankName: state.bankName,
-        fullName: state.fullName,
-        accountNumber: state.accountNumber,
-      },
-      'Processing sell order with complete payment info'
-    );
-
-    // Call withdrawal API with collected payment_info
-    logger.info({ userId }, 'Calling withdrawal API');
-
-    const order = await paymentService.processWithdrawal({
-      chat_id: userId,
-      amount: state.amount,
-      chain_id: telegramConfig.chainId,
-      token_address: telegramConfig.tokenAddress,
-      callback: telegramConfig.callbackUrl,
-      payment_info: {
-        bank_id: state.bankId,
-        full_name: state.fullName,
-        account_type: 1, // Always 1 as per requirements
-        account_number: state.accountNumber,
-      },
-    });
-
-    logger.info(
-      {
-        userId,
-        orderId: order.id,
-        hasPayData: !!order.pay_data,
-        hasAddress: !!order.pay_data?.address,
-        payData: order.pay_data,
-        recipient: order.recipient,
-        body: order.body,
-      },
-      'Withdrawal order created successfully - checking for recipient address'
-    );
-
-    // Extract recipient address - try multiple possible locations
-    let recipientAddress: string | undefined;
-
-    // Priority 1: Check pay_data.address
-    if (order.pay_data?.address) {
-      recipientAddress = order.pay_data.address;
-      logger.info(
-        { userId, orderId: order.id, source: 'pay_data.address' },
-        'Found recipient address'
-      );
-    }
-    // Priority 2: Check recipient field (top-level)
-    else if (order.recipient) {
-      recipientAddress = order.recipient;
-      logger.info({ userId, orderId: order.id, source: 'recipient' }, 'Found recipient address');
-    }
-
-    // Clear user state
-    userStates.delete(userId);
-
-    // Show recipient address where user should send USDT
-    if (recipientAddress) {
-      logger.info(
-        { userId, orderId: order.id, recipientAddress },
-        'Sending recipient address to user'
-      );
-
-      // Send wallet address message with USDT amount
-      await ctx.reply(Messages.PAYMENT_SELL_ADDRESS(recipientAddress, state.amount), {
-        parse_mode: 'HTML',
-      });
-
-      // Send wallet address only (for easy copying)
-      await ctx.reply(`<code>${recipientAddress}</code>`, {
-        parse_mode: 'HTML',
-      });
-
-      // Generate and send QR code for the wallet address
-      logger.info({ orderId: order.id, recipientAddress }, 'Generating QR code for wallet address');
-
-      const qrCodeImage = await this.generateQRCode(recipientAddress);
-      logger.info(
-        { orderId: order.id, qrCodeSize: qrCodeImage.length },
-        'QR code generated, sending to user'
-      );
-
-      await ctx.replyWithPhoto(new InputFile(qrCodeImage), {
-        caption:
-          `📱 <b>Quét mã QR để sao chép địa chỉ ví</b>\n\n` +
-          `⏰ Sau khi chuyển USDT, tiền VND sẽ được chuyển vào tài khoản của bạn trong vòng 3-30 giây.\n\n` +
-          `📞 Liên hệ support nếu có vấn đề!`,
-        parse_mode: 'HTML',
-        reply_markup: Keyboards.qrCodeWithCancel(order.id),
-      });
-
-      logger.info({ userId, orderId: order.id }, 'QR code sent successfully');
-
-      // Track this order to skip initial PROCESSING webhook notification
-      newlyCreatedOrders.add(order.id);
-      logger.info(
-        { orderId: order.id },
-        'Marked order to skip initial PROCESSING webhook notification'
-      );
-
-      // Auto-remove from set after 10 seconds (webhook should arrive by then)
-      setTimeout(() => {
-        newlyCreatedOrders.delete(order.id);
-        logger.debug({ orderId: order.id }, 'Removed order from newly created tracking set');
-      }, 10000);
-
-      // Send processing status notification (after QR code)
-      await ctx.reply(Messages.ORDER_STATE_PROCESSING(order.id), {
-        parse_mode: 'HTML',
+        chain_id: telegramConfig.chainId,
+        token_address: telegramConfig.tokenAddress,
+        callback: telegramConfig.callbackUrl,
+        payment_info: {
+          bank_id: state.bankId,
+          full_name: state.fullName,
+          account_type: 1, // Always 1 as per requirements
+          account_number: state.accountNumber,
+        },
       });
 
       logger.info(
-        { userId, orderId: order.id },
-        'Processing status notification sent - sell flow complete'
-      );
-    } else {
-      logger.error(
         {
           userId,
           orderId: order.id,
-          fullOrder: {
-            pay_data: order.pay_data,
-            recipient: order.recipient,
-            body: order.body,
-            payment_info: order.payment_info,
-          },
+          hasPayData: !!order.pay_data,
+          hasAddress: !!order.pay_data?.address,
+          payData: order.pay_data,
+          recipient: order.recipient,
+          body: order.body,
         },
-        'No recipient address found in any expected field'
+        'Withdrawal order created successfully - checking for recipient address'
       );
-      await ctx.reply(
-        `❌ <b>Lỗi hệ thống</b>\n\n` +
-          `Không tìm thấy địa chỉ ví nhận USDT trong phản hồi từ hệ thống.\n\n` +
-          `Mã đơn: <code>${order.id}</code>\n\n` +
-          `Vui lòng liên hệ support với mã đơn hàng trên để được hỗ trợ!`,
-        { parse_mode: 'HTML', reply_markup: Keyboards.backToMenu() }
-      );
+
+      // Extract recipient address - try multiple possible locations
+      let recipientAddress: string | undefined;
+
+      // Priority 1: Check pay_data.address
+      if (order.pay_data?.address) {
+        recipientAddress = order.pay_data.address;
+        logger.info(
+          { userId, orderId: order.id, source: 'pay_data.address' },
+          'Found recipient address'
+        );
+      }
+      // Priority 2: Check recipient field (top-level)
+      else if (order.recipient) {
+        recipientAddress = order.recipient;
+        logger.info({ userId, orderId: order.id, source: 'recipient' }, 'Found recipient address');
+      }
+
+      // Clear user state
+      userStates.delete(userId);
+
+      // Show recipient address where user should send USDT
+      if (recipientAddress) {
+        logger.info(
+          { userId, orderId: order.id, recipientAddress },
+          'Sending recipient address to user'
+        );
+
+        // Send wallet address message with USDT amount (only if not sent before)
+        if (!this.hasMessageBeenSent(order.id, 'wallet_address')) {
+          await ctx.reply(Messages.PAYMENT_SELL_ADDRESS(recipientAddress, state.amount), {
+            parse_mode: 'HTML',
+          });
+
+          // Send wallet address only (for easy copying)
+          await ctx.reply(`<code>${recipientAddress}</code>`, {
+            parse_mode: 'HTML',
+          });
+          this.markMessageAsSent(order.id, 'wallet_address');
+          logger.info({ orderId: order.id }, 'Wallet address messages sent');
+        } else {
+          logger.info({ orderId: order.id }, 'Wallet address messages already sent, skipping');
+        }
+
+        // Generate and send QR code for the wallet address (only if not sent before)
+        if (!this.hasMessageBeenSent(order.id, 'qr_code')) {
+          logger.info(
+            { orderId: order.id, recipientAddress },
+            'Generating QR code for wallet address'
+          );
+
+          const qrCodeImage = await this.generateQRCode(recipientAddress);
+          logger.info(
+            { orderId: order.id, qrCodeSize: qrCodeImage.length },
+            'QR code generated, sending to user'
+          );
+
+          await ctx.replyWithPhoto(new InputFile(qrCodeImage), {
+            caption:
+              `📱 <b>Quét mã QR để sao chép địa chỉ ví</b>\n\n` +
+              `⏰ Sau khi chuyển USDT, tiền VND sẽ được chuyển vào tài khoản của bạn trong vòng 3-30 giây.\n\n` +
+              `📞 Liên hệ support nếu có vấn đề!`,
+            parse_mode: 'HTML',
+            reply_markup: Keyboards.qrCodeWithCancel(order.id),
+          });
+          this.markMessageAsSent(order.id, 'qr_code');
+          logger.info({ userId, orderId: order.id }, 'QR code sent successfully');
+        } else {
+          logger.info({ orderId: order.id }, 'QR code already sent, skipping');
+        }
+
+        // Track this order to skip initial PROCESSING webhook notification
+        newlyCreatedOrders.add(order.id);
+        logger.info(
+          { orderId: order.id },
+          'Marked order to skip initial PROCESSING webhook notification'
+        );
+
+        // Auto-remove from set after 10 seconds (webhook should arrive by then)
+        setTimeout(() => {
+          newlyCreatedOrders.delete(order.id);
+          logger.debug({ orderId: order.id }, 'Removed order from newly created tracking set');
+        }, 10000);
+
+        // Send processing status notification (only if not sent before)
+        if (!this.hasMessageBeenSent(order.id, 'processing_status')) {
+          await ctx.reply(Messages.ORDER_STATE_PROCESSING(order.id), {
+            parse_mode: 'HTML',
+          });
+          this.markMessageAsSent(order.id, 'processing_status');
+          logger.info(
+            { userId, orderId: order.id },
+            'Processing status notification sent - sell flow complete'
+          );
+        } else {
+          logger.info({ orderId: order.id }, 'Processing status already sent, skipping');
+        }
+
+        // Schedule cleanup of tracking data after 5 minutes
+        this.scheduleOrderTrackingCleanup(order.id);
+      } else {
+        logger.error(
+          {
+            userId,
+            orderId: order.id,
+            fullOrder: {
+              pay_data: order.pay_data,
+              recipient: order.recipient,
+              body: order.body,
+              payment_info: order.payment_info,
+            },
+          },
+          'No recipient address found in any expected field'
+        );
+        await ctx.reply(
+          `❌ <b>Lỗi hệ thống</b>\n\n` +
+            `Không tìm thấy địa chỉ ví nhận USDT trong phản hồi từ hệ thống.\n\n` +
+            `Mã đơn: <code>${order.id}</code>\n\n` +
+            `Vui lòng liên hệ support với mã đơn hàng trên để được hỗ trợ!`,
+          { parse_mode: 'HTML', reply_markup: Keyboards.backToMenu() }
+        );
+      }
+    } catch (error) {
+      logger.error({ userId, error }, 'Error in handleSellConfirmation');
+      throw error;
+    } finally {
+      // Always remove user from processing set
+      processingUsers.delete(userId);
+      logger.info({ userId }, 'User removed from processing set');
     }
   }
 
