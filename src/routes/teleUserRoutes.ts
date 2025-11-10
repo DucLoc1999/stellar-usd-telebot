@@ -24,6 +24,9 @@ export const teleUserRoutes: FastifyPluginAsync = async (
             username: {
               type: 'string',
             },
+            referral: {
+              type: 'number',
+            },
           },
         },
       },
