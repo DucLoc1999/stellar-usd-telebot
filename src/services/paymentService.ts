@@ -1,6 +1,7 @@
 import db from '../config/knex';
 import teleUserService from './teleUserService';
 import { logger } from '../config/logger';
+import { captureErrorWithContext } from '../utils/sentryHelper';
 import type {
   Usdt247CreateWithdrawalRequest,
   Usdt247CreateDepositRequest,
@@ -79,13 +80,10 @@ export class PaymentService {
 
       return apiResponse.data.order;
     } catch (error) {
-      logger.error(
-        {
-          error: error instanceof Error ? error.message : 'Unknown error',
-          stack: error instanceof Error ? error.stack : undefined,
-        },
-        'Error calling withdrawal API'
-      );
+      captureErrorWithContext(error, {
+        action: 'callWithdrawalAPI',
+        apiUrl: `${this.apiBaseUrl}/withdrawal`,
+      });
       throw error;
     }
   }
@@ -150,13 +148,10 @@ export class PaymentService {
 
       return apiResponse.data.order;
     } catch (error) {
-      logger.error(
-        {
-          error: error instanceof Error ? error.message : 'Unknown error',
-          stack: error instanceof Error ? error.stack : undefined,
-        },
-        'Error calling deposit API'
-      );
+      captureErrorWithContext(error, {
+        action: 'callDepositAPI',
+        apiUrl: `${this.apiBaseUrl}/deposit`,
+      });
       throw error;
     }
   }
