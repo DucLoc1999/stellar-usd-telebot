@@ -8,6 +8,7 @@ import fptAiVisionService from './fptAiVisionService';
 import s3Service from './s3Service';
 import referralService from './referralService';
 import { logger } from '../config/logger';
+import { captureErrorWithContext } from '../utils/sentryHelper';
 import { banks } from '../models/webhook';
 import type { PaymentInformation, Kyc } from '../models/types';
 import fs from 'fs';
@@ -2335,10 +2336,14 @@ export class TelegramService {
         }
       } catch (error) {
         const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-        logger.error(
-          { userId, error: errorMessage, stack: error instanceof Error ? error.stack : undefined },
-          'Error processing payment confirmation'
-        );
+
+        // Capture error to Sentry (already captured in handleBuyConfirmation/handleSellConfirmation,
+        // but capture here too in case error occurs before those methods)
+        captureErrorWithContext(error, {
+          userId,
+          action: 'processPaymentConfirmation',
+          state: state.action,
+        });
 
         if (errorMessage === 'KYC verification required') {
           await ctx.reply(Messages.KYC_REQUIRED(), { parse_mode: 'HTML' });
@@ -3441,7 +3446,12 @@ export class TelegramService {
         );
       }
     } catch (error) {
-      logger.error({ userId, error }, 'Error in handleBuyConfirmation');
+      captureErrorWithContext(error, {
+        userId,
+        action: 'handleBuyConfirmation',
+        amount: state.amount,
+        walletAddress: state.walletAddress,
+      });
       throw error;
     } finally {
       // Always remove user from processing set
@@ -3645,7 +3655,13 @@ export class TelegramService {
         );
       }
     } catch (error) {
-      logger.error({ userId, error }, 'Error in handleSellConfirmation');
+      captureErrorWithContext(error, {
+        userId,
+        action: 'handleSellConfirmation',
+        amount: state.amount,
+        bankId: state.bankId,
+        accountNumber: state.accountNumber,
+      });
       throw error;
     } finally {
       // Always remove user from processing set

@@ -45,6 +45,10 @@ export async function buildApp(): Promise<FastifyInstance> {
     return { status: 'ok', timestamp: new Date().toISOString() };
   });
 
+  fastify.get('/debug-sentry', () => {
+    throw new Error('My first Sentry error!');
+  });
+
   // SECURITY: Disabled direct API access to user management and payment routes
   // These routes are disabled to prevent external API access while maintaining internal functionality
   // The Telegram bot and internal services use the service layer directly, not these HTTP endpoints
@@ -54,7 +58,6 @@ export async function buildApp(): Promise<FastifyInstance> {
   // Keep webhook and Telegram bot routes active for external integrations
   void fastify.register(webhookRoutes, { prefix: '/api' });
   void fastify.register(telegramRoutes, { prefix: '/api' });
-
   // run migration on startup
   fastify.addHook('onReady', async () => {
     try {
