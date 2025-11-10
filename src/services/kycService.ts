@@ -48,6 +48,7 @@ export class KycService {
         address: data.address,
         doe: data.doe,
         passport_number: data.passport_number || null,
+        kyc_image: data.kyc_image || null,
       });
 
       const record = await db(this.tableName).where({ id }).first<Kyc>();

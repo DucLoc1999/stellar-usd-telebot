@@ -5,6 +5,7 @@ import paymentInformationService from './paymentInformationService';
 import teleUserService from './teleUserService';
 import kycService from './kycService';
 import fptAiVisionService from './fptAiVisionService';
+import s3Service from './s3Service';
 import { logger } from '../config/logger';
 import { banks } from '../models/webhook';
 import type { PaymentInformation, Kyc } from '../models/types';
@@ -874,6 +875,7 @@ interface UserState {
   kycPhoneNumber?: string;
   kycDocumentType?: 'cccd' | 'passport'; // Type of document for KYC verification
   kycIdCardData?: any; // Extracted ID card data from FPT AI
+  kycImageUrl?: string; // S3 URL of the uploaded KYC image
   lastProcessedPhotoId?: string; // Track last processed photo to prevent duplicates
 }
 
@@ -3799,8 +3801,26 @@ export class TelegramService {
       const idData = await fptAiVisionService.recognizeIdCard(localFilePath, documentType);
       logger.info({ userId, documentType, idData }, 'FPT AI Vision API call successful');
 
-      // Store extracted data in state
+      // Upload image to S3
+      logger.info({ userId, localFilePath }, 'Uploading KYC image to S3');
+      const s3Url = await s3Service.uploadKycImage(localFilePath, userId);
+      logger.info({ userId, s3Url }, 'KYC image uploaded to S3 successfully');
+
+      // Clean up temporary local file after successful S3 upload
+      try {
+        fs.unlinkSync(localFilePath);
+        logger.info({ userId, localFilePath }, 'Temporary KYC image file deleted from local disk');
+      } catch (deleteError) {
+        // Log warning but don't fail the KYC process if file deletion fails
+        logger.warn(
+          { userId, localFilePath, error: deleteError },
+          'Failed to delete temporary KYC image file, but S3 upload was successful'
+        );
+      }
+
+      // Store extracted data and S3 URL in state
       state.kycIdCardData = idData;
+      state.kycImageUrl = s3Url;
       userStates.set(userId, state);
 
       logger.info({ userId }, 'ID card data extracted, automatically saving to database');
@@ -3833,12 +3853,13 @@ export class TelegramService {
     const idData = state.kycIdCardData;
     const phoneNumber = state.kycPhoneNumber;
     const documentType = state.kycDocumentType || 'cccd';
+    const kycImageUrl = state.kycImageUrl;
 
     if (!idData || !phoneNumber) {
       throw new Error('Missing KYC data');
     }
 
-    logger.info({ userId, documentType }, 'Saving KYC data to database');
+    logger.info({ userId, documentType, kycImageUrl }, 'Saving KYC data to database');
 
     // Note: time_kyc counter is already incremented in handleKycIdCardPhoto
     // We don't increment here to avoid double-counting
@@ -3887,6 +3908,7 @@ export class TelegramService {
         address: address,
         doe: doe,
         passport_number: passportNumber,
+        kyc_image: kycImageUrl,
       });
 
       // Update is_kyc flag in tele_users table
