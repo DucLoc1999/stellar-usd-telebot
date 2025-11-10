@@ -34,6 +34,8 @@ export interface TeleUser {
   username: string;
   is_kyc?: boolean;
   time_kyc?: number;
+  referral?: number; // Chat ID of the user who referred this account
+  referral_count?: number; // Total number of users referred by this account
   created_at?: Date;
   updated_at?: Date;
 }
@@ -43,6 +45,7 @@ export interface CreateTeleUserRequest {
   first_name?: string;
   last_name?: string;
   username: string;
+  referral?: number; // Chat ID of the user who referred this account
 }
 
 export interface TelegramConfig {
@@ -109,4 +112,17 @@ export interface CreateKycRequest {
   doe: Date;
   passport_number?: string; // Passport number (only for PASSPORT type)
   kyc_image?: string; // S3 URL of the uploaded KYC image
+}
+
+export interface Referral {
+  id?: number;
+  chat_id: number; // The chat_id of the user who was referred
+  referral: number; // The chat_id of the user who made the referral (the referrer)
+  created_at?: Date;
+  updated_at?: Date;
+}
+
+export interface CreateReferralRequest {
+  chat_id: number; // The chat_id of the user who was referred
+  referral: number; // The chat_id of the user who made the referral (the referrer)
 }

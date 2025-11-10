@@ -6,6 +6,7 @@ import teleUserService from './teleUserService';
 import kycService from './kycService';
 import fptAiVisionService from './fptAiVisionService';
 import s3Service from './s3Service';
+import referralService from './referralService';
 import { logger } from '../config/logger';
 import { banks } from '../models/webhook';
 import type { PaymentInformation, Kyc } from '../models/types';
@@ -585,6 +586,14 @@ export const Messages = {
     `🆔 Mã đơn: <code>${orderId}</code>\n\n` +
     `💡 Đơn hàng đang chờ admin duyệt.\n` +
     `⏰ Vui lòng đợi trong giây lát...`,
+
+  REFERRAL_INFO: (username: string, referralCount: number, botUsername: string) =>
+    `🎁 <b>CHƯƠNG TRÌNH GIỚI THIỆU BẠN BÈ</b>\n\n` +
+    `👥 Số người bạn đã giới thiệu: <b>${referralCount}</b>\n\n` +
+    `🔗 Link giới thiệu của bạn:\n` +
+    `<code>https://t.me/${botUsername}?start=${username}</code>\n\n` +
+    `💡 Chia sẻ link này với bạn bè để họ tham gia!\n` +
+    `🎉 Mỗi người bạn giới thiệu sẽ được tính vào tổng số giới thiệu của bạn.`,
 };
 
 /**
@@ -621,6 +630,7 @@ export class Keyboards {
       .text(`💎 Ví crypto ${walletIndicator}`, 'crypto_wallets')
       .text('👤 Tài khoản', 'account_info')
       .row()
+      .text('🎁 Giới thiệu bạn bè', 'referral')
       .text('📞 Liên hệ hỗ trợ', 'contact_support');
   }
 
@@ -945,20 +955,68 @@ export class TelegramService {
           return;
         }
 
-        // Upsert user information to database
+        // Extract referral parameter from deep link (e.g., /start thaingn)
+        const referralUsername = ctx.match ? ctx.match.trim() : null;
+
         logger.info(
-          { chatId, firstName, lastName, username },
-          'Upserting user information on /start command'
+          { chatId, firstName, lastName, username, referralUsername },
+          'Processing /start command'
         );
 
+        // Check if user already exists
+        const existingUser = await teleUserService.findByChatId(chatId);
+        const isNewUser = !existingUser;
+
+        // Prepare user data
+        let referralToSave: number | undefined = undefined;
+
+        // If new user and has referral parameter, save the referrer
+        if (isNewUser && referralUsername) {
+          // Find the referrer by username
+          const referrer = await teleUserService.findByUsername(referralUsername);
+
+          if (referrer) {
+            logger.info(
+              { chatId, referralUsername, referrerChatId: referrer.chat_id },
+              'New user referred by existing user'
+            );
+
+            // Save referrer's chat_id in new user's record
+            referralToSave = referrer.chat_id;
+
+            // Increment referrer's referral count
+            await teleUserService.incrementReferralCount(referrer.chat_id);
+
+            logger.info(
+              { referrerChatId: referrer.chat_id, referralUsername },
+              'Incremented referral count for referrer'
+            );
+
+            // Save referral record to the referrals table
+            await referralService.createReferral({
+              chat_id: chatId, // The new user who was referred
+              referral: referrer.chat_id, // The referrer
+            });
+
+            logger.info(
+              { referredUserId: chatId, referrerId: referrer.chat_id },
+              'Referral record saved to referrals table'
+            );
+          } else {
+            logger.warn({ chatId, referralUsername }, 'Referral username not found in database');
+          }
+        }
+
+        // Upsert user information to database
         await teleUserService.upsertUser({
           chat_id: chatId,
           first_name: firstName,
           last_name: lastName,
           username: username ?? '',
+          referral: referralToSave,
         });
 
-        logger.info({ chatId }, 'User information updated successfully');
+        logger.info({ chatId, isNewUser }, 'User information updated successfully');
 
         // Send welcome message
         await ctx.reply(Messages.WELCOME(firstName), {
@@ -1260,6 +1318,55 @@ export class TelegramService {
         parse_mode: 'HTML',
         reply_markup: Keyboards.backToMenu(),
       });
+    });
+
+    // Referral callback - show referral link and count
+    this.bot.callbackQuery('referral', async (ctx) => {
+      await ctx.answerCallbackQuery();
+
+      try {
+        const chatId = ctx.from.id;
+        const username = ctx.from.username;
+
+        // Check if user has a username
+        if (!username) {
+          await ctx.editMessageText(
+            `❌ <b>Không thể tạo link giới thiệu</b>\n\n` +
+              `Bạn cần có username Telegram để sử dụng tính năng này.\n\n` +
+              `Vui lòng thiết lập username trong cài đặt Telegram và thử lại!`,
+            {
+              parse_mode: 'HTML',
+              reply_markup: Keyboards.backToMenu(),
+            }
+          );
+          return;
+        }
+
+        // Get referral count
+        const referralCount = await teleUserService.getReferralCount(chatId);
+
+        // Get bot username
+        const botInfo = await this.bot.api.getMe();
+        const botUsername = botInfo.username;
+
+        logger.info({ chatId, username, referralCount }, 'User viewed referral information');
+
+        await ctx.editMessageText(Messages.REFERRAL_INFO(username, referralCount, botUsername), {
+          parse_mode: 'HTML',
+          reply_markup: Keyboards.backToMenu(),
+        });
+      } catch (error) {
+        logger.error({ error }, 'Error showing referral information');
+        await ctx.editMessageText(
+          `❌ <b>Lỗi hệ thống</b>\n\n` +
+            `Không thể hiển thị thông tin giới thiệu.\n\n` +
+            `Vui lòng thử lại sau!`,
+          {
+            parse_mode: 'HTML',
+            reply_markup: Keyboards.backToMenu(),
+          }
+        );
+      }
     });
 
     // Bank accounts callback - show saved bank accounts
