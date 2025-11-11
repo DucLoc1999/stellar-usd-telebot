@@ -1,9 +1,10 @@
+import './instrument';
+
 import dotenv from 'dotenv';
 import { buildApp } from './app';
 import { appConfig } from './config/app';
 import { logger } from './config/logger';
 
-// Load environment variables
 dotenv.config();
 
 const start = async (): Promise<void> => {
