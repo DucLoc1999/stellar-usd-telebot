@@ -1,4 +1,5 @@
 import type { FastifyError, FastifyReply, FastifyRequest } from 'fastify';
+import * as Sentry from '@sentry/node';
 
 export interface CustomError extends Error {
   statusCode?: number;
@@ -11,6 +12,23 @@ export const errorHandler = async (
   reply: FastifyReply
 ): Promise<void> => {
   const statusCode = error.statusCode || 500;
+
+  // Capture error in Sentry for server errors (5xx) and unexpected errors
+  if (statusCode >= 500) {
+    Sentry.captureException(error, {
+      contexts: {
+        request: {
+          url: request.url,
+          method: request.method,
+          headers: request.headers,
+          query: request.query,
+        },
+      },
+      tags: {
+        statusCode: statusCode.toString(),
+      },
+    });
+  }
 
   // Log error for debugging
   console.error('Error occurred:', {

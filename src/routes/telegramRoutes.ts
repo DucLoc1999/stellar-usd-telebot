@@ -22,4 +22,3 @@ export const telegramRoutes: FastifyPluginAsync = async (
 };
 
 export default telegramRoutes;
-
