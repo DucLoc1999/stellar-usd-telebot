@@ -15,8 +15,13 @@ export class TelegramController {
 
       const bot = telegramService.getBot();
 
+      // Get the secret token from environment
+      const secretToken = process.env.TELEGRAM_WEBHOOK_SECRET;
+
       // Use Grammy's webhookCallback to handle the update
-      const handleUpdate = webhookCallback(bot, 'fastify');
+      const handleUpdate = webhookCallback(bot, 'fastify', {
+        secretToken: secretToken,
+      });
 
       // Process the update
       await handleUpdate(request, reply);
