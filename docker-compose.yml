@@ -10,32 +10,25 @@ services:
     restart: unless-stopped
 
     # ============================================================================
-    # NETWORK CONFIGURATION - LINUX DEPLOYMENT
+    # NETWORK CONFIGURATION - EXTERNAL DATABASE
     # ============================================================================
-    # Using host network mode for Linux deployment
-    # This allows the container to directly access services on the host (e.g., MySQL on localhost:3306)
-    #
-    # Benefits:
-    # - Direct access to host's localhost without IP mapping
-    # - No port mapping needed (container uses host's network stack)
-    # - Better performance (no network translation overhead)
-    #
-    # Note: host network mode only works on Linux
-    # For macOS/Windows deployment, see commented configuration below
-    network_mode: host
+    # Using bridge network mode to connect to external MySQL server at 10.0.0.28
+    # Port mapping allows the application to be accessed from the host
+    # ============================================================================
+    ports:
+      - '${PORT:-8001}:${PORT:-8001}'
 
     # ============================================================================
-    # ALTERNATIVE: macOS/Windows Configuration (COMMENTED OUT)
+    # ALTERNATIVE: For localhost MySQL (COMMENTED OUT)
     # ============================================================================
-    # Uncomment the following lines and comment out 'network_mode: host' above
-    # if deploying on macOS or Windows:
+    # If you need to connect to MySQL running on the Docker host:
     #
-    # ports:
-    #   - '${PORT:-8001}:${PORT:-8001}'
+    # network_mode: host  # For Linux only
+    #
+    # OR for macOS/Windows:
     # extra_hosts:
     #   - 'host.docker.internal:host-gateway'
-    #
-    # Also update DB_HOST in .env file to: host.docker.internal
+    # And update DB_HOST in .env to: host.docker.internal
     # ============================================================================
 
     # Load environment variables from .env file
