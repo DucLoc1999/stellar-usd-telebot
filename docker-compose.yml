@@ -48,12 +48,10 @@ services:
       URL_SWAGGER: ${URL_SWAGGER}
 
       # Database Configuration
-      # Sensitive values are loaded from .env file via env_file directive
-      #
-      # LINUX DEPLOYMENT: DB_HOST should be 'localhost' (using host network mode)
-      # macOS/Windows: DB_HOST should be 'host.docker.internal' (using bridge network)
-      DB_HOST: ${DB_HOST:-localhost}
-      DB_PORT: ${DB_PORT:-3306}
+      # All database values are loaded from .env file via env_file directive
+      # No defaults specified - will use exact values from .env
+      DB_HOST: ${DB_HOST}
+      DB_PORT: ${DB_PORT}
       DB_USER: ${DB_USER}
       DB_PASSWORD: ${DB_PASSWORD}
       DB_NAME: ${DB_NAME}
