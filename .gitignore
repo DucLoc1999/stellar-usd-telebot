@@ -3,6 +3,8 @@ node_modules/
 yarn.lock
 pnpm-lock.yaml
 
+data
+
 # Build output
 dist/
 build/
