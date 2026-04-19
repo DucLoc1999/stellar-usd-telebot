@@ -1,7 +1,10 @@
 import type { FastifyReply, FastifyRequest } from 'fastify';
 import webhookService from '../services/webhookService';
+import notificationQueueService from '../services/notificationQueueService';
 import type { WebhookEvent } from '../models/webhook';
 import { logger } from '../config/logger';
+import db from '../config/knex';
+import type { Order } from '../models/usdt247';
 
 export class WebhookController {
   /**
@@ -132,6 +135,49 @@ export class WebhookController {
       }
 
       logger.info(logData, 'Webhook processed successfully');
+
+      // Enqueue Telegram notification for sequential delivery
+      // Only send notifications for state changes, NOT for processing_state changes
+      try {
+        const order = await db('orders').where('id', stateChange.orderId).first<Order>();
+        if (order && order.chat_id) {
+          // Check if the main order state has changed
+          const hasStateChanged = stateChange.oldState !== stateChange.newState;
+
+          if (hasStateChanged) {
+            await notificationQueueService.enqueueNotification({
+              chatId: order.chat_id,
+              orderId: stateChange.orderId,
+              state: stateChange.newState,
+              processingState: stateChange.newProcessingState,
+              timestamp: event.ts,
+              eventId: event.id,
+            });
+            logger.info(
+              {
+                chatId: order.chat_id,
+                orderId: stateChange.orderId,
+                eventId: event.id,
+                stateChange: `${stateChange.oldState} -> ${stateChange.newState}`,
+              },
+              'Notification enqueued for state change'
+            );
+          } else {
+            logger.info(
+              {
+                chatId: order.chat_id,
+                orderId: stateChange.orderId,
+                eventId: event.id,
+                processingStateChange: `${stateChange.oldProcessingState} -> ${stateChange.newProcessingState}`,
+              },
+              'Skipping notification - only processing_state changed (no state change)'
+            );
+          }
+        }
+      } catch (notificationError) {
+        // Log but don't fail the webhook processing
+        logger.error({ error: notificationError }, 'Failed to enqueue Telegram notification');
+      }
 
       // Return 200 OK to acknowledge receipt
       return reply.status(200).send({

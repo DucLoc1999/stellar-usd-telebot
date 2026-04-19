@@ -10,6 +10,13 @@ export interface Usdt247Timestamp {
   nanos: number;
 }
 
+export interface Usdt247BankInfo {
+  bankAccountName?: string;
+  bankAccountNumber?: string;
+  bankId?: string;
+  bankName?: string;
+}
+
 export interface Usdt247ResponseBody {
   bank_id?: number;
   full_name?: string;
@@ -18,6 +25,7 @@ export interface Usdt247ResponseBody {
   amount?: string;
   qr_code?: string;
   qr_data?: string;
+  bankInfo?: Usdt247BankInfo;
 }
 
 export interface Usdt247PayData {
@@ -25,6 +33,7 @@ export interface Usdt247PayData {
   amount?: string;
   chain_id?: number;
   token_address?: string;
+  qr_code?: string;
 }
 
 export interface Usdt247CreateWithdrawalRequest {
