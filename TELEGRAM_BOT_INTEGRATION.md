@@ -149,7 +149,8 @@ Use the Telegram Bot API to set the webhook URL:
 ```bash
 curl -X POST "https://api.telegram.org/bot<YOUR_BOT_TOKEN>/setWebhook" \
   -H "Content-Type: application/json" \
-  -d '{"url": "https://your-domain.com/api/telegram/webhook"}'
+  -d '{"url": "https://your-domain.com/api/telegram/webhook", "secret_token": "<YOUR_TELEGRAM_WEBHOOK_SECRET>"}'
+
 ```
 
 ### 4. Build and Start
