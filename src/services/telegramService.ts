@@ -50,7 +50,7 @@ export const Messages = {
 
   ENTER_WALLET_ADDRESS: () =>
     `📮 <b>NHẬP ĐỊA CHỈ VÍ</b>\n\n` +
-    `Vui lòng nhập địa chỉ ví BSC (BEP-20) để nhận USDT:\n\n` +
+    `Vui lòng nhập địa chỉ ví Stellar để nhận USDC:\n\n` +
     `⚠️ Lưu ý: Kiểm tra kỹ địa chỉ ví trước khi gửi!`,
 
   SELECT_BANK: () => `🏦 <b>CHỌN NGÂN HÀNG</b>\n\n` + `Vui lòng chọn ngân hàng nhận tiền VND:`,
@@ -78,7 +78,7 @@ export const Messages = {
   INVALID_AMOUNT: () => `❌ Số lượng không hợp lệ!\n\n` + `Vui lòng nhập số hợp lệ (VD: 100)`,
 
   INVALID_WALLET: () =>
-    `❌ Địa chỉ ví không hợp lệ!\n\n` + `Vui lòng nhập địa chỉ ví BSC hợp lệ (0x...)`,
+    `❌ Địa chỉ ví không hợp lệ!\n\n` + `Vui lòng nhập địa chỉ ví Stellar hợp lệ (G...)`,
 
   INVALID_FULL_NAME: () =>
     `❌ Tên tài khoản không hợp lệ!\n\n` + `Vui lòng nhập họ tên đầy đủ (VD: Nguyen Van A)`,
@@ -116,7 +116,7 @@ export const Messages = {
   ) =>
     `📋 <b>XÁC NHẬN ĐƠN HÀNG - MUA USDT</b>\n\n` +
     `Đơn hàng MUA <b>${usdtAmount} USDT</b> x <b>${buyRate.toLocaleString('vi-VN')}đ</b>\n\n` +
-    `🌐 Mạng: BSC | ⚡ Phí gas: $0.00\n` +
+    `🌐 Mạng: Stellar | ⚡ Phí gas: $0.00\n` +
     `💰 Thành tiền: <b>${Math.round(vndAmount).toLocaleString('vi-VN')}đ</b> | 💳 Phí dịch vụ: <b>${Math.round(gatewayFee).toLocaleString('vi-VN')}đ</b>\n` +
     `📮 Ví nhận: <code>${wallet}</code>\n\n` +
     `⚠️ Vui lòng kiểm tra kỹ thông tin trước khi thanh toán!`,
@@ -124,7 +124,7 @@ export const Messages = {
   ORDER_SUMMARY_SELL: (amount: string) =>
     `📋 <b>XÁC NHẬN ĐƠN HÀNG - BÁN USDT</b>\n\n` +
     `💎 Số lượng: <b>${amount} USDT</b>\n` +
-    `🌐 Mạng: BNB Chain (BSC)\n\n` +
+    `🌐 Mạng: Stellar\n\n` +
     `⚠️ Vui lòng kiểm tra kỹ thông tin trước khi chuyển USDT!`,
 
   SELL_CONFIRMATION: (
@@ -138,7 +138,7 @@ export const Messages = {
   ) =>
     `💸 <b>XÁC NHẬN ĐƠN HÀNG - BÁN USDT</b>\n\n` +
     `Đơn hàng BÁN <b>${amount} USDT</b> x <b>${sellRate.toLocaleString('vi-VN')}đ</b>\n\n` +
-    `🌐 Mạng: BSC | ⚡ Phí gas: $0.00\n` +
+    `🌐 Mạng: Stellar | ⚡ Phí gas: $0.00\n` +
     `💰 Thành tiền: <b>${Math.round(totalVND - serviceFee).toLocaleString('vi-VN')}đ</b> |  💳 Phí dịch vụ: <b>${Math.round(serviceFee).toLocaleString('vi-VN')}đ</b>\n` +
     `🏦 Bank nhận: <code>${bankName}</code> | <code>${accountNumber}</code> | <code>${fullName}</code>\n\n` +
     `⚠️ Vui lòng kiểm tra kỹ thông tin trước khi xác nhận!`,
@@ -175,10 +175,10 @@ export const Messages = {
     (usdtAmount ? `💰 Số lượng: <code>${usdtAmount} USDT</code>\n\n` : '') +
     `Vui lòng chuyển USDT đến địa chỉ:\n\n` +
     `<code>${recipientAddress}</code>\n\n` +
-    `🌐 Mạng: <b>BNB Chain (BSC)</b>\n` +
-    `💎 Token: <b>USDT (BEP-20)</b>\n\n` +
+    `🌐 Mạng: <b>Stellar</b>\n` +
+    `💎 Token: <b>USDC (Circle)</b>\n\n` +
     `⏰ Sau khi chuyển, tiền VND sẽ được chuyển vào tài khoản của bạn trong vòng 3-30 giây.\n\n` +
-    `⚠️ Lưu ý: Chỉ chuyển USDT trên mạng BSC!`,
+    `⚠️ Lưu ý: Chỉ chuyển USDC trên mạng Stellar!`,
 
   PAYMENT_CANCELLED: () =>
     `❌ <b>ĐÃ HỦY THANH TOÁN</b>\n\n` +
@@ -811,8 +811,8 @@ export class Keyboards {
     // Add saved wallet buttons
     for (const wallet of wallets) {
       if (wallet.wallet_address) {
-        // Format wallet address: 0x1234...5678
-        const shortAddress = `${wallet.wallet_address.substring(0, 6)}...${wallet.wallet_address.substring(38)}`;
+        // Format Stellar address: GABCD...WXYZ
+        const shortAddress = `${wallet.wallet_address.substring(0, 6)}...${wallet.wallet_address.substring(52)}`;
         keyboard.text(`🔑 ${shortAddress}`, `use_saved_wallet_${wallet.id}`).row();
       }
     }
@@ -2420,7 +2420,7 @@ export class TelegramService {
           return;
         }
 
-        const response = await fetch(`https://api.usdt247.shop/partners/orders/${orderId}/close`, {
+        const response = await fetch(process.env.API_PAY + `api/orders/${orderId}/cancel`, {
           method: 'POST',
           headers: {
             Accept: 'application/json',
@@ -2845,8 +2845,8 @@ export class TelegramService {
     state: UserState,
     text: string
   ): Promise<void> {
-    // Basic wallet validation (0x followed by 40 hex characters)
-    if (!/^0x[a-fA-F0-9]{40}$/.test(text)) {
+    // Stellar public key: G followed by 55 base32 characters (uppercase A-Z and 2-7)
+    if (!/^G[A-Z2-7]{55}$/.test(text)) {
       await ctx.reply(Messages.INVALID_WALLET(), { parse_mode: 'HTML' });
       return;
     }

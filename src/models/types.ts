@@ -51,7 +51,7 @@ export interface CreateTeleUserRequest {
 export interface TelegramConfig {
   botToken: string;
   webhookSecret: string;
-  chainId: number;
+  chainId: string;
   tokenAddress: string;
   callbackUrl: string;
 }

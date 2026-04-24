@@ -31,14 +31,14 @@ export interface Usdt247ResponseBody {
 export interface Usdt247PayData {
   address?: string;
   amount?: string;
-  chain_id?: number;
+  chain_id?: string;
   token_address?: string;
   qr_code?: string;
 }
 
 export interface Usdt247CreateWithdrawalRequest {
   amount: string;
-  chain_id: number;
+  chain_id: string;
   token_address: string;
   callback: string;
   payment_info: Usdt247PaymentInfo;
@@ -46,7 +46,7 @@ export interface Usdt247CreateWithdrawalRequest {
 
 export interface Usdt247CreateDepositRequest {
   amount: string;
-  chain_id: number;
+  chain_id: string;
   token_address: string;
   recipient: string;
   callback: string;
@@ -108,7 +108,7 @@ export enum Usdt247OrderState {
 export interface WithdrawalRequest {
   chat_id: number;
   amount: string;
-  chain_id: number;
+  chain_id: string;
   token_address: string;
   callback: string;
   payment_info: Usdt247PaymentInfo;
@@ -117,7 +117,7 @@ export interface WithdrawalRequest {
 export interface DepositRequest {
   chat_id: number;
   amount: string;
-  chain_id: number;
+  chain_id: string;
   token_address: string;
   recipient: string;
   callback: string;
@@ -137,7 +137,7 @@ export interface Order {
   rate: string;
   token_address: string;
   recipient: string;
-  chain_id: number;
+  chain_id: string;
   partner_id: string;
   state: number;
   processing_state: number;
