@@ -22,6 +22,22 @@ const start = async (): Promise<void> => {
     );
     logger.info(`🏥 Health check available at http://${appConfig.host}:${appConfig.port}/health`);
     logger.info(`📋 Logs API available at http://${appConfig.host}:${appConfig.port}/api/logs`);
+
+    // check exchange rate
+    try {
+      const response = await fetch(
+        process.env.EXCHANGE_RATES_URL || 'https://iakzvzwriyxyshfggbwu.supabase.co/functions/v1/get_exchange_rates'
+      );
+      if (!response.ok) {
+        logger.error({ error: '📚 Failed to fetch exchange rates', responseText: response.statusText });
+      }
+      const data = await response.json();
+      logger.info(data, '📚 Exchange rates fetched successfully');
+    } catch (error) {
+      logger.error(error, '📚 Failed to fetch exchange rates');
+    }
+
+
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
     logger.error({ error: errorMessage }, 'Error starting server');

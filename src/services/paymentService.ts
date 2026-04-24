@@ -171,7 +171,7 @@ export class PaymentService {
       rate: apiResponse.rate,
       token_address: apiResponse.token_address,
       recipient: apiResponse.recipient,
-      chain_id: apiResponse.chain_id,
+      chain_id: String(apiResponse.chain_id),
       partner_id: apiResponse.partner_id,
       state: apiResponse.state,
       processing_state: apiResponse.processing_state,
