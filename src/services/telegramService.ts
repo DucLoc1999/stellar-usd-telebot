@@ -107,17 +107,11 @@ export const Messages = {
     `Vui lòng kiểm tra lại tên ngân hàng.\n\n` +
     `💡 Gợi ý: VIETCOMBANK, TECHCOMBANK, BIDV, AGRIBANK, VCB, TCB, MB, ACB, VPB, TPB, SACOMBANK, HDBANK, SHB, VIB, MSB, OCB, EXIMBANK, SCB, SEABANK, ABBANK, VIETINBANK, LIENVIETPOSTBANK, PVCOMBANK, BAOVIETBANK, GPBANK, NAMABANK, PGBANK, VIETABANK, VIETBANK, OCEANBANK, CBBANK, KIENLONGBANK, DONGABANK, WOORIBANK, PUBLICBANK, NONGHYUP, INDOVINABANK, SHINHAN, STANDARDCHARTERED, ANZ, HSBC, HONGKONG, CIMB, UOB, MAYBANK, BANGKOK, MIZUHO, MUFG, SMBC, DEUTSCHE, BNP, CITIBANK`,
 
-  ORDER_SUMMARY_BUY: (
-    usdtAmount: string,
-    wallet: string,
-    vndAmount: number,
-    buyRate: number,
-    gatewayFee: number
-  ) =>
+  ORDER_SUMMARY_BUY: (usdtAmount: string, wallet: string, vndAmount: number, buyRate: number) =>
     `📋 <b>XÁC NHẬN ĐƠN HÀNG - MUA USDC</b>\n\n` +
     `Đơn hàng MUA <b>${usdtAmount} USDC</b> x <b>${buyRate.toLocaleString('vi-VN')}đ</b>\n\n` +
     `🌐 Mạng: Stellar | ⚡ Phí gas: $0.00\n` +
-    `💰 Thành tiền: <b>${Math.round(vndAmount).toLocaleString('vi-VN')}đ</b> | 💳 Phí dịch vụ: <b>${Math.round(gatewayFee).toLocaleString('vi-VN')}đ</b>\n` +
+    `💰 Thành tiền: <b>${Math.round(vndAmount).toLocaleString('vi-VN')}đ</b>\n` +
     `📮 Ví nhận: <code>${wallet}</code>\n\n` +
     `⚠️ Vui lòng kiểm tra kỹ thông tin trước khi thanh toán!`,
 
@@ -1037,7 +1031,7 @@ export class TelegramService {
 
     // Check rate callback
     this.bot.callbackQuery('check_rate', async (ctx) => {
-      await ctx.answerCallbackQuery();
+      await ctx.answerCallbackQuery().catch(() => {});
       try {
         const rates = await this.fetchExchangeRates();
         if (rates) {
@@ -1062,7 +1056,7 @@ export class TelegramService {
 
     // KYC callback - Check KYC status and display appropriate information
     this.bot.callbackQuery('kyc', async (ctx) => {
-      await ctx.answerCallbackQuery();
+      await ctx.answerCallbackQuery().catch(() => {});
 
       try {
         const chatId = ctx.chat?.id;
@@ -1116,7 +1110,7 @@ export class TelegramService {
 
     // Start KYC callback - Begin KYC process with phone number collection
     this.bot.callbackQuery('start_kyc', async (ctx) => {
-      await ctx.answerCallbackQuery();
+      await ctx.answerCallbackQuery().catch(() => {});
 
       try {
         const userId = ctx.from.id;
@@ -1166,7 +1160,7 @@ export class TelegramService {
 
     // Cancel KYC callback
     this.bot.callbackQuery('cancel_kyc', async (ctx) => {
-      await ctx.answerCallbackQuery();
+      await ctx.answerCallbackQuery().catch(() => {});
       const userId = ctx.from.id;
 
       logger.info({ userId }, 'User cancelled KYC process');
@@ -1183,7 +1177,7 @@ export class TelegramService {
 
     // KYC document type selection - CCCD
     this.bot.callbackQuery('kyc_select_cccd', async (ctx) => {
-      await ctx.answerCallbackQuery();
+      await ctx.answerCallbackQuery().catch(() => {});
       const userId = ctx.from.id;
       const state = userStates.get(userId);
 
@@ -1215,7 +1209,7 @@ export class TelegramService {
 
     // KYC document type selection - Passport
     this.bot.callbackQuery('kyc_select_passport', async (ctx) => {
-      await ctx.answerCallbackQuery();
+      await ctx.answerCallbackQuery().catch(() => {});
       const userId = ctx.from.id;
       const state = userStates.get(userId);
 
@@ -1247,7 +1241,7 @@ export class TelegramService {
 
     // KYC recapture ID card callback
     this.bot.callbackQuery('kyc_recapture_id_card', async (ctx) => {
-      await ctx.answerCallbackQuery();
+      await ctx.answerCallbackQuery().catch(() => {});
       const userId = ctx.from.id;
       const state = userStates.get(userId);
 
@@ -1277,7 +1271,7 @@ export class TelegramService {
 
     // KYC try different ID card callback (after duplicate error)
     this.bot.callbackQuery('kyc_try_different_id', async (ctx) => {
-      await ctx.answerCallbackQuery();
+      await ctx.answerCallbackQuery().catch(() => {});
       const userId = ctx.from.id;
       const state = userStates.get(userId);
 
@@ -1307,7 +1301,7 @@ export class TelegramService {
 
     // Contact support callback
     this.bot.callbackQuery('contact_support', async (ctx) => {
-      await ctx.answerCallbackQuery();
+      await ctx.answerCallbackQuery().catch(() => {});
 
       const supportMessage =
         `📞 <b>LIÊN HỆ SUPPORT</b>\n\n` +
@@ -1323,7 +1317,7 @@ export class TelegramService {
 
     // Referral callback - show referral link and count
     this.bot.callbackQuery('referral', async (ctx) => {
-      await ctx.answerCallbackQuery();
+      await ctx.answerCallbackQuery().catch(() => {});
 
       try {
         const chatId = ctx.from.id;
@@ -1372,7 +1366,7 @@ export class TelegramService {
 
     // Bank accounts callback - show saved bank accounts
     this.bot.callbackQuery('bank_accounts', async (ctx) => {
-      await ctx.answerCallbackQuery();
+      await ctx.answerCallbackQuery().catch(() => {});
 
       try {
         const chatId = ctx.chat?.id;
@@ -1446,7 +1440,7 @@ export class TelegramService {
 
     // Crypto wallets callback - show saved crypto wallets
     this.bot.callbackQuery('crypto_wallets', async (ctx) => {
-      await ctx.answerCallbackQuery();
+      await ctx.answerCallbackQuery().catch(() => {});
 
       try {
         const chatId = ctx.chat?.id;
@@ -1509,7 +1503,7 @@ export class TelegramService {
 
     // Delete bank account prompt - ask for index
     this.bot.callbackQuery('delete_bank_prompt', async (ctx) => {
-      await ctx.answerCallbackQuery();
+      await ctx.answerCallbackQuery().catch(() => {});
       const userId = ctx.from.id;
 
       logger.info({ userId }, 'User initiated bank account deletion');
@@ -1531,7 +1525,7 @@ export class TelegramService {
 
     // Delete wallet prompt - ask for index
     this.bot.callbackQuery('delete_wallet_prompt', async (ctx) => {
-      await ctx.answerCallbackQuery();
+      await ctx.answerCallbackQuery().catch(() => {});
       const userId = ctx.from.id;
 
       logger.info({ userId }, 'User initiated wallet deletion');
@@ -1553,7 +1547,7 @@ export class TelegramService {
 
     // Confirm delete callback - actually delete the payment info
     this.bot.callbackQuery('confirm_delete', async (ctx) => {
-      await ctx.answerCallbackQuery();
+      await ctx.answerCallbackQuery().catch(() => {});
       const userId = ctx.from.id;
       const state = userStates.get(userId);
 
@@ -1606,7 +1600,7 @@ export class TelegramService {
 
     // Cancel delete callback
     this.bot.callbackQuery('cancel_delete', async (ctx) => {
-      await ctx.answerCallbackQuery();
+      await ctx.answerCallbackQuery().catch(() => {});
       const userId = ctx.from.id;
       const state = userStates.get(userId);
 
@@ -1625,7 +1619,7 @@ export class TelegramService {
 
     // Add bank from menu callback - trigger bank addition flow
     this.bot.callbackQuery('add_bank_from_menu', async (ctx) => {
-      await ctx.answerCallbackQuery();
+      await ctx.answerCallbackQuery().catch(() => {});
       const userId = ctx.from.id;
 
       logger.info({ userId }, 'User chose to add new bank account from menu');
@@ -1645,7 +1639,7 @@ export class TelegramService {
 
     // Add wallet from menu callback - trigger wallet addition flow
     this.bot.callbackQuery('add_wallet_from_menu', async (ctx) => {
-      await ctx.answerCallbackQuery();
+      await ctx.answerCallbackQuery().catch(() => {});
       const userId = ctx.from.id;
 
       logger.info({ userId }, 'User chose to add new wallet from menu');
@@ -1665,7 +1659,7 @@ export class TelegramService {
 
     // Account info callback
     this.bot.callbackQuery('account_info', async (ctx) => {
-      await ctx.answerCallbackQuery();
+      await ctx.answerCallbackQuery().catch(() => {});
 
       try {
         const chatId = ctx.chat?.id;
@@ -1763,7 +1757,7 @@ export class TelegramService {
 
     // Buy USDC callback - show amount selection
     this.bot.callbackQuery('buy_usdt', async (ctx) => {
-      await ctx.answerCallbackQuery();
+      await ctx.answerCallbackQuery().catch(() => {});
       const userId = ctx.from.id;
 
       try {
@@ -1821,7 +1815,7 @@ export class TelegramService {
 
     // Buy amount preset buttons
     this.bot.callbackQuery(/^buy_amount_\d+$/, async (ctx) => {
-      await ctx.answerCallbackQuery();
+      await ctx.answerCallbackQuery().catch(() => {});
       const userId = ctx.from.id;
       const amount = ctx.callbackQuery.data.replace('buy_amount_', '');
 
@@ -1852,7 +1846,7 @@ export class TelegramService {
 
     // Buy custom amount
     this.bot.callbackQuery('buy_custom', async (ctx) => {
-      await ctx.answerCallbackQuery();
+      await ctx.answerCallbackQuery().catch(() => {});
       const userId = ctx.from.id;
       userStates.set(userId, { action: 'buy', waitingFor: 'buy_amount' });
       await ctx.editMessageText(Messages.ENTER_CUSTOM_AMOUNT_BUY(), {
@@ -1863,7 +1857,7 @@ export class TelegramService {
 
     // Sell USDC callback - show amount selection
     this.bot.callbackQuery('sell_usdt', async (ctx) => {
-      await ctx.answerCallbackQuery();
+      await ctx.answerCallbackQuery().catch(() => {});
       const userId = ctx.from.id;
 
       try {
@@ -1921,7 +1915,7 @@ export class TelegramService {
 
     // Sell amount preset buttons
     this.bot.callbackQuery(/^sell_amount_\d+$/, async (ctx) => {
-      await ctx.answerCallbackQuery();
+      await ctx.answerCallbackQuery().catch(() => {});
       const userId = ctx.from.id;
       const amount = ctx.callbackQuery.data.replace('sell_amount_', '');
 
@@ -1958,7 +1952,7 @@ export class TelegramService {
 
     // Sell custom amount
     this.bot.callbackQuery('sell_custom', async (ctx) => {
-      await ctx.answerCallbackQuery();
+      await ctx.answerCallbackQuery().catch(() => {});
       const userId = ctx.from.id;
       userStates.set(userId, { action: 'sell', waitingFor: 'sell_amount' });
       await ctx.editMessageText(Messages.ENTER_CUSTOM_AMOUNT_SELL(), {
@@ -1969,7 +1963,7 @@ export class TelegramService {
 
     // Bank selection callback
     this.bot.callbackQuery(/^select_bank_\d+$/, async (ctx) => {
-      await ctx.answerCallbackQuery();
+      await ctx.answerCallbackQuery().catch(() => {});
       const userId = ctx.from.id;
       const bankId = parseInt(ctx.callbackQuery.data.replace('select_bank_', ''));
       const state = userStates.get(userId);
@@ -2013,7 +2007,7 @@ export class TelegramService {
 
     // Show more banks callback (pagination)
     this.bot.callbackQuery(/^show_more_banks_\d+$/, async (ctx) => {
-      await ctx.answerCallbackQuery();
+      await ctx.answerCallbackQuery().catch(() => {});
       const userId = ctx.from.id;
       const offset = parseInt(ctx.callbackQuery.data.replace('show_more_banks_', ''));
       const state = userStates.get(userId);
@@ -2044,7 +2038,7 @@ export class TelegramService {
     this.bot.callbackQuery(/^use_saved_wallet_\d+$/, async (ctx) => {
       // Answer callback query immediately to avoid timeout
       try {
-        await ctx.answerCallbackQuery();
+        await ctx.answerCallbackQuery().catch(() => {});
       } catch (error) {
         // Callback query might already be answered or expired - log and continue
         logger.debug({ error, userId: ctx.from.id }, 'Failed to answer callback query');
@@ -2112,27 +2106,29 @@ export class TelegramService {
 
       const usdtAmount = parseFloat(state.amount!);
       const vndAmount = usdtAmount * rates.sell;
-      const gatewayFeesPercent = parseFloat(process.env.GATEWAY_FEES || '0.5');
-      const gatewayFee = vndAmount * (gatewayFeesPercent / 100);
 
-      await ctx.editMessageText(
-        Messages.ORDER_SUMMARY_BUY(
-          state.amount!,
-          paymentInfo.wallet_address,
-          vndAmount,
-          rates.sell,
-          gatewayFee
-        ),
-        {
-          parse_mode: 'HTML',
-          reply_markup: Keyboards.confirmPayment(),
-        }
-      );
+      try {
+        await ctx.editMessageText(
+          Messages.ORDER_SUMMARY_BUY(
+            state.amount!,
+            paymentInfo.wallet_address,
+            vndAmount,
+            rates.sell
+          ),
+          {
+            parse_mode: 'HTML',
+            reply_markup: Keyboards.confirmPayment(),
+          }
+        );
+      } catch (err) {
+        const errMessage = err instanceof Error ? err.message : String(err);
+        logger.info({ error: errMessage }, 'Message unchanged, ignoring');
+      }
     });
 
     // Add new wallet callback
     this.bot.callbackQuery('add_new_wallet', async (ctx) => {
-      await ctx.answerCallbackQuery();
+      await ctx.answerCallbackQuery().catch(() => {});
       const userId = ctx.from.id;
       const state = userStates.get(userId);
 
@@ -2162,7 +2158,7 @@ export class TelegramService {
     this.bot.callbackQuery(/^use_saved_bank_\d+$/, async (ctx) => {
       // Answer callback query immediately to avoid timeout
       try {
-        await ctx.answerCallbackQuery();
+        await ctx.answerCallbackQuery().catch(() => {});
       } catch (error) {
         // Callback query might already be answered or expired - log and continue
         logger.debug({ error, userId: ctx.from.id }, 'Failed to answer callback query');
@@ -2275,7 +2271,7 @@ export class TelegramService {
 
     // Add new bank account callback - Single input flow
     this.bot.callbackQuery('add_new_bank', async (ctx) => {
-      await ctx.answerCallbackQuery();
+      await ctx.answerCallbackQuery().catch(() => {});
       const userId = ctx.from.id;
       const state = userStates.get(userId);
 
@@ -2303,7 +2299,7 @@ export class TelegramService {
 
     // Confirm payment callback
     this.bot.callbackQuery('confirm_payment', async (ctx) => {
-      await ctx.answerCallbackQuery();
+      await ctx.answerCallbackQuery().catch(() => {});
       const userId = ctx.from.id;
       const state = userStates.get(userId);
 
@@ -2374,7 +2370,7 @@ export class TelegramService {
 
     // Cancel payment callback
     this.bot.callbackQuery('cancel_payment', async (ctx) => {
-      await ctx.answerCallbackQuery();
+      await ctx.answerCallbackQuery().catch(() => {});
       const userId = ctx.from.id;
       userStates.delete(userId);
       await ctx.editMessageText(Messages.PAYMENT_CANCELLED(), {
@@ -2385,7 +2381,7 @@ export class TelegramService {
 
     // Cancel order callback - handles order cancellation via API
     this.bot.callbackQuery(/^cancel_order_(.+)$/, async (ctx) => {
-      await ctx.answerCallbackQuery();
+      await ctx.answerCallbackQuery().catch(() => {});
       const userId = ctx.from.id;
       const orderId = ctx.match[1];
 
@@ -2485,7 +2481,7 @@ export class TelegramService {
 
     // Back to menu callback
     this.bot.callbackQuery('back_to_menu', async (ctx) => {
-      await ctx.answerCallbackQuery();
+      await ctx.answerCallbackQuery().catch(() => {});
       const userId = ctx.from.id;
       userStates.delete(userId);
       const firstName = ctx.from?.first_name || 'bạn';
@@ -2643,6 +2639,22 @@ export class TelegramService {
     this.bot.catch((err) => {
       const error = err.error as any;
 
+      // Debug: log everything about the error
+      logger.error(
+        {
+          err,
+          error,
+          errorConstructor: error?.constructor?.name,
+          errorCode: error?.error_code,
+          errorCodeType: typeof error?.error_code,
+          description: error?.description,
+          descriptionType: typeof error?.description,
+          userId: err.ctx?.from?.id,
+          ctx: err.ctx,
+        },
+        'Bot catch handler - error details'
+      );
+
       // Handle expected errors gracefully
       if (error?.error_code === 403) {
         // User blocked the bot - this is normal, log at info level
@@ -2657,7 +2669,10 @@ export class TelegramService {
         return;
       }
 
-      if (error?.error_code === 400 && error?.description?.includes('query is too old')) {
+      if (
+        (error?.error_code === 400 || error?.error_code === '400') &&
+        error?.description?.includes('query is too old')
+      ) {
         // Callback query timeout - user took too long or clicked multiple times
         logger.warn(
           {
@@ -2670,10 +2685,11 @@ export class TelegramService {
         return;
       }
 
-      // Log unexpected errors at error level
+      // Debug: log what's in the error for unknown errors
       logger.error(
         {
-          error: err,
+          err,
+          error,
           errorCode: error?.error_code,
           description: error?.description,
           userId: err.ctx?.from?.id,
@@ -2916,16 +2932,11 @@ export class TelegramService {
 
     const usdtAmount = parseFloat(state.amount!);
     const vndAmount = usdtAmount * rates.sell;
-    const gatewayFeesPercent = parseFloat(process.env.GATEWAY_FEES || '0.5');
-    const gatewayFee = vndAmount * (gatewayFeesPercent / 100);
 
-    await ctx.reply(
-      Messages.ORDER_SUMMARY_BUY(state.amount!, text, vndAmount, rates.sell, gatewayFee),
-      {
-        parse_mode: 'HTML',
-        reply_markup: Keyboards.confirmPayment(),
-      }
-    );
+    await ctx.reply(Messages.ORDER_SUMMARY_BUY(state.amount!, text, vndAmount, rates.sell), {
+      parse_mode: 'HTML',
+      reply_markup: Keyboards.confirmPayment(),
+    });
   }
 
   /**
@@ -3276,7 +3287,9 @@ export class TelegramService {
     // Check if user is already processing an order
     if (processingUsers.has(userId)) {
       logger.warn({ userId }, 'User is already processing an order, ignoring duplicate request');
-      await ctx.answerCallbackQuery('⏳ Đơn hàng đang được xử lý, vui lòng đợi...');
+      try {
+        await ctx.answerCallbackQuery('⏳ Đơn hàng đang được xử lý, vui lòng đợi...');
+      } catch {}
       return;
     }
 
@@ -3329,13 +3342,13 @@ export class TelegramService {
           chainId: telegramConfig.chainId,
           tokenAddress: telegramConfig.tokenAddress,
         },
-        'Calling deposit API with total VND amount'
+        'Calling deposit API with USDC amount'
       );
 
-      // Call deposit API with total VND amount (integer, no decimals)
+      // Call deposit API with USDT amount (API handles VND conversion internally)
       const order = await paymentService.processDeposit({
         chat_id: userId,
-        amount: totalAmount.toString(), // VND amount as integer string (e.g., "279390")
+        amount: state.amount,
         chain_id: telegramConfig.chainId,
         token_address: telegramConfig.tokenAddress,
         recipient: state.walletAddress,
