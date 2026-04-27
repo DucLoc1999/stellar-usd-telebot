@@ -4,6 +4,20 @@ import webhookController from '../controllers/webhookController';
 export const webhookRoutes: FastifyPluginAsync = async (
   fastify: FastifyInstance
 ): Promise<void> => {
+  fastify.addHook('preParsing', async (request, _reply, payload) => {
+    const chunks: Buffer[] = [];
+    for await (const chunk of payload) {
+      chunks.push(chunk as Buffer);
+    }
+    const raw = Buffer.concat(chunks);
+    request.rawBody = raw.toString('utf-8');
+
+    // Return a new readable stream from the same bytes
+    const { Readable } = await import('stream');
+    const stream = Readable.from(raw);
+    return stream;
+  });
+
   fastify.post(
     '/webhooks/payment',
     {
@@ -50,13 +64,10 @@ export const webhookRoutes: FastifyPluginAsync = async (
             'Content-Type': {
               type: 'string',
             },
-            'User-Agent': {
+            'X-Timestamp': {
               type: 'string',
             },
-            'X-HSPay-Event-Topic': {
-              type: 'string',
-            },
-            'X-HSPay-Event-Signature': {
+            'X-Signature': {
               type: 'string',
             },
           },

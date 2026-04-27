@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What This Project Is
 
-A Fastify + TypeScript backend that powers a **Telegram bot for USDT trading** (buy/sell USDT for Vietnamese Dong). The bot integrates with an external payment API (HSPay) and uses grammY for Telegram bot interactions. All UI messages are in Vietnamese.
+A Fastify + TypeScript backend that powers a **Telegram bot for USDT trading** (buy/sell USDT for Vietnamese Dong). The bot integrates with an external payment API and uses grammY for Telegram bot interactions. All UI messages are in Vietnamese.
 
 ## Commands
 
@@ -40,14 +40,14 @@ make health      # check /health endpoint
 
 Active HTTP routes:
 - `POST /api/telegram/webhook` — receives updates from Telegram (grammY processes them)
-- `POST /api/webhooks/payment` — receives payment status updates from HSPay
+- `POST /api/webhooks/payment` — receives payment status updates from Payment API
 
 Disabled routes (security): `teleUserRoutes`, `paymentRoutes` — their logic is available via the service layer, but HTTP access is intentionally blocked.
 
 **Key services:**
 - `src/services/telegramService.ts` — core bot logic: all conversation states, message templates (Vietnamese), grammY bot setup
-- `src/services/paymentService.ts` — order creation/management via HSPay API
-- `src/services/webhookService.ts` — handles HSPay payment status callbacks, notifies users
+- `src/services/paymentService.ts` — order creation/management via Payment API
+- `src/services/webhookService.ts` — handles Payment API webhooks, notifies users
 - `src/services/kycService.ts` — KYC verification flow
 - `src/services/s3Service.ts` — S3 upload for KYC images
 - `src/services/fptAiVisionService.ts` — AI vision for ID document verification

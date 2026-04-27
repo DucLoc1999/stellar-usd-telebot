@@ -1,61 +1,35 @@
-import { verify, createPublicKey } from 'crypto';
+import { createHmac, timingSafeEqual } from 'crypto';
 import db from '../config/knex';
 import { logger } from '../config/logger';
 import type { WebhookEvent, OrderStateChange } from '../models/webhook';
 import type { Order } from '../models/usdt247';
 
 export class WebhookService {
-  private readonly publicKey: string;
+  private readonly secret: string;
 
   constructor() {
-    this.publicKey = process.env.WEBHOOK_PUBLIC_KEY || ''; // Default public key for testing
-    if (!this.publicKey) {
+    this.secret = process.env.WEBHOOK_PUBLIC_KEY || '';
+    if (!this.secret) {
       logger.warn('WEBHOOK_PUBLIC_KEY not configured - signature verification will fail');
     }
   }
 
-  /**
-   * Verify ED25519 signature of the webhook payload
-   * @param signature Base64 encoded signature from X-HSPay-Event-Signature header
-   * @param payload Raw request body as string
-   * @returns true if signature is valid, false otherwise
-   */
-  verifySignature(signature: string, payload: string): boolean {
+  verifySignature(signature: string, timestamp: string, payload: string): boolean {
     try {
-      if (!this.publicKey) {
+      if (!this.secret) {
         logger.error('Cannot verify signature: WEBHOOK_PUBLIC_KEY not configured');
         return false;
       }
 
-      // Decode the base64-encoded Ed25519 public key (32 bytes)
-      const publicKeyBytes = Buffer.from(this.publicKey, 'base64');
+      const expected = createHmac('sha256', this.secret)
+        .update(`${timestamp}.${payload}`)
+        .digest('hex');
 
-      // Decode the base64-encoded signature
-      const signatureBuffer = Buffer.from(signature, 'base64');
+      const expectedBuf = Buffer.from(expected);
+      const actualBuf = Buffer.from(signature);
 
-      // Ed25519 public keys in Node.js crypto need to be in SPKI DER format
-      // The SPKI format for Ed25519 is: 0x302a300506032b6570032100 + 32-byte public key
-      // This is the ASN.1 DER encoding with Ed25519 OID (1.3.101.112)
-      const spkiPrefix = Buffer.from('302a300506032b6570032100', 'hex');
-      const spkiPublicKey = Buffer.concat([spkiPrefix, publicKeyBytes]);
-
-      // Create public key object from raw Ed25519 bytes wrapped in SPKI format
-      const publicKeyObject = createPublicKey({
-        key: spkiPublicKey,
-        format: 'der',
-        type: 'spki',
-      });
-
-      // Verify ED25519 signature against the raw request body
-      // For ED25519, we don't need to hash the data - the signature is over the raw data
-      const isValid = verify(
-        null, // ED25519 doesn't use a hash algorithm
-        Buffer.from(payload, 'utf-8'),
-        publicKeyObject,
-        signatureBuffer
-      );
-
-      return isValid;
+      if (expectedBuf.length !== actualBuf.length) return false;
+      return timingSafeEqual(expectedBuf, actualBuf);
     } catch (error) {
       logger.error({ error }, 'Error verifying webhook signature');
       return false;
@@ -156,7 +130,7 @@ export class WebhookService {
       10: 'Waiting for fiat deposit',
       11: 'Fiat deposit confirmed',
       12: 'Fiat failed to deposit',
-      13: 'Waiting for USDT transfer',
+      13: 'Waiting for USDC transfer',
       14: 'USDT transfer confirmed',
       15: 'USDT failed to transfer',
       16: 'Waiting for admin approval',

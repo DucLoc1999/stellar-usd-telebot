@@ -21,15 +21,13 @@ export class WebhookController {
     try {
       // Extract headers
       const contentType = request.headers['content-type'];
-      const userAgent = request.headers['user-agent'];
-      const eventTopic = request.headers['x-hspay-event-topic'];
-      const eventSignature = request.headers['x-hspay-event-signature'];
+      const timestamp = request.headers['x-timestamp'];
+      const eventSignature = request.headers['x-signature'];
 
       logger.info(
         {
           contentType,
-          userAgent,
-          eventTopic,
+          hasTimestamp: !!timestamp,
           hasSignature: !!eventSignature,
         },
         'Received webhook request'
@@ -44,38 +42,33 @@ export class WebhookController {
         });
       }
 
-      if (!userAgent || !userAgent.startsWith('HSPay-Webhook-Dispatcher')) {
-        logger.warn({ userAgent }, 'Invalid User-Agent header');
+      if (!timestamp) {
+        logger.warn('Missing X-Timestamp header');
         return reply.status(400).send({
           success: false,
-          error: 'Invalid User-Agent',
-        });
-      }
-
-      if (!eventTopic || eventTopic !== 'pay.order.status-updated') {
-        logger.warn({ eventTopic }, 'Invalid or unsupported event topic');
-        return reply.status(400).send({
-          success: false,
-          error: 'Invalid or unsupported event topic',
+          error: 'Missing X-Timestamp header',
         });
       }
 
       if (!eventSignature) {
-        logger.warn('Missing X-HSPay-Event-Signature header');
+        logger.warn('Missing X-Signature header');
         return reply.status(400).send({
           success: false,
           error: 'Missing signature header',
         });
       }
 
-      // Get raw body for signature verification
-      const rawBody = JSON.stringify(request.body);
+      // Use raw body for signature verification (re-serializing parsed JSON changes byte order)
+      const rawBody = request.rawBody ?? JSON.stringify(request.body);
 
-      // Verify signature - ensure eventSignature is a string
+      // Verify signature
       const signatureString: string = Array.isArray(eventSignature)
         ? eventSignature[0] || ''
         : eventSignature || '';
-      const isValidSignature = webhookService.verifySignature(signatureString, rawBody);
+      const timestampString: string = Array.isArray(timestamp)
+        ? timestamp[0] || ''
+        : timestamp || '';
+      const isValidSignature = webhookService.verifySignature(signatureString, timestampString, rawBody);
 
       if (!isValidSignature) {
         logger.error(

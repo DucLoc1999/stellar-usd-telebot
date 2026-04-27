@@ -52,9 +52,8 @@ export interface WebhookEvent {
  */
 export interface WebhookHeaders {
   'content-type': string;
-  'user-agent': string;
-  'x-hspay-event-topic': string;
-  'x-hspay-event-signature': string;
+  'x-timestamp': string;
+  'x-signature': string;
 }
 
 /**

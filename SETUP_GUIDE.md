@@ -1,6 +1,6 @@
 # Telegram Bot Setup Guide
 
-This guide will walk you through setting up and testing your Telegram bot integration for USDT buy/sell operations.
+This guide will walk you through setting up and testing your Telegram bot integration for USDC buy/sell operations.
 
 ## ✅ Step 1: Environment Configuration (COMPLETED)
 
@@ -43,7 +43,7 @@ npm --version
 mysql -u root -p1111 -e "SELECT 1;"
 
 # Check if database exists
-mysql -u root -p1111 -e "USE usdt247; SHOW TABLES;"
+mysql -u root -p1111 -e "USE USDC247; SHOW TABLES;"
 ```
 
 ---
@@ -152,20 +152,20 @@ curl "https://api.telegram.org/bot8005899166:AAH0HPXDX53HdepT3Li5vznyw70CulsrmhQ
 
 1. Send `/start` to your bot
 2. **Expected**: Bot responds with welcome message and menu buttons:
-   - 💰 Mua USDT (Buy USDT)
-   - 💸 Bán USDT (Sell USDT)
+   - 💰 Mua USDC (Buy USDC)
+   - 💸 Bán USDC (Sell USDC)
 
 **Test 2: Menu Navigation**
 
-1. Click "💰 Mua USDT"
-2. **Expected**: Bot asks "Vui lòng nhập số lượng USDT muốn mua (VD: 100):"
+1. Click "💰 Mua USDC"
+2. **Expected**: Bot asks "Vui lòng nhập số lượng USDC muốn mua (VD: 100):"
 
 3. Click "🔙 Quay lại" (if available)
 4. **Expected**: Bot returns to main menu
 
 ---
 
-## 🛒 Step 7: Test Buy USDT Flow (Complete Transaction)
+## 🛒 Step 7: Test Buy USDC Flow (Complete Transaction)
 
 ### Prerequisites for Buy Flow
 - User must have KYC completed in the database
@@ -175,14 +175,14 @@ curl "https://api.telegram.org/bot8005899166:AAH0HPXDX53HdepT3Li5vznyw70CulsrmhQ
 
 **Step 1**: Send `/start` to bot
 
-**Step 2**: Click "💰 Mua USDT"
+**Step 2**: Click "💰 Mua USDC"
 
 **Step 3**: Enter amount (e.g., `10`)
 - **Expected**: Bot asks for wallet address
 
 **Step 4**: Enter BSC wallet address (e.g., `0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb`)
 - **Expected**: Bot shows order summary with:
-  - Amount: 10 USDT
+  - Amount: 10 USDC
   - Wallet: 0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb
   - Buttons: ✅ Xác nhận | ❌ Hủy
 
@@ -202,27 +202,27 @@ curl "https://api.telegram.org/bot8005899166:AAH0HPXDX53HdepT3Li5vznyw70CulsrmhQ
 
 ---
 
-## 💸 Step 8: Test Sell USDT Flow (Complete Transaction)
+## 💸 Step 8: Test Sell USDC Flow (Complete Transaction)
 
 ### Step-by-Step Sell Test
 
 **Step 1**: Send `/start` to bot
 
-**Step 2**: Click "💸 Bán USDT"
+**Step 2**: Click "💸 Bán USDC"
 
 **Step 3**: Enter amount (e.g., `10`)
 - **Expected**: Bot shows order summary with:
-  - Amount: 10 USDT
+  - Amount: 10 USDC
   - Buttons: ✅ Xác nhận | ❌ Hủy
 
 **Step 4**: Click "✅ Xác nhận"
 - **Expected**: Bot displays:
   - Recipient wallet address (BSC/BEP-20)
   - Network: BSC (BNB Smart Chain)
-  - Token: USDT (BEP-20)
-  - Instructions to send USDT
+  - Token: USDC (BEP-20)
+  - Instructions to send USDC
 
-**Step 5**: Send USDT to the displayed address using your wallet
+**Step 5**: Send USDC to the displayed address using your wallet
 
 **Step 6**: Wait for webhook notification
 - **Expected**: Bot sends notification when order status changes
@@ -246,7 +246,7 @@ curl "https://api.telegram.org/bot8005899166:AAH0HPXDX53HdepT3Li5vznyw70CulsrmhQ
 
 ```bash
 # Connect to MySQL
-mysql -u root -p1111 usdt247
+mysql -u root -p1111 USDC247
 
 # Check recent orders
 SELECT id, chat_id, order_type, amount, state, created_at 
