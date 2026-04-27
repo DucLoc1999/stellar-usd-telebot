@@ -13,14 +13,14 @@ import type { PaymentInformation } from '../models/types';
 export const Messages = {
   WELCOME: (firstName: string) =>
     `👋 Xin chào <b>${firstName}</b>!\n\n` +
-    `🤖 Chào mừng bạn đến với Bot Mua/Bán USDT tự động!\n\n` +
+    `🤖 Chào mừng bạn đến với Bot Mua/Bán USDC tự động!\n\n` +
     `💰 Tỷ giá cạnh tranh nhất thị trường\n` +
     `⚡️ Giao dịch nhanh chóng, an toàn\n` +
     `🔒 Bảo mật tuyệt đối\n\n` +
     `Vui lòng chọn chức năng bên dưới:`,
 
   RATE_CHECK: (buyRate: number, sellRate: number, updated: string) =>
-    `💱 <b>TỶ GIÁ USDT HIỆN TẠI</b>\n\n` +
+    `💱 <b>TỶ GIÁ USDC HIỆN TẠI</b>\n\n` +
     `📈 Giá mua: <b>${buyRate.toLocaleString('vi-VN')} VND</b>\n` +
     `📉 Giá bán: <b>${sellRate.toLocaleString('vi-VN')} VND</b>\n\n` +
     `🕐 Cập nhật: ${updated}\n\n` +
@@ -31,19 +31,19 @@ export const Messages = {
     `Hệ thống đang bảo trì hoặc có lỗi kết nối.\n` +
     `Vui lòng thử lại sau ít phút.`,
 
-  BUY_SELECT_AMOUNT: () => `💰 <b>MUA USDT</b>\n\n` + `Vui lòng chọn số tiền VND muốn mua USDT:`,
+  BUY_SELECT_AMOUNT: () => `💰 <b>MUA USDC</b>\n\n` + `Vui lòng chọn số tiền VND muốn mua USDC:`,
 
-  SELL_SELECT_AMOUNT: () => `💸 <b>BÁN USDT</b>\n\n` + `Vui lòng chọn số lượng USDT muốn bán:`,
+  SELL_SELECT_AMOUNT: () => `💸 <b>BÁN USDC</b>\n\n` + `Vui lòng chọn số lượng USDC muốn bán:`,
 
   ENTER_CUSTOM_AMOUNT_BUY: () =>
-    `✏️ Vui lòng nhập số tiền VND muốn mua USDT:\n\n` + `📊 Ví dụ: 100000, 500000, 1000000`,
+    `✏️ Vui lòng nhập số tiền VND muốn mua USDC:\n\n` + `📊 Ví dụ: 100000, 500000, 1000000`,
 
   ENTER_CUSTOM_AMOUNT_SELL: () =>
-    `✏️ Vui lòng nhập số lượng USDT muốn bán:\n\n` + `📊 Ví dụ: 10, 50, 100`,
+    `✏️ Vui lòng nhập số lượng USDC muốn bán:\n\n` + `📊 Ví dụ: 10, 50, 100`,
 
   ENTER_WALLET_ADDRESS: () =>
     `📮 <b>NHẬP ĐỊA CHỈ VÍ</b>\n\n` +
-    `Vui lòng nhập địa chỉ ví BSC (BEP-20) để nhận USDT:\n\n` +
+    `Vui lòng nhập địa chỉ ví BSC (BEP-20) để nhận USDC:\n\n` +
     `⚠️ Lưu ý: Kiểm tra kỹ địa chỉ ví trước khi gửi!`,
 
   SELECT_BANK: () => `🏦 <b>CHỌN NGÂN HÀNG</b>\n\n` + `Vui lòng chọn ngân hàng nhận tiền VND:`,
@@ -101,21 +101,21 @@ export const Messages = {
     `💡 Gợi ý: VIETCOMBANK, TECHCOMBANK, BIDV, AGRIBANK, VCB, TCB, MB, ACB, VPB, TPB, SACOMBANK, HDBANK, SHB, VIB, MSB, OCB, EXIMBANK, SCB, SEABANK, ABBANK, VIETINBANK, LIENVIETPOSTBANK, PVCOMBANK, BAOVIETBANK, GPBANK, NAMABANK, PGBANK, VIETABANK, VIETBANK, OCEANBANK, CBBANK, KIENLONGBANK, DONGABANK, WOORIBANK, PUBLICBANK, NONGHYUP, INDOVINABANK, SHINHAN, STANDARDCHARTERED, ANZ, HSBC, HONGKONG, CIMB, UOB, MAYBANK, BANGKOK, MIZUHO, MUFG, SMBC, DEUTSCHE, BNP, CITIBANK`,
 
   ORDER_SUMMARY_BUY: (amount: string, wallet: string) =>
-    `📋 <b>XÁC NHẬN ĐƠN HÀNG - MUA USDT</b>\n\n` +
+    `📋 <b>XÁC NHẬN ĐƠN HÀNG - MUA USDC</b>\n\n` +
     `💵 Số tiền: <b>${amount} VND</b>\n` +
     `📮 Địa chỉ ví nhận: <code>${wallet}</code>\n` +
     `🌐 Mạng: BNB Chain (BSC)\n\n` +
     `⚠️ Vui lòng kiểm tra kỹ thông tin trước khi thanh toán!`,
 
   ORDER_SUMMARY_SELL: (amount: string) =>
-    `📋 <b>XÁC NHẬN ĐƠN HÀNG - BÁN USDT</b>\n\n` +
-    `💎 Số lượng: <b>${amount} USDT</b>\n` +
+    `📋 <b>XÁC NHẬN ĐƠN HÀNG - BÁN USDC</b>\n\n` +
+    `💎 Số lượng: <b>${amount} USDC</b>\n` +
     `🌐 Mạng: BNB Chain (BSC)\n\n` +
-    `⚠️ Vui lòng kiểm tra kỹ thông tin trước khi chuyển USDT!`,
+    `⚠️ Vui lòng kiểm tra kỹ thông tin trước khi chuyển USDC!`,
 
   SELL_CONFIRMATION: (amount: string, bankName: string, fullName: string, accountNumber: string) =>
-    `💸 <b>XÁC NHẬN BÁN USDT</b>\n\n` +
-    `💰 Số lượng: <b>${amount} USDT</b>\n` +
+    `💸 <b>XÁC NHẬN BÁN USDC</b>\n\n` +
+    `💰 Số lượng: <b>${amount} USDC</b>\n` +
     `🏦 Ngân hàng: <b>${bankName}</b>\n` +
     `👤 Tên tài khoản: <b>${fullName}</b>\n` +
     `💳 Số tài khoản: <code>${accountNumber}</code>\n\n` +
@@ -136,17 +136,17 @@ export const Messages = {
 
   PAYMENT_QR_CAPTION: () =>
     `💳 Quét mã QR để thanh toán\n\n` +
-    `⏰ Sau khi thanh toán, USDT sẽ được chuyển vào ví của bạn trong vòng 3-30 giây.\n\n` +
+    `⏰ Sau khi thanh toán, USDC sẽ được chuyển vào ví của bạn trong vòng 3-30 giây.\n\n` +
     `📞 Liên hệ support nếu có vấn đề!`,
 
   PAYMENT_SELL_ADDRESS: (recipientAddress: string) =>
-    `📮 <b>ĐỊA CHỈ VÍ NHẬN USDT</b>\n\n` +
-    `Vui lòng chuyển USDT đến địa chỉ:\n\n` +
+    `📮 <b>ĐỊA CHỈ VÍ NHẬN USDC</b>\n\n` +
+    `Vui lòng chuyển USDC đến địa chỉ:\n\n` +
     `<code>${recipientAddress}</code>\n\n` +
     `🌐 Mạng: <b>BNB Chain (BSC)</b>\n` +
     `💎 Token: <b>USDT (BEP-20)</b>\n\n` +
     `⏰ Sau khi chuyển, tiền VND sẽ được chuyển vào tài khoản của bạn trong vòng 3-30 giây.\n\n` +
-    `⚠️ Lưu ý: Chỉ chuyển USDT trên mạng BSC!`,
+    `⚠️ Lưu ý: Chỉ chuyển USDC trên mạng BSC!`,
 
   PAYMENT_CANCELLED: () =>
     `❌ <b>ĐÃ HỦY THANH TOÁN</b>\n\n` +
@@ -246,7 +246,7 @@ export const Messages = {
     `✅ <b>ĐÃ XÁC NHẬN CHUYỂN KHOẢN VND</b>\n\n` +
     `🆔 Mã đơn: <code>${orderId}</code>\n\n` +
     `💡 Chuyển khoản VND đã được xác nhận.\n` +
-    `⏳ Đang xử lý chuyển USDT...`,
+    `⏳ Đang xử lý chuyển USDC...`,
 
   PROCESSING_STATE_FIAT_FAILED: (orderId: string) =>
     `❌ <b>CHUYỂN KHOẢN VND THẤT BẠI</b>\n\n` +
@@ -255,20 +255,20 @@ export const Messages = {
     `📞 Vui lòng liên hệ support để được hỗ trợ!`,
 
   PROCESSING_STATE_WAITING_USDT: (orderId: string) =>
-    `⏳ <b>CHỜ CHUYỂN USDT</b>\n\n` +
+    `⏳ <b>CHỜ CHUYỂN USDC</b>\n\n` +
     `🆔 Mã đơn: <code>${orderId}</code>\n\n` +
-    `💡 Đang chờ chuyển USDT vào ví của bạn...`,
+    `💡 Đang chờ chuyển USDC vào ví của bạn...`,
 
   PROCESSING_STATE_USDT_CONFIRMED: (orderId: string) =>
-    `✅ <b>ĐÃ CHUYỂN USDT THÀNH CÔNG</b>\n\n` +
+    `✅ <b>ĐÃ CHUYỂN USDC THÀNH CÔNG</b>\n\n` +
     `🆔 Mã đơn: <code>${orderId}</code>\n\n` +
-    `🎉 USDT đã được chuyển vào ví của bạn!\n` +
+    `🎉 USDC đã được chuyển vào ví của bạn!\n` +
     `💰 Vui lòng kiểm tra ví.`,
 
   PROCESSING_STATE_USDT_FAILED: (orderId: string) =>
-    `❌ <b>CHUYỂN USDT THẤT BẠI</b>\n\n` +
+    `❌ <b>CHUYỂN USDC THẤT BẠI</b>\n\n` +
     `🆔 Mã đơn: <code>${orderId}</code>\n\n` +
-    `💡 Chuyển USDT không thành công.\n` +
+    `💡 Chuyển USDC không thành công.\n` +
     `📞 Vui lòng liên hệ support để được hỗ trợ!`,
 
   PROCESSING_STATE_WAITING_ADMIN: (orderId: string) =>
@@ -286,8 +286,8 @@ export class Keyboards {
     return new InlineKeyboard()
       .text('💱 Kiểm tra tỷ giá', 'check_rate')
       .row()
-      .text('💰 Mua USDT', 'buy_usdt')
-      .text('💸 Bán USDT', 'sell_usdt')
+      .text('💰 Mua USDC', 'buy_usdt')
+      .text('💸 Bán USDC', 'sell_usdt')
       .row()
       .text('🔐 Xác minh KYC', 'kyc')
       .text('👤 Thông tin TK', 'account_info');
@@ -306,10 +306,10 @@ export class Keyboards {
 
   static sellAmountSelection(): InlineKeyboard {
     return new InlineKeyboard()
-      .text('10 USDT', 'sell_amount_10')
-      .text('50 USDT', 'sell_amount_50')
+      .text('10 USDC', 'sell_amount_10')
+      .text('50 USDC', 'sell_amount_50')
       .row()
-      .text('100 USDT', 'sell_amount_100')
+      .text('100 USDC', 'sell_amount_100')
       .text('✏️ Nhập số khác', 'sell_custom')
       .row()
       .text('🔙 Quay lại Menu', 'back_to_menu');
@@ -600,7 +600,7 @@ export class TelegramService {
       }
     });
 
-    // Buy USDT callback - show amount selection
+    // Buy USDC callback - show amount selection
     this.bot.callbackQuery('buy_usdt', async (ctx) => {
       await ctx.answerCallbackQuery();
       const userId = ctx.from.id;
@@ -653,7 +653,7 @@ export class TelegramService {
       });
     });
 
-    // Sell USDT callback - show amount selection
+    // Sell USDC callback - show amount selection
     this.bot.callbackQuery('sell_usdt', async (ctx) => {
       await ctx.answerCallbackQuery();
       const userId = ctx.from.id;
@@ -1565,7 +1565,7 @@ export class TelegramService {
     // Clear user state
     userStates.delete(userId);
 
-    // Show recipient address where user should send USDT
+    // Show recipient address where user should send USDC
     if (recipientAddress) {
       logger.info(
         { userId, orderId: order.id, recipientAddress },
@@ -1594,7 +1594,7 @@ export class TelegramService {
       await ctx.replyWithPhoto(new InputFile(qrCodeImage), {
         caption:
           `📱 <b>Quét mã QR để sao chép địa chỉ ví</b>\n\n` +
-          `⏰ Sau khi chuyển USDT, tiền VND sẽ được chuyển vào tài khoản của bạn trong vòng 3-30 giây.\n\n` +
+          `⏰ Sau khi chuyển USDC, tiền VND sẽ được chuyển vào tài khoản của bạn trong vòng 3-30 giây.\n\n` +
           `📞 Liên hệ support nếu có vấn đề!`,
         parse_mode: 'HTML',
         reply_markup: Keyboards.backToMenu(),
@@ -1617,7 +1617,7 @@ export class TelegramService {
       );
       await ctx.reply(
         `❌ <b>Lỗi hệ thống</b>\n\n` +
-          `Không tìm thấy địa chỉ ví nhận USDT trong phản hồi từ hệ thống.\n\n` +
+          `Không tìm thấy địa chỉ ví nhận USDC trong phản hồi từ hệ thống.\n\n` +
           `Mã đơn: <code>${order.id}</code>\n\n` +
           `Vui lòng liên hệ support với mã đơn hàng trên để được hỗ trợ!`,
         { parse_mode: 'HTML', reply_markup: Keyboards.backToMenu() }

@@ -31,10 +31,11 @@ const start = async (): Promise<void> => {
       if (!response.ok) {
         logger.error({ error: '📚 Failed to fetch exchange rates', responseText: response.statusText });
       }
-      const data = await response.json();
-      logger.info(data, '📚 Exchange rates fetched successfully');
+      await response.json();
+      logger.info('📚 Exchange rates fetched successfully');
     } catch (error) {
-      logger.error(error, '📚 Failed to fetch exchange rates');
+      logger.info('📚 Failed to fetch exchange rates');
+      logger.error(error);
     }
 
 

@@ -25,6 +25,7 @@ export interface Usdt247ResponseBody {
   amount?: string;
   qr_code?: string;
   qr_data?: string;
+  qr_link?: string;
   bankInfo?: Usdt247BankInfo;
 }
 
@@ -55,10 +56,10 @@ export interface Usdt247CreateDepositRequest {
 export interface Usdt247OrderData {
   id: string;
   user_id: string;
-  order_type: number;
+  order_type: number | string;
   external_id: string;
   code: string;
-  provider: number;
+  provider: number | string;
   callback: string;
   amount: string;
   currency: string;
@@ -75,16 +76,15 @@ export interface Usdt247OrderData {
   expired_at: Usdt247Timestamp;
   created_at: Usdt247Timestamp;
   updated_at: Usdt247Timestamp;
-  client_ip: string;
-  outcome: string;
-  original_rate: string;
+  client_ip: string | null;
+  outcome: string | null;
+  original_rate: string | null;
   total_fee_vnd: number;
 }
 
 export interface Usdt247CreateOrderResponse {
-  data: {
-    order: Usdt247OrderData;
-  };
+  success: boolean;
+  data: Usdt247OrderData;
   message?: string;
 }
 
@@ -147,8 +147,8 @@ export interface Order {
   expired_at: Date;
   created_at: Date;
   updated_at: Date;
-  client_ip: string;
-  outcome: string;
-  original_rate: string;
+  client_ip: string | null;
+  outcome: string | null;
+  original_rate: string | null;
   total_fee_vnd: number | null;
 }

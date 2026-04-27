@@ -39,7 +39,7 @@ export class PaymentService {
     requestData: Usdt247CreateWithdrawalRequest
   ): Promise<Usdt247Order> {
     try {
-      const response = await fetch(`${this.apiBaseUrl}/withdrawal`, {
+      const response = await fetch(`${this.apiBaseUrl}/api/orders/withdrawal`, {
         method: 'POST',
         headers: {
           'Partner-App-Key': this.partnerAppKey,
@@ -67,22 +67,21 @@ export class PaymentService {
       logger.info(
         {
           hasData: !!apiResponse.data,
-          hasOrder: !!apiResponse.data?.order,
-          orderId: apiResponse.data?.order?.id,
+          orderId: apiResponse.data?.id,
         },
         'Withdrawal API JSON response parsed'
       );
 
-      if (!apiResponse.data || !apiResponse.data.order) {
-        logger.error({ apiResponse }, 'Invalid API response structure: missing data.order');
-        throw new Error('Invalid API response structure: missing data.order');
+      if (!apiResponse.data) {
+        logger.error({ apiResponse }, 'Invalid API response structure: missing data');
+        throw new Error('Invalid API response structure: missing data');
       }
 
-      return apiResponse.data.order;
+      return apiResponse.data;
     } catch (error) {
       captureErrorWithContext(error, {
         action: 'callWithdrawalAPI',
-        apiUrl: `${this.apiBaseUrl}/withdrawal`,
+        apiUrl: `${this.apiBaseUrl}/api/orders/withdrawal`,
       });
       throw error;
     }
@@ -92,13 +91,13 @@ export class PaymentService {
     try {
       logger.info(
         {
-          url: `${this.apiBaseUrl}/deposit`,
+          url: `${this.apiBaseUrl}/api/orders/deposit`,
           requestBody: requestData,
         },
         'Sending deposit API request'
       );
 
-      const response = await fetch(`${this.apiBaseUrl}/deposit`, {
+      const response = await fetch(`${this.apiBaseUrl}/api/orders/deposit`, {
         method: 'POST',
         headers: {
           'Partner-App-Key': this.partnerAppKey,
@@ -130,30 +129,41 @@ export class PaymentService {
       logger.info(
         {
           hasData: !!apiResponse.data,
-          hasOrder: !!apiResponse.data?.order,
-          orderId: apiResponse.data?.order?.id,
-          orderAmount: apiResponse.data?.order?.amount,
-          orderCurrency: apiResponse.data?.order?.currency,
-          orderRate: apiResponse.data?.order?.rate,
-          bodyAmount: apiResponse.data?.order?.body?.amount,
-          payDataAmount: apiResponse.data?.order?.pay_data?.amount,
+          orderId: apiResponse.data?.id,
+          orderAmount: apiResponse.data?.amount,
+          orderCurrency: apiResponse.data?.currency,
+          orderRate: apiResponse.data?.rate,
+          bodyAmount: apiResponse.data?.body?.amount,
+          payDataAmount: apiResponse.data?.pay_data?.amount,
         },
         'Deposit API JSON response parsed'
       );
 
-      if (!apiResponse.data || !apiResponse.data.order) {
-        logger.error({ apiResponse }, 'Invalid API response structure: missing data.order');
-        throw new Error('Invalid API response structure: missing data.order');
+      if (!apiResponse.data) {
+        logger.error({ apiResponse }, 'Invalid API response structure: missing data');
+        throw new Error('Invalid API response structure: missing data');
       }
 
-      return apiResponse.data.order;
+      return apiResponse.data;
     } catch (error) {
       captureErrorWithContext(error, {
         action: 'callDepositAPI',
-        apiUrl: `${this.apiBaseUrl}/deposit`,
+        apiUrl: `${this.apiBaseUrl}/api/orders/deposit`,
       });
       throw error;
     }
+  }
+
+  private mapOrderType(orderType: string | number): number {
+    if (typeof orderType === 'number') return orderType;
+    const map: Record<string, number> = { buy: 2, sell: 1 };
+    return map[orderType] ?? 0;
+  }
+
+  private mapProvider(provider: string | number): number {
+    if (typeof provider === 'number') return provider;
+    const map: Record<string, number> = { sepay: 1, chain: 2 };
+    return map[provider] ?? 0;
   }
 
   private async saveOrder(chatId: number, apiResponse: Usdt247Order): Promise<Order> {
@@ -161,10 +171,10 @@ export class PaymentService {
       id: apiResponse.id,
       chat_id: chatId,
       user_id: apiResponse.user_id,
-      order_type: apiResponse.order_type,
+      order_type: this.mapOrderType(apiResponse.order_type),
       external_id: apiResponse.external_id || null,
       code: apiResponse.code,
-      provider: apiResponse.provider,
+      provider: this.mapProvider(apiResponse.provider),
       callback: apiResponse.callback,
       amount: apiResponse.amount,
       currency: apiResponse.currency,
@@ -181,9 +191,9 @@ export class PaymentService {
       expired_at: this.convertTimestamp(apiResponse.expired_at),
       created_at: this.convertTimestamp(apiResponse.created_at),
       updated_at: this.convertTimestamp(apiResponse.updated_at),
-      client_ip: apiResponse.client_ip,
-      outcome: apiResponse.outcome,
-      original_rate: apiResponse.original_rate,
+      client_ip: apiResponse.client_ip || null,
+      outcome: apiResponse.outcome || null,
+      original_rate: apiResponse.original_rate || null,
       total_fee_vnd: apiResponse.total_fee_vnd,
     };
 
@@ -221,7 +231,7 @@ export class PaymentService {
       {
         chatId: request.chat_id,
         bankId: request.payment_info.bank_id,
-        apiUrl: `${this.apiBaseUrl}/withdrawal`,
+        apiUrl: `${this.apiBaseUrl}/api/orders/withdrawal`,
       },
       'Calling withdrawal API'
     );
@@ -271,7 +281,7 @@ export class PaymentService {
     };
 
     logger.info(
-      { chatId: request.chat_id, apiUrl: `${this.apiBaseUrl}/deposit` },
+      { chatId: request.chat_id, apiUrl: `${this.apiBaseUrl}/api/orders/deposit` },
       'Calling deposit API'
     );
 
@@ -281,8 +291,9 @@ export class PaymentService {
       {
         chatId: request.chat_id,
         orderId: apiResponse.id,
-        hasPayData: !!apiResponse.pay_data,
-        hasQrCode: !!apiResponse.pay_data?.qr_code,
+        hasBody: !!apiResponse.body,
+        hasQrCode: !!apiResponse.body?.qr_code,
+        hasQrLink: !!apiResponse.body?.qr_link,
       },
       'Deposit API response received'
     );

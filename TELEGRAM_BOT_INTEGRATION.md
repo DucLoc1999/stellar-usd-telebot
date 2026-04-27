@@ -1,31 +1,31 @@
 # Telegram Bot Integration Guide
 
-This document describes the Telegram bot integration for buy/sell USDT operations.
+This document describes the Telegram bot integration for buy/sell USDC operations.
 
 ## Overview
 
-The Telegram bot has been integrated into the main application to handle buy/sell USDT operations directly through the existing payment endpoints. The bot provides a user-friendly Vietnamese interface for cryptocurrency transactions.
+The Telegram bot has been integrated into the main application to handle buy/sell USDC operations directly through the existing payment endpoints. The bot provides a user-friendly Vietnamese interface for cryptocurrency transactions.
 
 ## Features Implemented
 
-### 1. Buy USDT Flow (Deposit)
+### 1. Buy USDC Flow (Deposit)
 - User initiates buy operation via `/start` command
-- Bot prompts for USDT amount
+- Bot prompts for USDC amount
 - User enters wallet address (BSC/BEP-20)
 - Bot calls `/api/v1/payment/deposit` endpoint
 - QR code is generated from the `body.qr_code` field in the response
 - QR code image is displayed to user for payment
 - User scans QR code to complete VND payment
 
-### 2. Sell USDT Flow (Withdrawal)
+### 2. Sell USDC Flow (Withdrawal)
 - User initiates sell operation via bot menu
-- Bot prompts for USDT amount
+- Bot prompts for USDC amount
 - Bot calls `/api/v1/payment/withdrawal` endpoint
 - Recipient wallet address from `pay_data.address` is displayed
-- User sends USDT to the displayed address on BSC network
+- User sends USDC to the displayed address on BSC network
 
 ### 3. Webhook Notifications
-- When payment status changes, HSPay sends webhook to `/api/webhooks/payment`
+- When payment status changes, payment service sends webhook to `/api/webhooks/payment`
 - Webhook controller sends Telegram notification to user's `chat_id`
 - Notifications include order ID and status updates (Created, Processing, Completed, Failed, Cancelled)
 
@@ -60,7 +60,7 @@ CALLBACK_URL=https://unfading-commonplacely-daphne.ngrok-free.dev/api/webhooks/p
 
 ### Payment Webhook (Existing)
 - **Endpoint**: `POST /api/webhooks/payment`
-- **Description**: Receives payment status updates from HSPay
+- **Description**: Receives payment status updates from Payment Service
 - **Authentication**: ED25519 signature verification
 
 ## File Structure
@@ -86,18 +86,18 @@ src/
 
 - `/start` - Start the bot and show main menu
 - Main menu buttons:
-  - 💰 Mua USDT (Buy USDT)
-  - 💸 Bán USDT (Sell USDT)
+  - 💰 Mua USDC (Buy USDC)
+  - 💸 Bán USDC (Sell USDC)
 
 ## User Flow Examples
 
-### Buy USDT Example
+### Buy USDC Example
 1. User: `/start`
 2. Bot: Shows welcome message with menu
-3. User: Clicks "💰 Mua USDT"
-4. Bot: "Vui lòng nhập số lượng USDT muốn mua (VD: 100):"
+3. User: Clicks "💰 Mua USDC"
+4. Bot: "Vui lòng nhập số lượng USDC muốn mua (VD: 100):"
 5. User: `100`
-6. Bot: "Vui lòng nhập địa chỉ ví BSC (BEP-20) để nhận USDT:"
+6. Bot: "Vui lòng nhập địa chỉ ví BSC (BEP-20) để nhận USDC:"
 7. User: `0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb`
 8. Bot: Shows order summary with confirmation buttons
 9. User: Clicks "✅ Xác nhận"
@@ -105,16 +105,16 @@ src/
 11. User: Scans QR code and completes payment
 12. Bot: Sends notification when order status changes
 
-### Sell USDT Example
+### Sell USDC Example
 1. User: `/start`
 2. Bot: Shows welcome message with menu
-3. User: Clicks "💸 Bán USDT"
-4. Bot: "Vui lòng nhập số lượng USDT muốn bán (VD: 100):"
+3. User: Clicks "💸 Bán USDC"
+4. Bot: "Vui lòng nhập số lượng USDC muốn bán (VD: 100):"
 5. User: `100`
 6. Bot: Shows order summary with confirmation buttons
 7. User: Clicks "✅ Xác nhận"
-8. Bot: Displays recipient wallet address for USDT transfer
-9. User: Sends USDT to the displayed address
+8. Bot: Displays recipient wallet address for USDC transfer
+9. User: Sends USDC to the displayed address
 10. Bot: Sends notification when order status changes
 
 ## QR Code Generation
@@ -152,6 +152,17 @@ curl -X POST "https://api.telegram.org/bot<YOUR_BOT_TOKEN>/setWebhook" \
   -d '{"url": "https://your-domain.com/api/telegram/webhook", "secret_token": "<YOUR_TELEGRAM_WEBHOOK_SECRET>"}'
 
 ```
+https://226d-2402-800-62ce-e046-368d-2f6b-8b0-b3ba.ngrok-free.app -> http
+
+curl -X POST "https://api.telegram.org/bot7227748479:AAFBJPqPTjXNYH_--83RXnaTyeXxiY8byBE/setWebhook" \
+  -H "Content-Type: application/json" \
+  -d '{"url": "https://telebot.dev.seerbot.io/api/telegram/webhook", "secret_token": "nxQLqJQAjjEHQVvqmQJ1"}'
+
+
+curl -X POST "https://api.telegram.org/bot8393100631:AAHxzILxoRO9MpBPvAWbII1E4gpv7bRIVS4/setWebhook" \
+  -H "Content-Type: application/json" \
+  -d '{"url": "https://226d-2402-800-62ce-e046-368d-2f6b-8b0-b3ba.ngrok-free.app/api/telegram/webhook", "secret_token": "1e8a8355e35670dd878c50b059a8cbe6198b4719b58c78682ae3830c9735b813"}'
+
 
 ### 4. Build and Start
 ```bash
@@ -164,7 +175,7 @@ npm start
 ### Test Buy Flow
 1. Start a chat with your bot on Telegram
 2. Send `/start`
-3. Click "💰 Mua USDT"
+3. Click "💰 Mua USDC"
 4. Enter amount: `10`
 5. Enter wallet: `0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb`
 6. Confirm order
@@ -173,7 +184,7 @@ npm start
 ### Test Sell Flow
 1. Start a chat with your bot on Telegram
 2. Send `/start`
-3. Click "💸 Bán USDT"
+3. Click "💸 Bán USDC"
 4. Enter amount: `10`
 5. Confirm order
 6. Verify recipient address is displayed
@@ -210,7 +221,7 @@ npm start
 ## Notes
 
 - The bot uses Vietnamese language for all messages
-- All amounts are in USDT
+- All amounts are in USDC
 - Network is hardcoded to BSC (Chain ID: 56)
 - QR codes are generated using external API (QuickChart.io)
 - Webhook notifications are sent asynchronously and won't block webhook processing
