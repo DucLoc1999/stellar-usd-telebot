@@ -17,6 +17,39 @@ export class PaymentService {
   private readonly apiBaseUrl = process.env.API_PAY || '';
   private readonly partnerAppKey = process.env.PARTNER_APP_KEY || '';
 
+  async getRate(): Promise<{
+    buy: number;
+    sell: number;
+    fee_rate_buy: number;
+    fee_rate_sell: number;
+    created_at: string;
+  } | null> {
+    try {
+      const response = await fetch(`${this.apiBaseUrl}/api/rate/usdt_vnd`);
+      if (!response.ok) {
+        logger.error({ status: response.status }, 'Failed to fetch rate');
+        return null;
+      }
+      const data = (await response.json()) as {
+        buy: number;
+        sell: number;
+        fee_rate_buy?: number;
+        fee_rate_sell?: number;
+        created_at: string;
+      };
+      return {
+        buy: data.buy,
+        sell: data.sell,
+        fee_rate_buy: data.fee_rate_buy ?? 0,
+        fee_rate_sell: data.fee_rate_sell ?? 0,
+        created_at: data.created_at,
+      };
+    } catch (error) {
+      logger.error({ error }, 'Error fetching rate');
+      return null;
+    }
+  }
+
   private convertTimestamp(timestamp: Usdt247Timestamp): Date {
     const milliseconds = timestamp.seconds * 1000 + timestamp.nanos / 1000000;
     return new Date(milliseconds);
