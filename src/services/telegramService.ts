@@ -107,11 +107,17 @@ export const Messages = {
     `Vui lòng kiểm tra lại tên ngân hàng.\n\n` +
     `💡 Gợi ý: VIETCOMBANK, TECHCOMBANK, BIDV, AGRIBANK, VCB, TCB, MB, ACB, VPB, TPB, SACOMBANK, HDBANK, SHB, VIB, MSB, OCB, EXIMBANK, SCB, SEABANK, ABBANK, VIETINBANK, LIENVIETPOSTBANK, PVCOMBANK, BAOVIETBANK, GPBANK, NAMABANK, PGBANK, VIETABANK, VIETBANK, OCEANBANK, CBBANK, KIENLONGBANK, DONGABANK, WOORIBANK, PUBLICBANK, NONGHYUP, INDOVINABANK, SHINHAN, STANDARDCHARTERED, ANZ, HSBC, HONGKONG, CIMB, UOB, MAYBANK, BANGKOK, MIZUHO, MUFG, SMBC, DEUTSCHE, BNP, CITIBANK`,
 
-  ORDER_SUMMARY_BUY: (usdtAmount: string, wallet: string, vndAmount: number, buyRate: number) =>
+  ORDER_SUMMARY_BUY: (
+    usdtAmount: string,
+    wallet: string,
+    vndAmount: number,
+    buyRate: number,
+    gatewayFee: number
+  ) =>
     `📋 <b>XÁC NHẬN ĐƠN HÀNG - MUA USDC</b>\n\n` +
     `Đơn hàng MUA <b>${usdtAmount} USDC</b> x <b>${buyRate.toLocaleString('vi-VN')}đ</b>\n\n` +
     `🌐 Mạng: Stellar | ⚡ Phí gas: $0.00\n` +
-    `💰 Thành tiền: <b>${Math.round(vndAmount).toLocaleString('vi-VN')}đ</b>\n` +
+    `💰 Thành tiền: <b>${Math.round(vndAmount).toLocaleString('vi-VN')}đ</b> | 💳 Phí dịch vụ: <b>${Math.round(gatewayFee).toLocaleString('vi-VN')}đ</b>\n` +
     `📮 Ví nhận: <code>${wallet}</code>\n\n` +
     `⚠️ Vui lòng kiểm tra kỹ thông tin trước khi thanh toán!`,
 
@@ -906,6 +912,8 @@ const userStates = new Map<number, UserState>();
 interface ExchangeRate {
   buy: number;
   sell: number;
+  fee_rate_buy?: number;
+  fee_rate_sell?: number;
   created_at: string;
 }
 
@@ -2106,6 +2114,8 @@ export class TelegramService {
 
       const usdtAmount = parseFloat(state.amount!);
       const vndAmount = usdtAmount * rates.sell;
+      const feeRate = rates.fee_rate_buy ?? 0;
+      const gatewayFee = vndAmount * feeRate;
 
       try {
         await ctx.editMessageText(
@@ -2113,7 +2123,8 @@ export class TelegramService {
             state.amount!,
             paymentInfo.wallet_address,
             vndAmount,
-            rates.sell
+            rates.sell,
+            gatewayFee
           ),
           {
             parse_mode: 'HTML',
@@ -2932,11 +2943,16 @@ export class TelegramService {
 
     const usdtAmount = parseFloat(state.amount!);
     const vndAmount = usdtAmount * rates.sell;
+    const feeRate = rates.fee_rate_buy ?? 0;
+    const gatewayFee = vndAmount * feeRate;
 
-    await ctx.reply(Messages.ORDER_SUMMARY_BUY(state.amount!, text, vndAmount, rates.sell), {
-      parse_mode: 'HTML',
-      reply_markup: Keyboards.confirmPayment(),
-    });
+    await ctx.reply(
+      Messages.ORDER_SUMMARY_BUY(state.amount!, text, vndAmount, rates.sell, gatewayFee),
+      {
+        parse_mode: 'HTML',
+        reply_markup: Keyboards.confirmPayment(),
+      }
+    );
   }
 
   /**
