@@ -11,10 +11,10 @@
     "lint:fix": "eslint . --ext .ts --fix",
     "format": "prettier --write \"src/**/*.ts\"",
     "format:check": "prettier --check \"src/**/*.ts\"",
-    "migrate:make": "knex migrate:make --knexfile knexfile.ts -x ts",
-    "migrate:latest": "knex migrate:latest --knexfile knexfile.ts",
-    "migrate:rollback": "knex migrate:rollback --knexfile knexfile.ts",
-    "migrate:status": "knex migrate:status --knexfile knexfile.ts"
+    "migrate:make": "tsx node_modules/knex/bin/cli.js migrate:make --knexfile knexfile.ts -x ts",
+    "migrate:latest": "tsx node_modules/knex/bin/cli.js migrate:latest --knexfile knexfile.ts",
+    "migrate:rollback": "tsx node_modules/knex/bin/cli.js migrate:rollback --knexfile knexfile.ts",
+    "migrate:status": "tsx node_modules/knex/bin/cli.js migrate:status --knexfile knexfile.ts"
   },
   "keywords": [
     "fastify",
