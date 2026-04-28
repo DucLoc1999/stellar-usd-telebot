@@ -2087,10 +2087,10 @@ export class TelegramService {
         'Using saved wallet'
       );
 
-      // Fetch exchange rates and calculate fees
+      // Fetch exchange rates from Payment API (includes fee rates)
       let rates;
       try {
-        rates = await this.fetchExchangeRates();
+        rates = await paymentService.getRate();
       } catch (error) {
         logger.error({ error, userId }, 'Failed to fetch exchange rates');
         rates = null;
@@ -2924,10 +2924,10 @@ export class TelegramService {
 
     userStates.set(userId, state);
 
-    // Fetch exchange rates and calculate fees
+    // Fetch exchange rates from Payment API (includes fee rates)
     let rates;
     try {
-      rates = await this.fetchExchangeRates();
+      rates = await paymentService.getRate();
     } catch (error) {
       logger.error({ error, userId }, 'Failed to fetch exchange rates');
       rates = null;
