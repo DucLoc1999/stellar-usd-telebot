@@ -49,6 +49,7 @@ export class WebhookService {
       new_order_state,
       old_order_processing_state,
       new_order_processing_state,
+      transaction_hash,
     } = payload;
 
     logger.info(
@@ -80,6 +81,10 @@ export class WebhookService {
       updateData.processing_state = new_order_processing_state;
     }
 
+    if (transaction_hash) {
+      updateData.transaction_hash = transaction_hash;
+    }
+
     // Update order state and optionally processing state
     await db('orders').where('id', order_id).update(updateData);
 
@@ -90,6 +95,7 @@ export class WebhookService {
         newState: new_order_state,
         previousProcessingState: old_order_processing_state ?? 'N/A',
         newProcessingState: new_order_processing_state ?? 'N/A',
+        transactionHash: transaction_hash ?? '--',
       },
       'Order state updated successfully'
     );
@@ -101,6 +107,7 @@ export class WebhookService {
       oldProcessingState: old_order_processing_state ?? 0,
       newProcessingState: new_order_processing_state ?? 0,
       timestamp: ts,
+      transactionHash: transaction_hash,
     };
   }
 
