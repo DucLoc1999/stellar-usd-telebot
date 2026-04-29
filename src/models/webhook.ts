@@ -35,6 +35,7 @@ export interface WebhookPayload {
   new_order_state: number;
   old_order_processing_state?: number;
   new_order_processing_state?: number;
+  transaction_hash?: string;
 }
 
 /**
@@ -66,6 +67,7 @@ export interface OrderStateChange {
   oldProcessingState: number;
   newProcessingState: number;
   timestamp: string;
+  transactionHash?: string;
 }
 
 export const banks = [

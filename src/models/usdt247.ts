@@ -70,6 +70,7 @@ export interface Usdt247OrderData {
   partner_id: string;
   state: number;
   processing_state: number;
+  transaction_hash?: string;
   body?: Usdt247ResponseBody;
   pay_data?: Usdt247PayData;
   payment_info?: Usdt247PaymentInfo;
@@ -141,6 +142,7 @@ export interface Order {
   partner_id: string;
   state: number;
   processing_state: number;
+  transaction_hash: string | null;
   body: Usdt247ResponseBody | null;
   pay_data: Usdt247PayData | null;
   payment_info: Usdt247PaymentInfo | null;

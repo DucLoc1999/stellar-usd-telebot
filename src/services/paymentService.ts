@@ -218,6 +218,7 @@ export class PaymentService {
       partner_id: apiResponse.partner_id,
       state: apiResponse.state,
       processing_state: apiResponse.processing_state,
+      transaction_hash: apiResponse.transaction_hash || null,
       body: apiResponse.body ? JSON.stringify(apiResponse.body) : null,
       pay_data: apiResponse.pay_data ? JSON.stringify(apiResponse.pay_data) : null,
       payment_info: apiResponse.payment_info ? JSON.stringify(apiResponse.payment_info) : null,

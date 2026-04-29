@@ -11,6 +11,7 @@ interface QueuedNotification {
   processingState?: number;
   timestamp: string;
   eventId: string;
+  transactionHash?: string;
 }
 
 /**
@@ -37,7 +38,7 @@ export class NotificationQueueService {
    * @param notification Notification details
    */
   async enqueueNotification(notification: QueuedNotification): Promise<void> {
-    const { chatId, orderId, timestamp, eventId } = notification;
+    const { chatId, orderId, timestamp, eventId, transactionHash } = notification;
 
     logger.info(
       {
@@ -45,6 +46,7 @@ export class NotificationQueueService {
         orderId,
         eventId,
         timestamp,
+        transactionHash: transactionHash ?? '--',
       },
       'Enqueueing notification'
     );
@@ -119,6 +121,7 @@ export class NotificationQueueService {
             orderId: notification.orderId,
             eventId: notification.eventId,
             timestamp: notification.timestamp,
+            transactionHash: notification.transactionHash ?? '--',
             remainingInQueue: chatQueue.queue.length,
           },
           'Processing notification from queue'
@@ -130,7 +133,8 @@ export class NotificationQueueService {
             notification.chatId,
             notification.orderId,
             notification.state,
-            notification.processingState
+            notification.processingState,
+            notification.transactionHash
           );
 
           logger.info(
@@ -196,6 +200,7 @@ export class NotificationQueueService {
           orderId: n.orderId,
           timestamp: n.timestamp,
           eventId: n.eventId,
+          transactionHash: n.transactionHash,
         })),
       };
     }
@@ -210,6 +215,7 @@ export class NotificationQueueService {
           orderId: n.orderId,
           timestamp: n.timestamp,
           eventId: n.eventId,
+          transactionHash: n.transactionHash,
         })),
       };
     });

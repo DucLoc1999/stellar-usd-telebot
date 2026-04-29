@@ -145,6 +145,7 @@ export class WebhookController {
               processingState: stateChange.newProcessingState,
               timestamp: event.ts,
               eventId: event.id,
+              transactionHash: stateChange.transactionHash
             });
             logger.info(
               {
