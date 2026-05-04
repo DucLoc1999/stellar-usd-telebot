@@ -15,6 +15,8 @@ export interface Usdt247BankInfo {
   bankAccountNumber?: string;
   bankId?: string;
   bankName?: string;
+  transferContent?: string;
+  vaAmount?: number;
 }
 
 export interface Usdt247ResponseBody {
