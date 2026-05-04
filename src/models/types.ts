@@ -54,6 +54,7 @@ export interface TelegramConfig {
   chainId: string;
   tokenAddress: string;
   callbackUrl: string;
+  horizonUrl: string;
 }
 
 export type PaymentType = 'BANK' | 'CRYPTO';
