@@ -1,5 +1,15 @@
 import { banks } from '../../models/webhook';
 import type { PaymentInformation, Kyc } from '../../models/types';
+import { appConfig } from '../../config/app';
+import { DateTime } from 'luxon';
+
+const formatTimeWithTimeZone = (): string => {
+  const dt = DateTime.now().setZone(appConfig.timeZone);
+  const time = dt.toFormat('HH:mm:ss');
+  const date = dt.toFormat('d/M/yyyy');
+  const offset = dt.offsetNameShort;
+  return `${time} ${date} ${offset}`;
+};
 
 export const Messages = {
   WELCOME: (firstName: string) =>
@@ -481,27 +491,27 @@ export const Messages = {
     `📢 <b>CẬP NHẬT ĐƠN HÀNG</b>\n\n` +
     `🆔 Mã đơn: <code>${orderId}</code>\n` +
     `📊 Trạng thái: <b>${status}</b>\n\n` +
-    `⏰ Thời gian: ${new Date().toLocaleString('vi-VN')}`,
+    `⏰ Thời gian: ${formatTimeWithTimeZone()}`,
 
   ORDER_STATE_CREATED: (orderId: string) =>
     `✅ <b>ĐƠN HÀNG ĐÃ TẠO</b>\n\n` +
     `🆔 Mã đơn: <code>${orderId}</code>\n` +
     `📊 Trạng thái: Đã tạo\n\n` +
-    `⏰ Thời gian: ${new Date().toLocaleString('vi-VN')}\n\n` +
+    `⏰ Thời gian: ${formatTimeWithTimeZone()}\n\n` +
     `💡 Đơn hàng của bạn đã được tạo thành công!`,
 
   ORDER_STATE_PROCESSING: (orderId: string) =>
     `⏳ <b>ĐANG XỬ LÝ</b>\n\n` +
     `🆔 Mã đơn: <code>${orderId}</code>\n` +
     `📊 Trạng thái: Đang xử lý\n\n` +
-    `⏰ Thời gian: ${new Date().toLocaleString('vi-VN')}\n\n` +
+    `⏰ Thời gian: ${formatTimeWithTimeZone()}\n\n` +
     `💡 Đơn hàng của bạn đang được xử lý...`,
 
   ORDER_STATE_COMPLETED: (orderId: string, transactionHash?: string) =>
     `🎉 <b>HOÀN THÀNH</b>\n\n` +
     `🆔 Mã đơn: <code>${orderId}</code>\n` +
     `📊 Trạng thái: Hoàn thành\n\n` +
-    `⏰ Thời gian: ${new Date().toLocaleString('vi-VN')}\n\n` +
+    `⏰ Thời gian: ${formatTimeWithTimeZone()}\n\n` +
     `💰 Vui lòng kiểm tra ví của bạn.` +
     (transactionHash
       ? `\n🔗 Tx Hash: <a href='https://stellarchain.io/tx/${transactionHash}'>${transactionHash}</a>`
@@ -511,14 +521,14 @@ export const Messages = {
     `❌ <b>THẤT BẠI</b>\n\n` +
     `🆔 Mã đơn: <code>${orderId}</code>\n` +
     `📊 Trạng thái: Thất bại\n\n` +
-    `⏰ Thời gian: ${new Date().toLocaleString('vi-VN')}\n\n` +
+    `⏰ Thời gian: ${formatTimeWithTimeZone()}\n\n` +
     `💡 Giao dịch không thành công. Vui lòng liên hệ support để được hỗ trợ!`,
 
   ORDER_STATE_CANCELLED: (orderId: string) =>
     `🚫 <b>ĐÃ HỦY</b>\n\n` +
     `🆔 Mã đơn: <code>${orderId}</code>\n` +
     `📊 Trạng thái: Đã hủy\n\n` +
-    `⏰ Thời gian: ${new Date().toLocaleString('vi-VN')}\n\n` +
+    `⏰ Thời gian: ${formatTimeWithTimeZone()}\n\n` +
     `💡 Đơn hàng đã được hủy.`,
 
   PROCESSING_STATE_WAITING_FIAT: (orderId: string) =>
