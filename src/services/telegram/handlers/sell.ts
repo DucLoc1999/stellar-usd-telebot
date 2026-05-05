@@ -1,7 +1,15 @@
 import { Bot, InputFile } from 'grammy';
 import { Messages, Keyboards } from '../index';
-import { userStates, processingUsers, newlyCreatedOrders, type UserState } from '../user-state';
+import {
+  getState,
+  setState,
+  clearState,
+  processingUsers,
+  newlyCreatedOrders,
+  type UserState,
+} from '../user-state';
 import { logger } from '../../../config/logger';
+import { getUserId } from './context';
 import { telegramConfig } from '../../../config/app';
 import paymentService from '../../paymentService';
 import paymentInformationService from '../../paymentInformationService';
@@ -19,7 +27,7 @@ import {
 export function setupSellHandlers(bot: Bot): void {
   bot.callbackQuery('sell_usdt', async (ctx) => {
     await ctx.answerCallbackQuery().catch(() => {});
-    const userId = ctx.from.id;
+    const userId = getUserId(ctx);
 
     try {
       logger.info({ userId }, 'Checking KYC status for sell USDC');
@@ -49,7 +57,11 @@ export function setupSellHandlers(bot: Bot): void {
         { userId, isKyc: user.is_kyc },
         'User is KYC verified, proceeding with sell flow'
       );
-      userStates.set(userId, { action: 'sell' });
+      setState(
+        userId,
+        { action: 'sell' },
+        { action: 'handler.state.set', chatType: ctx.chat?.type, chatId: ctx.chat?.id }
+      );
       await ctx.editMessageText(Messages.SELL_SELECT_AMOUNT(), {
         parse_mode: 'HTML',
         reply_markup: Keyboards.sellAmountSelection(),
@@ -67,24 +79,37 @@ export function setupSellHandlers(bot: Bot): void {
 
   bot.callbackQuery(/^sell_amount_\d+$/, async (ctx) => {
     await ctx.answerCallbackQuery().catch(() => {});
-    const userId = ctx.from.id;
+    const userId = getUserId(ctx);
     const amount = ctx.callbackQuery.data.replace('sell_amount_', '');
 
     const savedBankAccounts = await paymentInformationService.findByTypeAndChatId(userId, 'BANK');
 
     if (savedBankAccounts.length > 0) {
-      userStates.set(userId, { action: 'sell', amount });
+      setState(
+        userId,
+        { action: 'sell', amount },
+        { action: 'handler.state.set', chatType: ctx.chat?.type, chatId: ctx.chat?.id }
+      );
       await ctx.editMessageText(Messages.SELECT_SAVED_BANK_ACCOUNT(), {
         parse_mode: 'HTML',
         reply_markup: Keyboards.savedBankAccountSelection(savedBankAccounts),
       });
     } else {
-      const state = userStates.get(userId) || {};
+      const state =
+        getState(userId, {
+          action: 'handler.state.get',
+          chatType: ctx.chat?.type,
+          chatId: ctx.chat?.id,
+        }) || {};
       state.action = 'sell';
       state.amount = amount;
       state.waitingFor = 'bank_details_single';
       state.isNewPaymentInfo = true;
-      userStates.set(userId, state);
+      setState(userId, state, {
+        action: 'handler.state.set',
+        chatType: ctx.chat?.type,
+        chatId: ctx.chat?.id,
+      });
 
       logger.info(
         { userId, amount },
@@ -100,8 +125,12 @@ export function setupSellHandlers(bot: Bot): void {
 
   bot.callbackQuery('sell_custom', async (ctx) => {
     await ctx.answerCallbackQuery().catch(() => {});
-    const userId = ctx.from.id;
-    userStates.set(userId, { action: 'sell', waitingFor: 'sell_amount' });
+    const userId = getUserId(ctx);
+    setState(
+      userId,
+      { action: 'sell', waitingFor: 'sell_amount' },
+      { action: 'handler.state.set', chatType: ctx.chat?.type, chatId: ctx.chat?.id }
+    );
     await ctx.editMessageText(Messages.ENTER_CUSTOM_AMOUNT_SELL(), {
       parse_mode: 'HTML',
       reply_markup: Keyboards.backToMenu(),
@@ -110,9 +139,13 @@ export function setupSellHandlers(bot: Bot): void {
 
   bot.callbackQuery(/^select_bank_\d+$/, async (ctx) => {
     await ctx.answerCallbackQuery().catch(() => {});
-    const userId = ctx.from.id;
+    const userId = getUserId(ctx);
     const bankId = parseInt(ctx.callbackQuery.data.replace('select_bank_', ''));
-    const state = userStates.get(userId);
+    const state = getState(userId, {
+      action: 'handler.state.get',
+      chatType: ctx.chat?.type,
+      chatId: ctx.chat?.id,
+    });
 
     if (!state || state.action !== 'sell') {
       await ctx.reply(
@@ -137,7 +170,11 @@ export function setupSellHandlers(bot: Bot): void {
     state.bankId = bankId;
     state.bankName = selectedBank.short_name;
     state.waitingFor = 'full_name';
-    userStates.set(userId, state);
+    setState(userId, state, {
+      action: 'handler.state.set',
+      chatType: ctx.chat?.type,
+      chatId: ctx.chat?.id,
+    });
 
     logger.info({ userId, bankId, bankName: selectedBank.short_name }, 'Bank selected');
 
@@ -149,9 +186,13 @@ export function setupSellHandlers(bot: Bot): void {
 
   bot.callbackQuery(/^show_more_banks_\d+$/, async (ctx) => {
     await ctx.answerCallbackQuery().catch(() => {});
-    const userId = ctx.from.id;
+    const userId = getUserId(ctx);
     const offset = parseInt(ctx.callbackQuery.data.replace('show_more_banks_', ''));
-    const state = userStates.get(userId);
+    const state = getState(userId, {
+      action: 'handler.state.get',
+      chatType: ctx.chat?.type,
+      chatId: ctx.chat?.id,
+    });
 
     if (!state || state.action !== 'sell') {
       await ctx.reply(
@@ -162,7 +203,11 @@ export function setupSellHandlers(bot: Bot): void {
     }
 
     state.bankPageOffset = offset;
-    userStates.set(userId, state);
+    setState(userId, state, {
+      action: 'handler.state.set',
+      chatType: ctx.chat?.type,
+      chatId: ctx.chat?.id,
+    });
 
     logger.info({ userId, offset }, 'Showing more banks');
 
@@ -179,9 +224,13 @@ export function setupSellHandlers(bot: Bot): void {
       logger.debug({ error, userId: ctx.from.id }, 'Failed to answer callback query');
     }
 
-    const userId = ctx.from.id;
+    const userId = getUserId(ctx);
     const paymentInfoId = parseInt(ctx.callbackQuery.data.replace('use_saved_bank_', ''));
-    const state = userStates.get(userId);
+    const state = getState(userId, {
+      action: 'handler.state.get',
+      chatType: ctx.chat?.type,
+      chatId: ctx.chat?.id,
+    });
 
     if (!state || state.action !== 'sell') {
       await ctx.reply(
@@ -226,7 +275,11 @@ export function setupSellHandlers(bot: Bot): void {
     state.accountNumber = paymentInfo.bank_account;
     state.paymentInfoId = paymentInfoId;
     state.waitingFor = undefined;
-    userStates.set(userId, state);
+    setState(userId, state, {
+      action: 'handler.state.set',
+      chatType: ctx.chat?.type,
+      chatId: ctx.chat?.id,
+    });
 
     logger.info({ userId, paymentInfoId, bankId: paymentInfo.bank_id }, 'Using saved bank account');
 
@@ -274,8 +327,12 @@ export function setupSellHandlers(bot: Bot): void {
 
   bot.callbackQuery('add_new_bank', async (ctx) => {
     await ctx.answerCallbackQuery().catch(() => {});
-    const userId = ctx.from.id;
-    const state = userStates.get(userId);
+    const userId = getUserId(ctx);
+    const state = getState(userId, {
+      action: 'handler.state.get',
+      chatType: ctx.chat?.type,
+      chatId: ctx.chat?.id,
+    });
 
     if (!state || state.action !== 'sell') {
       await ctx.reply(
@@ -287,7 +344,11 @@ export function setupSellHandlers(bot: Bot): void {
 
     state.waitingFor = 'bank_details_single';
     state.isNewPaymentInfo = true;
-    userStates.set(userId, state);
+    setState(userId, state, {
+      action: 'handler.state.set',
+      chatType: ctx.chat?.type,
+      chatId: ctx.chat?.id,
+    });
 
     logger.info({ userId }, 'User chose to add new bank account - single input mode');
 
@@ -316,7 +377,11 @@ export async function handleSellAmountInput(
   const savedBankAccounts = await paymentInformationService.findByTypeAndChatId(userId, 'BANK');
 
   if (savedBankAccounts.length > 0) {
-    userStates.set(userId, state);
+    setState(userId, state, {
+      action: 'handler.state.set',
+      chatType: ctx.chat?.type,
+      chatId: ctx.chat?.id,
+    });
     await ctx.reply(Messages.SELECT_SAVED_BANK_ACCOUNT(), {
       parse_mode: 'HTML',
       reply_markup: Keyboards.savedBankAccountSelection(savedBankAccounts),
@@ -324,7 +389,11 @@ export async function handleSellAmountInput(
   } else {
     state.waitingFor = 'bank_details_single';
     state.isNewPaymentInfo = true;
-    userStates.set(userId, state);
+    setState(userId, state, {
+      action: 'handler.state.set',
+      chatType: ctx.chat?.type,
+      chatId: ctx.chat?.id,
+    });
 
     logger.info(
       { userId, amount: state.amount },
@@ -351,7 +420,11 @@ export async function handleFullNameInput(
 
   state.fullName = text;
   state.waitingFor = 'account_number';
-  userStates.set(userId, state);
+  setState(userId, state, {
+    action: 'handler.state.set',
+    chatType: ctx.chat?.type,
+    chatId: ctx.chat?.id,
+  });
 
   logger.info({ userId, fullName: text }, 'Full name entered');
 
@@ -415,7 +488,11 @@ export async function handleAccountNumberInput(
     state.isNewPaymentInfo = false;
   }
 
-  userStates.set(userId, state);
+  setState(userId, state, {
+    action: 'handler.state.set',
+    chatType: ctx.chat?.type,
+    chatId: ctx.chat?.id,
+  });
 
   let rates;
   try {
@@ -551,7 +628,11 @@ export async function handleBankDetailsSingleInput(
   }
 
   if (!state.amount) {
-    userStates.delete(userId);
+    clearState(userId, {
+      action: 'handler.state.clear',
+      chatType: ctx.chat?.type,
+      chatId: ctx.chat?.id,
+    });
     await ctx.reply(
       `✅ <b>ĐÃ LƯU TÀI KHOẢN NGÂN HÀNG</b>\n\n` +
         `Tài khoản ngân hàng đã được lưu thành công!\n\n` +
@@ -563,7 +644,11 @@ export async function handleBankDetailsSingleInput(
     return;
   }
 
-  userStates.set(userId, state);
+  setState(userId, state, {
+    action: 'handler.state.set',
+    chatType: ctx.chat?.type,
+    chatId: ctx.chat?.id,
+  });
 
   let rates;
   try {
@@ -686,7 +771,11 @@ export async function handleSellConfirmation(
       logger.info({ userId, orderId: order.id, source: 'recipient' }, 'Found recipient address');
     }
 
-    userStates.delete(userId);
+    clearState(userId, {
+      action: 'handler.state.clear',
+      chatType: ctx.chat?.type,
+      chatId: ctx.chat?.id,
+    });
 
     if (recipientAddress) {
       logger.info(

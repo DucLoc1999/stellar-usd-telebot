@@ -1,15 +1,20 @@
 import { Bot } from 'grammy';
 import { Messages, Keyboards } from '../index';
-import { userStates, userCancelledOrders } from '../user-state';
+import { getState, clearState, userCancelledOrders } from '../user-state';
 import { logger } from '../../../config/logger';
+import { getUserId } from './context';
 import { handleBuyConfirmation } from './buy';
 import { handleSellConfirmation } from './sell';
 
 export function setupPaymentHandlers(bot: Bot): void {
   bot.callbackQuery('confirm_payment', async (ctx) => {
     await ctx.answerCallbackQuery().catch(() => {});
-    const userId = ctx.from.id;
-    const state = userStates.get(userId);
+    const userId = getUserId(ctx);
+    const state = getState(userId, {
+      action: 'handler.state.get',
+      chatType: ctx.chat?.type,
+      chatId: ctx.chat?.id,
+    });
 
     logger.info(
       { userId, state: state ? { action: state.action, amount: state.amount } : null },
@@ -75,8 +80,12 @@ export function setupPaymentHandlers(bot: Bot): void {
 
   bot.callbackQuery('cancel_payment', async (ctx) => {
     await ctx.answerCallbackQuery().catch(() => {});
-    const userId = ctx.from.id;
-    userStates.delete(userId);
+    const userId = getUserId(ctx);
+    clearState(userId, {
+      action: 'handler.state.clear',
+      chatType: ctx.chat?.type,
+      chatId: ctx.chat?.id,
+    });
     await ctx.editMessageText(Messages.PAYMENT_CANCELLED(), {
       parse_mode: 'HTML',
       reply_markup: await Keyboards.mainMenu(userId),
@@ -85,7 +94,7 @@ export function setupPaymentHandlers(bot: Bot): void {
 
   bot.callbackQuery(/^cancel_order_(.+)$/, async (ctx) => {
     await ctx.answerCallbackQuery().catch(() => {});
-    const userId = ctx.from.id;
+    const userId = getUserId(ctx);
     const orderId = ctx.match[1];
 
     if (!orderId) {

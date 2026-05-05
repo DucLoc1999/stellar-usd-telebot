@@ -4,19 +4,21 @@ import teleUserService from '../../teleUserService';
 import paymentInformationService from '../../paymentInformationService';
 import kycService from '../../kycService';
 import referralService from '../../referralService';
-import { userStates } from '../user-state';
+import { clearState } from '../user-state';
 import { logger } from '../../../config/logger';
+import { getUserId } from './context';
+import { banks } from '../../../models/webhook';
 
 export function setupMenuHandlers(bot: Bot): void {
   bot.command('start', async (ctx) => {
     try {
-      const chatId = ctx.chat?.id;
+      const userId = getUserId(ctx);
       const firstName = ctx.from?.first_name;
       const lastName = ctx.from?.last_name;
       const username = ctx.from?.username;
 
-      if (!chatId || !firstName) {
-        logger.error({ chatId, firstName }, 'Missing required user information in /start command');
+      if (!firstName) {
+        logger.error({ userId, firstName }, 'Missing required user information in /start command');
         await ctx.reply(
           `❌ <b>Lỗi khởi tạo</b>\n\n` +
             `Không thể lấy thông tin tài khoản của bạn.\n\n` +
@@ -29,11 +31,11 @@ export function setupMenuHandlers(bot: Bot): void {
       const referralUsername = ctx.match ? ctx.match.trim() : null;
 
       logger.info(
-        { chatId, firstName, lastName, username, referralUsername },
+        { userId, firstName, lastName, username, referralUsername },
         'Processing /start command'
       );
 
-      const existingUser = await teleUserService.findByChatId(chatId);
+      const existingUser = await teleUserService.findByChatId(userId);
       const isNewUser = !existingUser;
 
       let referralToSave: number | undefined = undefined;
@@ -43,7 +45,7 @@ export function setupMenuHandlers(bot: Bot): void {
 
         if (referrer) {
           logger.info(
-            { chatId, referralUsername, referrerChatId: referrer.chat_id },
+            { userId, referralUsername, referrerChatId: referrer.chat_id },
             'New user referred by existing user'
           );
           referralToSave = referrer.chat_id;
@@ -53,29 +55,29 @@ export function setupMenuHandlers(bot: Bot): void {
             'Incremented referral count for referrer'
           );
 
-          await referralService.createReferral({ chat_id: chatId, referral: referrer.chat_id });
+          await referralService.createReferral({ chat_id: userId, referral: referrer.chat_id });
           logger.info(
-            { referredUserId: chatId, referrerId: referrer.chat_id },
+            { referredUserId: userId, referrerId: referrer.chat_id },
             'Referral record saved'
           );
         } else {
-          logger.warn({ chatId, referralUsername }, 'Referral username not found in database');
+          logger.warn({ userId, referralUsername }, 'Referral username not found in database');
         }
       }
 
       await teleUserService.upsertUser({
-        chat_id: chatId,
+        chat_id: userId,
         first_name: firstName,
         last_name: lastName,
         username: username ?? '',
         referral: referralToSave,
       });
 
-      logger.info({ chatId, isNewUser }, 'User information updated successfully');
+      logger.info({ userId, isNewUser }, 'User information updated successfully');
 
       await ctx.reply(Messages.WELCOME(firstName), {
         parse_mode: 'HTML',
-        reply_markup: await Keyboards.mainMenu(chatId),
+        reply_markup: await Keyboards.mainMenu(userId),
       });
     } catch (error) {
       logger.error({ error }, 'Error handling /start command');
@@ -129,7 +131,7 @@ export function setupMenuHandlers(bot: Bot): void {
   bot.callbackQuery('referral', async (ctx) => {
     await ctx.answerCallbackQuery().catch(() => {});
     try {
-      const chatId = ctx.from.id;
+      const userId = getUserId(ctx);
       const username = ctx.from.username;
 
       if (!username) {
@@ -142,11 +144,11 @@ export function setupMenuHandlers(bot: Bot): void {
         return;
       }
 
-      const referralCount = await teleUserService.getReferralCount(chatId);
+      const referralCount = await teleUserService.getReferralCount(userId);
       const botInfo = await ctx.api.getMe();
       const botUsername = botInfo.username;
 
-      logger.info({ chatId, username, referralCount }, 'User viewed referral information');
+      logger.info({ userId, username, referralCount }, 'User viewed referral information');
 
       await ctx.editMessageText(Messages.REFERRAL_INFO(username, referralCount, botUsername), {
         parse_mode: 'HTML',
@@ -166,21 +168,10 @@ export function setupMenuHandlers(bot: Bot): void {
   bot.callbackQuery('bank_accounts', async (ctx) => {
     await ctx.answerCallbackQuery().catch(() => {});
     try {
-      const chatId = ctx.chat?.id;
-      if (!chatId) {
-        logger.error('Missing chat ID in bank_accounts callback');
-        await ctx.editMessageText(
-          `❌ <b>Lỗi hệ thống</b>\n\n` +
-            `Không thể xác định tài khoản của bạn.\n\n` +
-            `Vui lòng thử lại!`,
-          { parse_mode: 'HTML', reply_markup: Keyboards.backToMenu() }
-        );
-        return;
-      }
-
-      const savedBankAccounts = await paymentInformationService.findByTypeAndChatId(chatId, 'BANK');
+      const userId = getUserId(ctx);
+      const savedBankAccounts = await paymentInformationService.findByTypeAndChatId(userId, 'BANK');
       logger.info(
-        { chatId, bankAccountsCount: savedBankAccounts.length },
+        { userId, bankAccountsCount: savedBankAccounts.length },
         'Bank accounts retrieved'
       );
 
@@ -195,7 +186,6 @@ export function setupMenuHandlers(bot: Bot): void {
         });
       } else {
         savedBankAccounts.forEach((account, index) => {
-          const { banks } = require('../../models/webhook');
           const bank = banks.find((b: any) => b.id === account.bank_id);
           const bankName = bank ? bank.short_name : account.bank_id?.toString() || 'N/A';
           message += `<b>${index + 1}. ${account.full_name || 'N/A'}</b>\n`;
@@ -221,20 +211,9 @@ export function setupMenuHandlers(bot: Bot): void {
   bot.callbackQuery('crypto_wallets', async (ctx) => {
     await ctx.answerCallbackQuery().catch(() => {});
     try {
-      const chatId = ctx.chat?.id;
-      if (!chatId) {
-        logger.error('Missing chat ID in crypto_wallets callback');
-        await ctx.editMessageText(
-          `❌ <b>Lỗi hệ thống</b>\n\n` +
-            `Không thể xác định tài khoản của bạn.\n\n` +
-            `Vui lòng thử lại!`,
-          { parse_mode: 'HTML', reply_markup: Keyboards.backToMenu() }
-        );
-        return;
-      }
-
-      const savedWallets = await paymentInformationService.findByTypeAndChatId(chatId, 'CRYPTO');
-      logger.info({ chatId, walletsCount: savedWallets.length }, 'Crypto wallets retrieved');
+      const userId = getUserId(ctx);
+      const savedWallets = await paymentInformationService.findByTypeAndChatId(userId, 'CRYPTO');
+      logger.info({ userId, walletsCount: savedWallets.length }, 'Crypto wallets retrieved');
 
       let message = `💎 <b>VÍ CRYPTO ĐÃ LƯU</b>\n\n`;
 
@@ -269,21 +248,10 @@ export function setupMenuHandlers(bot: Bot): void {
   bot.callbackQuery('account_info', async (ctx) => {
     await ctx.answerCallbackQuery().catch(() => {});
     try {
-      const chatId = ctx.chat?.id;
-      if (!chatId) {
-        logger.error('Missing chat ID in account_info callback');
-        await ctx.editMessageText(
-          `❌ <b>Lỗi hệ thống</b>\n\n` +
-            `Không thể xác định tài khoản của bạn.\n\n` +
-            `Vui lòng thử lại!`,
-          { parse_mode: 'HTML', reply_markup: Keyboards.backToMenu() }
-        );
-        return;
-      }
-
-      const teleUser = await teleUserService.findByChatId(chatId);
+      const userId = getUserId(ctx);
+      const teleUser = await teleUserService.findByChatId(userId);
       if (!teleUser) {
-        logger.warn({ chatId }, 'User not found in database');
+        logger.warn({ userId }, 'User not found in database');
         await ctx.editMessageText(
           `❌ <b>Không tìm thấy thông tin</b>\n\n` +
             `Không tìm thấy thông tin tài khoản của bạn trong hệ thống.\n\n` +
@@ -293,12 +261,12 @@ export function setupMenuHandlers(bot: Bot): void {
         return;
       }
 
-      const savedBankAccounts = await paymentInformationService.findByTypeAndChatId(chatId, 'BANK');
-      const savedWallets = await paymentInformationService.findByTypeAndChatId(chatId, 'CRYPTO');
+      const savedBankAccounts = await paymentInformationService.findByTypeAndChatId(userId, 'BANK');
+      const savedWallets = await paymentInformationService.findByTypeAndChatId(userId, 'CRYPTO');
 
       let phoneNumber: string | null = null;
       if (teleUser.is_kyc) {
-        const kycRecord = await kycService.findByChatId(chatId);
+        const kycRecord = await kycService.findByChatId(userId);
         if (kycRecord) phoneNumber = kycRecord.phone;
       }
 
@@ -328,8 +296,12 @@ export function setupMenuHandlers(bot: Bot): void {
 
   bot.callbackQuery('back_to_menu', async (ctx) => {
     await ctx.answerCallbackQuery().catch(() => {});
-    const userId = ctx.from.id;
-    userStates.delete(userId);
+    const userId = getUserId(ctx);
+    clearState(userId, {
+      action: 'menu.back_to_menu',
+      chatType: ctx.chat?.type,
+      chatId: ctx.chat?.id,
+    });
     const firstName = ctx.from?.first_name || 'bạn';
     await ctx.editMessageText(Messages.WELCOME(firstName), {
       parse_mode: 'HTML',

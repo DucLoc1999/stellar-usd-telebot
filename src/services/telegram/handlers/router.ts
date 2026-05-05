@@ -1,13 +1,18 @@
 import { Bot } from 'grammy';
 import { Messages, Keyboards } from '../index';
-import { userStates } from '../user-state';
+import { getState, setState } from '../user-state';
 import { logger } from '../../../config/logger';
+import { getUserId } from './context';
 import { validateVietnamesePhoneNumber } from '../utils';
 
 export function setupRouterHandlers(bot: Bot): void {
   bot.on('message:contact', async (ctx) => {
-    const userId = ctx.from.id;
-    const state = userStates.get(userId);
+    const userId = getUserId(ctx);
+    const state = getState(userId, {
+      action: 'handler.state.get',
+      chatType: ctx.chat?.type,
+      chatId: ctx.chat?.id,
+    });
 
     if (!state || state.waitingFor !== 'kyc_phone') {
       return;
@@ -22,7 +27,11 @@ export function setupRouterHandlers(bot: Bot): void {
       if (validateVietnamesePhoneNumber(phoneNumber)) {
         state.kycPhoneNumber = phoneNumber;
         state.waitingFor = undefined;
-        userStates.set(userId, state);
+        setState(userId, state, {
+          action: 'handler.state.set',
+          chatType: ctx.chat?.type,
+          chatId: ctx.chat?.id,
+        });
 
         await ctx.reply(Messages.KYC_PHONE_RECEIVED(phoneNumber), {
           parse_mode: 'HTML',
@@ -53,8 +62,12 @@ export function setupRouterHandlers(bot: Bot): void {
   });
 
   bot.on('message:photo', async (ctx) => {
-    const userId = ctx.from.id;
-    const state = userStates.get(userId);
+    const userId = getUserId(ctx);
+    const state = getState(userId, {
+      action: 'handler.state.get',
+      chatType: ctx.chat?.type,
+      chatId: ctx.chat?.id,
+    });
 
     if (!state || state.waitingFor !== 'kyc_id_card') {
       return;
@@ -84,7 +97,11 @@ export function setupRouterHandlers(bot: Bot): void {
 
     state.waitingFor = 'kyc_processing';
     state.lastProcessedPhotoId = photoUniqueId;
-    userStates.set(userId, state);
+    setState(userId, state, {
+      action: 'handler.state.set',
+      chatType: ctx.chat?.type,
+      chatId: ctx.chat?.id,
+    });
 
     logger.info({ userId, photoUniqueId }, 'Starting ID card photo processing');
 
@@ -95,13 +112,21 @@ export function setupRouterHandlers(bot: Bot): void {
       logger.error({ error, userId }, 'Error handling ID card photo');
       state.waitingFor = 'kyc_id_card';
       state.lastProcessedPhotoId = undefined;
-      userStates.set(userId, state);
+      setState(userId, state, {
+        action: 'handler.state.set',
+        chatType: ctx.chat?.type,
+        chatId: ctx.chat?.id,
+      });
     }
   });
 
   bot.on('message:text', async (ctx) => {
-    const userId = ctx.from.id;
-    const state = userStates.get(userId);
+    const userId = getUserId(ctx);
+    const state = getState(userId, {
+      action: 'handler.state.get',
+      chatType: ctx.chat?.type,
+      chatId: ctx.chat?.id,
+    });
 
     if (!state) {
       return;

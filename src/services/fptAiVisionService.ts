@@ -127,7 +127,7 @@ export class FptAiVisionService {
 
       logger.info({ idData }, 'ID card data extracted successfully');
 
-      return idData as FptAiVisionIdData;
+      return idData;
     } catch (error) {
       if (axios.isAxiosError(error)) {
         logger.error(
