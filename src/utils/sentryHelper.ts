@@ -10,7 +10,7 @@ import { logger } from '../config/logger';
  * @param level - Sentry severity level (default: 'error')
  */
 export function captureErrorWithContext(
-  error: Error | unknown,
+  error: unknown,
   context?: {
     userId?: number | string;
     chatId?: number | string;
@@ -124,11 +124,7 @@ export function withSentryErrorHandling<T extends (...args: any[]) => Promise<an
  * @param email - User email (optional)
  * @param username - Username (optional)
  */
-export function setSentryUser(
-  userId: number | string,
-  email?: string,
-  username?: string
-): void {
+export function setSentryUser(userId: number | string, email?: string, username?: string): void {
   Sentry.setUser({
     id: userId.toString(),
     email,
@@ -165,4 +161,3 @@ export function addSentryBreadcrumb(
     timestamp: Date.now() / 1000,
   });
 }
-

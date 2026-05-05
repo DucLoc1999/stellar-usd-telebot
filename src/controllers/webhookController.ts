@@ -68,7 +68,11 @@ export class WebhookController {
       const timestampString: string = Array.isArray(timestamp)
         ? timestamp[0] || ''
         : timestamp || '';
-      const isValidSignature = webhookService.verifySignature(signatureString, timestampString, rawBody);
+      const isValidSignature = webhookService.verifySignature(
+        signatureString,
+        timestampString,
+        rawBody
+      );
 
       if (!isValidSignature) {
         logger.error(
@@ -145,7 +149,7 @@ export class WebhookController {
               processingState: stateChange.newProcessingState,
               timestamp: event.ts,
               eventId: event.id,
-              transactionHash: stateChange.transactionHash
+              transactionHash: stateChange.transactionHash,
             });
             logger.info(
               {

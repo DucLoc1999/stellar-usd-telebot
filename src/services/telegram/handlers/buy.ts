@@ -1,8 +1,16 @@
 import { Bot, InputFile } from 'grammy';
 import * as StellarSdk from 'stellar-sdk';
 import { Messages, Keyboards } from '../index';
-import { userStates, processingUsers, newlyCreatedOrders, type UserState } from '../user-state';
+import {
+  getState,
+  setState,
+  clearState,
+  processingUsers,
+  newlyCreatedOrders,
+  type UserState,
+} from '../user-state';
 import { logger } from '../../../config/logger';
+import { getUserId } from './context';
 import { telegramConfig } from '../../../config/app';
 import paymentService from '../../paymentService';
 import paymentInformationService from '../../paymentInformationService';
@@ -86,7 +94,7 @@ async function checkUsdcTrustline(
 export function setupBuyHandlers(bot: Bot): void {
   bot.callbackQuery('buy_usdt', async (ctx) => {
     await ctx.answerCallbackQuery().catch(() => {});
-    const userId = ctx.from.id;
+    const userId = getUserId(ctx);
 
     try {
       logger.info({ userId }, 'Checking KYC status for buy USDC');
@@ -113,7 +121,11 @@ export function setupBuyHandlers(bot: Bot): void {
       }
 
       logger.info({ userId, isKyc: user.is_kyc }, 'User is KYC verified, proceeding with buy flow');
-      userStates.set(userId, { action: 'buy' });
+      setState(
+        userId,
+        { action: 'buy' },
+        { action: 'handler.state.set', chatType: ctx.chat?.type, chatId: ctx.chat?.id }
+      );
       await ctx.editMessageText(Messages.BUY_SELECT_AMOUNT(), {
         parse_mode: 'HTML',
         reply_markup: Keyboards.buyAmountSelection(),
@@ -131,24 +143,32 @@ export function setupBuyHandlers(bot: Bot): void {
 
   bot.callbackQuery(/^buy_amount_\d+$/, async (ctx) => {
     await ctx.answerCallbackQuery().catch(() => {});
-    const userId = ctx.from.id;
+    const userId = getUserId(ctx);
     const amount = ctx.callbackQuery.data.replace('buy_amount_', '');
 
     const savedWallets = await paymentInformationService.findByTypeAndChatId(userId, 'CRYPTO');
 
     if (savedWallets.length > 0) {
-      userStates.set(userId, { action: 'buy', amount });
+      setState(
+        userId,
+        { action: 'buy', amount },
+        { action: 'handler.state.set', chatType: ctx.chat?.type, chatId: ctx.chat?.id }
+      );
       await ctx.editMessageText(Messages.SELECT_SAVED_WALLET(), {
         parse_mode: 'HTML',
         reply_markup: Keyboards.savedWalletSelection(savedWallets),
       });
     } else {
-      userStates.set(userId, {
-        action: 'buy',
-        amount,
-        waitingFor: 'wallet',
-        isNewPaymentInfo: true,
-      });
+      setState(
+        userId,
+        {
+          action: 'buy',
+          amount,
+          waitingFor: 'wallet',
+          isNewPaymentInfo: true,
+        },
+        { action: 'handler.state.set', chatType: ctx.chat?.type, chatId: ctx.chat?.id }
+      );
       await ctx.editMessageText(Messages.ENTER_WALLET_ADDRESS(), {
         parse_mode: 'HTML',
         reply_markup: Keyboards.backToMenu(),
@@ -158,8 +178,12 @@ export function setupBuyHandlers(bot: Bot): void {
 
   bot.callbackQuery('buy_custom', async (ctx) => {
     await ctx.answerCallbackQuery().catch(() => {});
-    const userId = ctx.from.id;
-    userStates.set(userId, { action: 'buy', waitingFor: 'buy_amount' });
+    const userId = getUserId(ctx);
+    setState(
+      userId,
+      { action: 'buy', waitingFor: 'buy_amount' },
+      { action: 'handler.state.set', chatType: ctx.chat?.type, chatId: ctx.chat?.id }
+    );
     await ctx.editMessageText(Messages.ENTER_CUSTOM_AMOUNT_BUY(), {
       parse_mode: 'HTML',
       reply_markup: Keyboards.backToMenu(),
@@ -173,9 +197,13 @@ export function setupBuyHandlers(bot: Bot): void {
       logger.debug({ error, userId: ctx.from.id }, 'Failed to answer callback query');
     }
 
-    const userId = ctx.from.id;
+    const userId = getUserId(ctx);
     const paymentInfoId = parseInt(ctx.callbackQuery.data.replace('use_saved_wallet_', ''));
-    const state = userStates.get(userId);
+    const state = getState(userId, {
+      action: 'handler.state.get',
+      chatType: ctx.chat?.type,
+      chatId: ctx.chat?.id,
+    });
 
     if (!state || state.action !== 'buy') {
       await ctx.reply(
@@ -198,7 +226,11 @@ export function setupBuyHandlers(bot: Bot): void {
     state.walletAddress = paymentInfo.wallet_address;
     state.paymentInfoId = paymentInfoId;
     state.waitingFor = undefined;
-    userStates.set(userId, state);
+    setState(userId, state, {
+      action: 'handler.state.set',
+      chatType: ctx.chat?.type,
+      chatId: ctx.chat?.id,
+    });
 
     const trustlineCheck = await checkUsdcTrustline(paymentInfo.wallet_address);
     if (!trustlineCheck.valid) {
@@ -257,8 +289,12 @@ export function setupBuyHandlers(bot: Bot): void {
 
   bot.callbackQuery('add_new_wallet', async (ctx) => {
     await ctx.answerCallbackQuery().catch(() => {});
-    const userId = ctx.from.id;
-    const state = userStates.get(userId);
+    const userId = getUserId(ctx);
+    const state = getState(userId, {
+      action: 'handler.state.get',
+      chatType: ctx.chat?.type,
+      chatId: ctx.chat?.id,
+    });
 
     if (!state || state.action !== 'buy') {
       await ctx.reply(
@@ -270,7 +306,11 @@ export function setupBuyHandlers(bot: Bot): void {
 
     state.waitingFor = 'wallet';
     state.isNewPaymentInfo = true;
-    userStates.set(userId, state);
+    setState(userId, state, {
+      action: 'handler.state.set',
+      chatType: ctx.chat?.type,
+      chatId: ctx.chat?.id,
+    });
 
     logger.info({ userId }, 'User chose to add new wallet');
 
@@ -299,7 +339,11 @@ export async function handleBuyAmountInput(
   const savedWallets = await paymentInformationService.findByTypeAndChatId(userId, 'CRYPTO');
 
   if (savedWallets.length > 0) {
-    userStates.set(userId, state);
+    setState(userId, state, {
+      action: 'handler.state.set',
+      chatType: ctx.chat?.type,
+      chatId: ctx.chat?.id,
+    });
     await ctx.reply(Messages.SELECT_SAVED_WALLET(), {
       parse_mode: 'HTML',
       reply_markup: Keyboards.savedWalletSelection(savedWallets),
@@ -307,7 +351,11 @@ export async function handleBuyAmountInput(
   } else {
     state.waitingFor = 'wallet';
     state.isNewPaymentInfo = true;
-    userStates.set(userId, state);
+    setState(userId, state, {
+      action: 'handler.state.set',
+      chatType: ctx.chat?.type,
+      chatId: ctx.chat?.id,
+    });
     await ctx.reply(Messages.ENTER_WALLET_ADDRESS(), { parse_mode: 'HTML' });
   }
 }
@@ -346,7 +394,11 @@ export async function handleWalletInput(
   }
 
   if (!state.amount) {
-    userStates.delete(userId);
+    clearState(userId, {
+      action: 'handler.state.clear',
+      chatType: ctx.chat?.type,
+      chatId: ctx.chat?.id,
+    });
     await ctx.reply(
       `✅ <b>ĐÃ LƯU ĐỊA CHỈ VÍ</b>\n\n` +
         `Địa chỉ ví đã được lưu thành công!\n\n` +
@@ -356,7 +408,11 @@ export async function handleWalletInput(
     return;
   }
 
-  userStates.set(userId, state);
+  setState(userId, state, {
+    action: 'handler.state.set',
+    chatType: ctx.chat?.type,
+    chatId: ctx.chat?.id,
+  });
 
   const trustlineCheck = await checkUsdcTrustline(text);
   if (!trustlineCheck.valid) {
@@ -380,13 +436,13 @@ export async function handleWalletInput(
     return;
   }
 
-  const usdtAmount = parseFloat(state.amount!);
+  const usdtAmount = parseFloat(state.amount);
   const vndAmount = usdtAmount * rates.sell;
   const feeRate = rates.fee_rate_buy ?? 0;
   const gatewayFee = vndAmount * feeRate;
 
   await ctx.reply(
-    Messages.ORDER_SUMMARY_BUY(state.amount!, text, vndAmount, rates.sell, gatewayFee),
+    Messages.ORDER_SUMMARY_BUY(state.amount, text, vndAmount, rates.sell, gatewayFee),
     {
       parse_mode: 'HTML',
       reply_markup: Keyboards.confirmPayment(),
@@ -403,7 +459,9 @@ export async function handleBuyConfirmation(
     logger.warn({ userId }, 'User is already processing an order, ignoring duplicate request');
     try {
       await ctx.answerCallbackQuery('⏳ Đơn hàng đang được xử lý, vui lòng đợi...');
-    } catch {}
+    } catch {
+      // ignore
+    }
     return;
   }
 
@@ -469,7 +527,11 @@ export async function handleBuyConfirmation(
       logger.debug({ orderId: order.id }, 'Removed order from newly created tracking set');
     }, 30000);
 
-    userStates.delete(userId);
+    clearState(userId, {
+      action: 'handler.state.clear',
+      chatType: ctx.chat?.type,
+      chatId: ctx.chat?.id,
+    });
 
     const qrLink = order.body?.qr_link;
     const qrCode = order.body?.qr_code || order.body?.qr_data;

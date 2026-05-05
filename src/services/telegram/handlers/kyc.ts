@@ -1,7 +1,8 @@
 import { Bot } from 'grammy';
 import { Messages, Keyboards } from '../index';
-import { userStates, type UserState } from '../user-state';
+import { getState, setState, clearState, type UserState } from '../user-state';
 import { logger } from '../../../config/logger';
+import { getUserId } from './context';
 import { telegramConfig } from '../../../config/app';
 import teleUserService from '../../teleUserService';
 import kycService from '../../kycService';
@@ -17,29 +18,19 @@ export function setupKycHandlers(bot: Bot): void {
     await ctx.answerCallbackQuery().catch(() => {});
 
     try {
-      const chatId = ctx.chat?.id;
-      if (!chatId) {
-        logger.error('Missing chat ID in kyc callback');
-        await ctx.editMessageText(
-          `❌ <b>Lỗi hệ thống</b>\n\n` +
-            `Không thể xác định tài khoản của bạn.\n\n` +
-            `Vui lòng thử lại!`,
-          { parse_mode: 'HTML', reply_markup: Keyboards.backToMenu() }
-        );
-        return;
-      }
+      const userId = getUserId(ctx);
 
-      logger.info({ chatId }, 'Checking KYC status');
-      const kycRecord = await kycService.findByChatId(chatId);
+      logger.info({ userId }, 'Checking KYC status');
+      const kycRecord = await kycService.findByChatId(userId);
 
       if (kycRecord) {
-        logger.info({ chatId, kycId: kycRecord.id }, 'User has completed KYC');
+        logger.info({ userId, kycId: kycRecord.id }, 'User has completed KYC');
         await ctx.editMessageText(Messages.KYC_COMPLETED(kycRecord), {
           parse_mode: 'HTML',
           reply_markup: Keyboards.backToMenu(),
         });
       } else {
-        logger.info({ chatId }, 'User has not completed KYC');
+        logger.info({ userId }, 'User has not completed KYC');
         await ctx.editMessageText(Messages.KYC_NOT_COMPLETED(), {
           parse_mode: 'HTML',
           reply_markup: Keyboards.kycStart(),
@@ -60,7 +51,7 @@ export function setupKycHandlers(bot: Bot): void {
     await ctx.answerCallbackQuery().catch(() => {});
 
     try {
-      const userId = ctx.from.id;
+      const userId = getUserId(ctx);
       logger.info({ userId }, 'User started KYC process');
 
       const hasExceeded = await teleUserService.hasExceededKycAttempts(userId);
@@ -73,7 +64,11 @@ export function setupKycHandlers(bot: Bot): void {
         return;
       }
 
-      userStates.set(userId, { action: 'kyc', waitingFor: 'kyc_phone' });
+      setState(
+        userId,
+        { action: 'kyc', waitingFor: 'kyc_phone' },
+        { action: 'handler.state.set', chatType: ctx.chat?.type, chatId: ctx.chat?.id }
+      );
 
       await ctx.editMessageText(Messages.KYC_REQUEST_PHONE(), {
         parse_mode: 'HTML',
@@ -96,9 +91,13 @@ export function setupKycHandlers(bot: Bot): void {
 
   bot.callbackQuery('cancel_kyc', async (ctx) => {
     await ctx.answerCallbackQuery().catch(() => {});
-    const userId = ctx.from.id;
+    const userId = getUserId(ctx);
     logger.info({ userId }, 'User cancelled KYC process');
-    userStates.delete(userId);
+    clearState(userId, {
+      action: 'handler.state.clear',
+      chatType: ctx.chat?.type,
+      chatId: ctx.chat?.id,
+    });
     const firstName = ctx.from?.first_name || 'bạn';
     await ctx.editMessageText(Messages.WELCOME(firstName), {
       parse_mode: 'HTML',
@@ -108,8 +107,12 @@ export function setupKycHandlers(bot: Bot): void {
 
   bot.callbackQuery('kyc_select_cccd', async (ctx) => {
     await ctx.answerCallbackQuery().catch(() => {});
-    const userId = ctx.from.id;
-    const state = userStates.get(userId);
+    const userId = getUserId(ctx);
+    const state = getState(userId, {
+      action: 'handler.state.get',
+      chatType: ctx.chat?.type,
+      chatId: ctx.chat?.id,
+    });
 
     if (!state || !state.kycPhoneNumber) {
       await ctx.editMessageText(
@@ -124,7 +127,11 @@ export function setupKycHandlers(bot: Bot): void {
     logger.info({ userId }, 'User selected CCCD for KYC verification');
     state.kycDocumentType = 'cccd';
     state.waitingFor = 'kyc_id_card';
-    userStates.set(userId, state);
+    setState(userId, state, {
+      action: 'handler.state.set',
+      chatType: ctx.chat?.type,
+      chatId: ctx.chat?.id,
+    });
 
     await ctx.editMessageText(Messages.KYC_REQUEST_ID_CARD(), {
       parse_mode: 'HTML',
@@ -134,8 +141,12 @@ export function setupKycHandlers(bot: Bot): void {
 
   bot.callbackQuery('kyc_select_passport', async (ctx) => {
     await ctx.answerCallbackQuery().catch(() => {});
-    const userId = ctx.from.id;
-    const state = userStates.get(userId);
+    const userId = getUserId(ctx);
+    const state = getState(userId, {
+      action: 'handler.state.get',
+      chatType: ctx.chat?.type,
+      chatId: ctx.chat?.id,
+    });
 
     if (!state || !state.kycPhoneNumber) {
       await ctx.editMessageText(
@@ -150,7 +161,11 @@ export function setupKycHandlers(bot: Bot): void {
     logger.info({ userId }, 'User selected Passport for KYC verification');
     state.kycDocumentType = 'passport';
     state.waitingFor = 'kyc_id_card';
-    userStates.set(userId, state);
+    setState(userId, state, {
+      action: 'handler.state.set',
+      chatType: ctx.chat?.type,
+      chatId: ctx.chat?.id,
+    });
 
     await ctx.editMessageText(Messages.KYC_REQUEST_PASSPORT(), {
       parse_mode: 'HTML',
@@ -160,8 +175,12 @@ export function setupKycHandlers(bot: Bot): void {
 
   bot.callbackQuery('kyc_recapture_id_card', async (ctx) => {
     await ctx.answerCallbackQuery().catch(() => {});
-    const userId = ctx.from.id;
-    const state = userStates.get(userId);
+    const userId = getUserId(ctx);
+    const state = getState(userId, {
+      action: 'handler.state.get',
+      chatType: ctx.chat?.type,
+      chatId: ctx.chat?.id,
+    });
 
     if (!state) {
       return;
@@ -172,7 +191,11 @@ export function setupKycHandlers(bot: Bot): void {
     state.kycIdCardData = undefined;
     state.lastProcessedPhotoId = undefined;
     state.waitingFor = 'kyc_id_card';
-    userStates.set(userId, state);
+    setState(userId, state, {
+      action: 'handler.state.set',
+      chatType: ctx.chat?.type,
+      chatId: ctx.chat?.id,
+    });
 
     const message =
       state.kycDocumentType === 'passport'
@@ -184,8 +207,12 @@ export function setupKycHandlers(bot: Bot): void {
 
   bot.callbackQuery('kyc_try_different_id', async (ctx) => {
     await ctx.answerCallbackQuery().catch(() => {});
-    const userId = ctx.from.id;
-    const state = userStates.get(userId);
+    const userId = getUserId(ctx);
+    const state = getState(userId, {
+      action: 'handler.state.get',
+      chatType: ctx.chat?.type,
+      chatId: ctx.chat?.id,
+    });
 
     if (!state) {
       return;
@@ -196,7 +223,11 @@ export function setupKycHandlers(bot: Bot): void {
     state.kycIdCardData = undefined;
     state.lastProcessedPhotoId = undefined;
     state.waitingFor = 'kyc_id_card';
-    userStates.set(userId, state);
+    setState(userId, state, {
+      action: 'handler.state.set',
+      chatType: ctx.chat?.type,
+      chatId: ctx.chat?.id,
+    });
 
     const message =
       state.kycDocumentType === 'passport'
@@ -277,7 +308,11 @@ export async function handleKycIdCardPhoto(
 
     state.kycIdCardData = idData;
     state.kycImageUrl = s3Url;
-    userStates.set(userId, state);
+    setState(userId, state, {
+      action: 'handler.state.set',
+      chatType: ctx.chat?.type,
+      chatId: ctx.chat?.id,
+    });
 
     logger.info({ userId }, 'ID card data extracted, automatically saving to database');
 
@@ -292,7 +327,11 @@ export async function handleKycIdCardPhoto(
 
     state.waitingFor = 'kyc_id_card';
     state.lastProcessedPhotoId = undefined;
-    userStates.set(userId, state);
+    setState(userId, state, {
+      action: 'handler.state.set',
+      chatType: ctx.chat?.type,
+      chatId: ctx.chat?.id,
+    });
 
     throw error;
   }
@@ -349,7 +388,11 @@ export async function saveKycData(ctx: any, userId: number, state: UserState): P
 
     logger.info({ userId }, 'KYC data saved successfully');
 
-    userStates.delete(userId);
+    clearState(userId, {
+      action: 'handler.state.clear',
+      chatType: ctx.chat?.type,
+      chatId: ctx.chat?.id,
+    });
 
     await ctx.reply(Messages.KYC_SAVE_SUCCESS(idData.name, phoneNumber), {
       parse_mode: 'HTML',

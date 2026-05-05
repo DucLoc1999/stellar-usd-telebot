@@ -257,7 +257,7 @@ export class PaymentService {
       amount: request.amount,
       chain_id: request.chain_id,
       token_address: request.token_address,
-      callback: request.callback as string,
+      callback: request.callback,
       payment_info: request.payment_info,
     };
 
@@ -311,7 +311,7 @@ export class PaymentService {
       chain_id: request.chain_id,
       token_address: request.token_address,
       recipient: request.recipient,
-      callback: request.callback as string,
+      callback: request.callback,
     };
 
     logger.info(

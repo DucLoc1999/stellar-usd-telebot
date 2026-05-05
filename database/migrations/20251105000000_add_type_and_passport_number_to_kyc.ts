@@ -15,7 +15,10 @@ export async function up(knex: Knex): Promise<void> {
       .comment('Document type: PASSPORT or IDC (Identity Card/CCCD)');
 
     // Add passport number field (nullable, only used when type is PASSPORT)
-    table.string('passport_number', 255).nullable().comment('Passport number (only for PASSPORT type)');
+    table
+      .string('passport_number', 255)
+      .nullable()
+      .comment('Passport number (only for PASSPORT type)');
   });
 }
 
@@ -28,4 +31,3 @@ export async function down(knex: Knex): Promise<void> {
     table.dropColumn('passport_number');
   });
 }
-

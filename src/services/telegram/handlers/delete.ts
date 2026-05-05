@@ -1,22 +1,27 @@
 import { Bot } from 'grammy';
 import { Messages, Keyboards } from '../index';
-import { userStates, type UserState } from '../user-state';
+import { getState, setState, type UserState } from '../user-state';
 import { logger } from '../../../config/logger';
+import { getUserId } from './context';
 import { banks } from '../../../models/webhook';
 import paymentInformationService from '../../paymentInformationService';
 
 export function setupDeleteHandlers(bot: Bot): void {
   bot.callbackQuery('add_bank_from_menu', async (ctx) => {
     await ctx.answerCallbackQuery().catch(() => {});
-    const userId = ctx.from.id;
+    const userId = getUserId(ctx);
 
     logger.info({ userId }, 'User chose to add new bank account from menu');
 
-    userStates.set(userId, {
-      action: 'sell',
-      waitingFor: 'bank_details_single',
-      isNewPaymentInfo: true,
-    });
+    setState(
+      userId,
+      {
+        action: 'sell',
+        waitingFor: 'bank_details_single',
+        isNewPaymentInfo: true,
+      },
+      { action: 'handler.state.set', chatType: ctx.chat?.type, chatId: ctx.chat?.id }
+    );
 
     await ctx.editMessageText(Messages.ENTER_BANK_DETAILS_SINGLE(), {
       parse_mode: 'HTML',
@@ -26,15 +31,19 @@ export function setupDeleteHandlers(bot: Bot): void {
 
   bot.callbackQuery('add_wallet_from_menu', async (ctx) => {
     await ctx.answerCallbackQuery().catch(() => {});
-    const userId = ctx.from.id;
+    const userId = getUserId(ctx);
 
     logger.info({ userId }, 'User chose to add new wallet from menu');
 
-    userStates.set(userId, {
-      action: 'buy',
-      waitingFor: 'wallet',
-      isNewPaymentInfo: true,
-    });
+    setState(
+      userId,
+      {
+        action: 'buy',
+        waitingFor: 'wallet',
+        isNewPaymentInfo: true,
+      },
+      { action: 'handler.state.set', chatType: ctx.chat?.type, chatId: ctx.chat?.id }
+    );
 
     await ctx.editMessageText(Messages.ENTER_WALLET_ADDRESS(), {
       parse_mode: 'HTML',
@@ -44,16 +53,20 @@ export function setupDeleteHandlers(bot: Bot): void {
 
   bot.callbackQuery('delete_bank_prompt', async (ctx) => {
     await ctx.answerCallbackQuery().catch(() => {});
-    const userId = ctx.from.id;
+    const userId = getUserId(ctx);
 
     logger.info({ userId }, 'User initiated bank account deletion');
 
     const savedBankAccounts = await paymentInformationService.findByTypeAndChatId(userId, 'BANK');
 
-    userStates.set(userId, {
-      waitingFor: 'delete_bank_index',
-      savedBankAccounts: savedBankAccounts,
-    });
+    setState(
+      userId,
+      {
+        waitingFor: 'delete_bank_index',
+        savedBankAccounts: savedBankAccounts,
+      },
+      { action: 'handler.state.set', chatType: ctx.chat?.type, chatId: ctx.chat?.id }
+    );
 
     await ctx.editMessageText(Messages.ENTER_DELETE_BANK_INDEX(savedBankAccounts), {
       parse_mode: 'HTML',
@@ -63,16 +76,20 @@ export function setupDeleteHandlers(bot: Bot): void {
 
   bot.callbackQuery('delete_wallet_prompt', async (ctx) => {
     await ctx.answerCallbackQuery().catch(() => {});
-    const userId = ctx.from.id;
+    const userId = getUserId(ctx);
 
     logger.info({ userId }, 'User initiated wallet deletion');
 
     const savedWallets = await paymentInformationService.findByTypeAndChatId(userId, 'CRYPTO');
 
-    userStates.set(userId, {
-      waitingFor: 'delete_wallet_index',
-      savedWallets: savedWallets,
-    });
+    setState(
+      userId,
+      {
+        waitingFor: 'delete_wallet_index',
+        savedWallets: savedWallets,
+      },
+      { action: 'handler.state.set', chatType: ctx.chat?.type, chatId: ctx.chat?.id }
+    );
 
     await ctx.editMessageText(Messages.ENTER_DELETE_WALLET_INDEX(savedWallets), {
       parse_mode: 'HTML',
@@ -82,8 +99,12 @@ export function setupDeleteHandlers(bot: Bot): void {
 
   bot.callbackQuery('confirm_delete', async (ctx) => {
     await ctx.answerCallbackQuery().catch(() => {});
-    const userId = ctx.from.id;
-    const state = userStates.get(userId);
+    const userId = getUserId(ctx);
+    const state = getState(userId, {
+      action: 'handler.state.get',
+      chatType: ctx.chat?.type,
+      chatId: ctx.chat?.id,
+    });
 
     if (!state || !state.paymentInfoId) {
       logger.error({ userId }, 'No payment info ID in state for deletion');
@@ -115,7 +136,11 @@ export function setupDeleteHandlers(bot: Bot): void {
       }
 
       delete state.paymentInfoId;
-      userStates.set(userId, state);
+      setState(userId, state, {
+        action: 'handler.state.set',
+        chatType: ctx.chat?.type,
+        chatId: ctx.chat?.id,
+      });
     } catch (error) {
       logger.error(
         { userId, paymentInfoId: state.paymentInfoId, error },
@@ -130,12 +155,20 @@ export function setupDeleteHandlers(bot: Bot): void {
 
   bot.callbackQuery('cancel_delete', async (ctx) => {
     await ctx.answerCallbackQuery().catch(() => {});
-    const userId = ctx.from.id;
-    const state = userStates.get(userId);
+    const userId = getUserId(ctx);
+    const state = getState(userId, {
+      action: 'handler.state.get',
+      chatType: ctx.chat?.type,
+      chatId: ctx.chat?.id,
+    });
 
     if (state) {
       delete state.paymentInfoId;
-      userStates.set(userId, state);
+      setState(userId, state, {
+        action: 'handler.state.set',
+        chatType: ctx.chat?.type,
+        chatId: ctx.chat?.id,
+      });
     }
 
     await ctx.editMessageText('❌ Đã hủy thao tác xóa.', {
@@ -169,7 +202,11 @@ export async function handleDeleteBankIndexInput(
 
   state.paymentInfoId = selectedAccount.id;
   state.waitingFor = undefined;
-  userStates.set(userId, state);
+  setState(userId, state, {
+    action: 'handler.state.set',
+    chatType: ctx.chat?.type,
+    chatId: ctx.chat?.id,
+  });
 
   logger.info(
     { userId, index, paymentInfoId: selectedAccount.id },
@@ -203,7 +240,11 @@ export async function handleDeleteWalletIndexInput(
 
   state.paymentInfoId = selectedWallet.id;
   state.waitingFor = undefined;
-  userStates.set(userId, state);
+  setState(userId, state, {
+    action: 'handler.state.set',
+    chatType: ctx.chat?.type,
+    chatId: ctx.chat?.id,
+  });
 
   logger.info(
     { userId, index, paymentInfoId: selectedWallet.id },
