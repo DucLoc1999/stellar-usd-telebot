@@ -1,7 +1,10 @@
 import { Bot } from 'grammy';
 import { Messages } from './messages';
 import { userCancelledOrders, newlyCreatedOrders } from './user-state';
+import { getOrderSlots, initOrderSlots, setNotifyMsgId } from './order-tracking';
+import { Keyboards } from './keyboards';
 import { logger } from '../../config/logger';
+import teleUserService from '../teleUserService';
 
 export class NotificationService {
   constructor(private bot: Bot) {}
@@ -33,8 +36,8 @@ export class NotificationService {
       return;
     }
 
-    if (state === 2 && newlyCreatedOrders.has(orderId)) {
-      logger.info({ chatId, orderId, state }, 'Skipping initial PROCESSING webhook notification');
+    if (state === 1 && newlyCreatedOrders.has(orderId)) {
+      logger.info({ chatId, orderId, state }, 'Skipping duplicate CREATED webhook notification');
       newlyCreatedOrders.delete(orderId);
       return;
     }
@@ -46,7 +49,37 @@ export class NotificationService {
       'Sending order state notification'
     );
 
-    await this.sendNotification(chatId, message);
+    const slots = getOrderSlots(orderId);
+    if (!slots) {
+      initOrderSlots(orderId, chatId);
+    } else if (slots.notifyMsgId) {
+      try {
+        await this.bot.api.deleteMessage(chatId, slots.notifyMsgId);
+      } catch (err: any) {
+        if (err?.error_code !== 403 && err?.error_code !== 400) {
+          logger.warn(
+            { orderId, msgId: slots.notifyMsgId, err },
+            'Failed to delete old notify message'
+          );
+        }
+      }
+    }
+
+    const msg = await this.bot.api.sendMessage(chatId, message, {
+      parse_mode: 'HTML',
+      link_preview_options: { is_disabled: true },
+    });
+
+    setNotifyMsgId(orderId, msg.message_id);
+
+    if (state === 3) {
+      const user = await teleUserService.findByChatId(chatId);
+      const firstName = user?.first_name || 'bạn';
+      await this.bot.api.sendMessage(chatId, Messages.WELCOME(firstName), {
+        parse_mode: 'HTML',
+        reply_markup: await Keyboards.mainMenu(chatId),
+      });
+    }
   }
 
   private getOrderStateMessage(orderId: string, state: number, transactionHash?: string): string {

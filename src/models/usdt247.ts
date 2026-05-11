@@ -51,6 +51,7 @@ export interface Usdt247CreateDepositRequest {
   amount: string;
   chain_id: string;
   token_address: string;
+  asset_code: string;
   recipient: string;
   callback: string;
 }
@@ -122,6 +123,7 @@ export interface DepositRequest {
   amount: string;
   chain_id: string;
   token_address: string;
+  asset_code: string;
   recipient: string;
   callback: string;
 }

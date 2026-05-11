@@ -1,6 +1,7 @@
 import { Bot } from 'grammy';
 import { Messages, Keyboards } from '../index';
 import { getState, clearState, userCancelledOrders } from '../user-state';
+import { sendNotifyMessage, getOrderSlots } from '../index';
 import { logger } from '../../../config/logger';
 import { getUserId } from './context';
 import { handleBuyConfirmation } from './buy';
@@ -51,7 +52,23 @@ export function setupPaymentHandlers(bot: Bot): void {
         state: state.action,
       });
 
-      if (errorMessage === 'KYC verification required') {
+      const stateForError = getState(userId, {
+        action: 'handler.state.get',
+        chatType: ctx.chat?.type,
+        chatId: ctx.chat?.id,
+      });
+
+      if (stateForError?.orderId && getOrderSlots(stateForError.orderId)) {
+        const errorMsg =
+          errorMessage === 'KYC verification required'
+            ? Messages.KYC_REQUIRED()
+            : errorMessage.includes('User not found')
+              ? `❌ <b>Lỗi tài khoản</b>\n\nKhông tìm thấy thông tin tài khoản của bạn.\nVui lòng liên hệ support để được hỗ trợ!`
+              : errorMessage.includes('API error')
+                ? `❌ <b>Lỗi kết nối</b>\n\nKhông thể kết nối đến hệ thống thanh toán.\nVui lòng thử lại sau ít phút!`
+                : `❌ <b>Có lỗi xảy ra</b>\n\nChi tiết: ${errorMessage}\n\nVui lòng thử lại hoặc liên hệ support!`;
+        await sendNotifyMessage(ctx, stateForError.orderId, errorMsg);
+      } else if (errorMessage === 'KYC verification required') {
         await ctx.reply(Messages.KYC_REQUIRED(), { parse_mode: 'HTML' });
       } else if (errorMessage.includes('User not found')) {
         await ctx.reply(
@@ -129,6 +146,7 @@ export function setupPaymentHandlers(bot: Bot): void {
           'Content-Type': 'application/json',
           'Partner-App-Key': partnerAppKey,
         },
+        body: '{}',
       });
 
       logger.info(

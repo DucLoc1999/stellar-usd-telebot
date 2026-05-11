@@ -47,6 +47,14 @@ export const Messages = {
     `Vui lòng nhập địa chỉ ví Stellar để nhận USDC:\n\n` +
     `⚠️ Lưu ý: Kiểm tra kỹ địa chỉ ví trước khi gửi!`,
 
+  TRUSTLINE_REQUIRED: (assetCode: string, issuer: string) =>
+    `🛡️ <b>THÊM TRUSTLINE ${assetCode}</b>\n\n` +
+    `Ví của bạn chưa có trustline để nhận và nắm giữ <b>${assetCode}</b>.\n\n` +
+    `• Chi phí: <b>0.5 XLM</b> (có thể hoàn lại)\n` +
+    `• Bảo mật: ký không lưu ký (Non-custodial)\n` +
+    `• Issuer: <code>${issuer}</code>\n\n` +
+    `Chọn cách ký bên dưới, sau đó quay lại bấm xác nhận mua lại.`,
+
   SELECT_BANK: () => `🏦 <b>CHỌN NGÂN HÀNG</b>\n\n` + `Vui lòng chọn ngân hàng nhận tiền VND:`,
 
   ENTER_FULL_NAME: () =>
@@ -115,6 +123,22 @@ export const Messages = {
     `📮 Ví nhận: <code>${wallet}</code>\n\n` +
     `⚠️ Vui lòng kiểm tra kỹ thông tin trước khi thanh toán!`,
 
+  ACTIVATE_WALLET_SUMMARY: (
+    wallet: string,
+    xlmAmount: string,
+    xlmRate: number,
+    vndTotal: number,
+    serviceFee: number
+  ) =>
+    `⚡ <b>XÁC NHẬN KÍCH HOẠT VÍ</b>\n\n` +
+    `Ví Stellar của bạn chưa được kích hoạt trên mạng lưới.\n\n` +
+    `📮 Ví nhận: <code>${wallet}</code>\n` +
+    `💎 Số lượng kích hoạt: <b>${xlmAmount} XLM</b>\n` +
+    `💱 Tỷ giá XLM: <b>${xlmRate.toLocaleString('vi-VN')}đ</b>\n` +
+    `💰 Thành tiền: <b>${Math.round(vndTotal).toLocaleString('vi-VN')}đ</b>\n` +
+    `💳 Phí dịch vụ: <b>${Math.round(serviceFee).toLocaleString('vi-VN')}đ</b>\n\n` +
+    `Sau khi thanh toán, hệ thống sẽ gửi XLM để kích hoạt ví và bạn có thể mua USDC lại.`,
+
   ORDER_SUMMARY_SELL: (amount: string) =>
     `📋 <b>XÁC NHẬN ĐƠN HÀNG - BÁN USDC</b>\n\n` +
     `💎 Số lượng: <b>${amount} USDC</b>\n` +
@@ -155,6 +179,61 @@ export const Messages = {
       message += `💰 Số tiền: <code>${Math.round(vndAmount).toLocaleString('vi-VN')}đ</code>\n\n`;
     }
 
+    message += `💰 Vui lòng quét mã QR bên dưới để thanh toán`;
+    return message;
+  },
+
+  ORDER_PAYMENT_BUY: (
+    usdtAmount: string,
+    wallet: string,
+    buyRate: number,
+    gatewayFee: number,
+    bankName?: string,
+    accountNumber?: string,
+    accountName?: string,
+    totalVnd?: number
+  ) => {
+    const vndAmount = parseFloat(usdtAmount) * buyRate;
+    let message = `🏦 <b>ĐƠN HÀNG - MUA USDC</b>\n\n`;
+    message += `Đơn hàng MUA <b>${usdtAmount} USDC</b> x <b>${buyRate.toLocaleString('vi-VN')}đ</b>\n\n`;
+    message += `🌐 Mạng: Stellar | ⚡ Phí gas: $0.00\n`;
+    message += `💰 Thành tiền: <b>${Math.round(vndAmount).toLocaleString('vi-VN')}đ</b> | 💳 Phí dịch vụ: <b>${Math.round(gatewayFee).toLocaleString('vi-VN')}đ</b>\n`;
+    message += `📮 Ví nhận: <code>${wallet}</code>\n\n`;
+    if (bankName && accountNumber && accountName) {
+      message += `🏛️ Ngân hàng: <b>${bankName}</b>\n`;
+      message += `💳 Số tài khoản: <code>${accountNumber}</code>\n`;
+      message += `👤 Chủ tài khoản: <b>${accountName}</b>\n\n`;
+    }
+    if (totalVnd) {
+      message += `💰 Số tiền: <code>${Math.round(totalVnd).toLocaleString('vi-VN')}đ</code>\n\n`;
+    }
+    message += `💰 Vui lòng quét mã QR bên dưới để thanh toán`;
+    return message;
+  },
+
+  ORDER_PAYMENT_ACTIVATE_WALLET: (
+    xlmAmount: string,
+    wallet: string,
+    xlmRate: number,
+    serviceFee: number,
+    bankName?: string,
+    accountNumber?: string,
+    accountName?: string,
+    totalVnd?: number
+  ) => {
+    const vndAmount = parseFloat(xlmAmount) * xlmRate;
+    let message = `🏦 <b>ĐƠN HÀNG - KÍCH HOẠT VÍ STELLAR</b>\n\n`;
+    message += `Kích hoạt ví với <b>${xlmAmount} XLM</b> x <b>${xlmRate.toLocaleString('vi-VN')}đ</b>\n\n`;
+    message += `💰 Thành tiền: <b>${Math.round(vndAmount).toLocaleString('vi-VN')}đ</b> | 💳 Phí dịch vụ: <b>${Math.round(serviceFee).toLocaleString('vi-VN')}đ</b>\n`;
+    message += `📮 Ví nhận: <code>${wallet}</code>\n\n`;
+    if (bankName && accountNumber && accountName) {
+      message += `🏛️ Ngân hàng: <b>${bankName}</b>\n`;
+      message += `💳 Số tài khoản: <code>${accountNumber}</code>\n`;
+      message += `👤 Chủ tài khoản: <b>${accountName}</b>\n\n`;
+    }
+    if (totalVnd) {
+      message += `💰 Số tiền: <code>${Math.round(totalVnd).toLocaleString('vi-VN')}đ</code>\n\n`;
+    }
     message += `💰 Vui lòng quét mã QR bên dưới để thanh toán`;
     return message;
   },

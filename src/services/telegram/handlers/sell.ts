@@ -19,10 +19,16 @@ import { banks } from '../../../models/webhook';
 import {
   fetchExchangeRates,
   generateQRCode,
-  hasMessageBeenSent,
-  markMessageAsSent,
   scheduleOrderTrackingCleanup,
+  sendMainMessage,
+  sendNotifyMessage,
+  sendOrderNotice,
 } from '../index';
+
+function getPreorderSellNoticeKey(chatId?: number): string | null {
+  if (!chatId) return null;
+  return `preorder:${chatId}:sell`;
+}
 
 export function setupSellHandlers(bot: Bot): void {
   bot.callbackQuery('sell_usdt', async (ctx) => {
@@ -248,12 +254,23 @@ export function setupSellHandlers(bot: Bot): void {
       !paymentInfo.bank_account
     ) {
       logger.error({ userId, paymentInfoId }, 'Saved bank account not found');
-      await ctx.reply(
-        `❌ <b>Lỗi ngân hàng</b>\n\n` +
-          `Không tìm thấy thông tin ngân hàng đã lưu.\n\n` +
-          `Vui lòng thử lại!`,
-        { parse_mode: 'HTML' }
-      );
+      const key = getPreorderSellNoticeKey(ctx.chat?.id);
+      if (key) {
+        await sendOrderNotice(
+          ctx,
+          key,
+          `❌ <b>Lỗi ngân hàng</b>\n\n` +
+            `Không tìm thấy thông tin ngân hàng đã lưu.\n\n` +
+            `Vui lòng thử lại!`
+        );
+      } else {
+        await ctx.reply(
+          `❌ <b>Lỗi ngân hàng</b>\n\n` +
+            `Không tìm thấy thông tin ngân hàng đã lưu.\n\n` +
+            `Vui lòng thử lại!`,
+          { parse_mode: 'HTML' }
+        );
+      }
       return;
     }
 
@@ -298,10 +315,15 @@ export function setupSellHandlers(bot: Bot): void {
           reply_markup: Keyboards.backToMenu(),
         });
       } catch (error) {
-        await ctx.reply(Messages.RATE_UNAVAILABLE(), {
-          parse_mode: 'HTML',
-          reply_markup: Keyboards.backToMenu(),
-        });
+        const key = getPreorderSellNoticeKey(ctx.chat?.id);
+        if (key) {
+          await sendOrderNotice(ctx, key, Messages.RATE_UNAVAILABLE(), Keyboards.backToMenu());
+        } else {
+          await ctx.reply(Messages.RATE_UNAVAILABLE(), {
+            parse_mode: 'HTML',
+            reply_markup: Keyboards.backToMenu(),
+          });
+        }
       }
       return;
     }
@@ -758,71 +780,51 @@ export async function handleSellConfirmation(
       logger.debug({ orderId: order.id }, 'Removed order from newly created tracking set');
     }, 30000);
 
-    let recipientAddress: string | undefined;
-
-    if (order.pay_data?.address) {
-      recipientAddress = order.pay_data.address;
-      logger.info(
-        { userId, orderId: order.id, source: 'pay_data.address' },
-        'Found recipient address'
-      );
-    } else if (order.recipient) {
-      recipientAddress = order.recipient;
-      logger.info({ userId, orderId: order.id, source: 'recipient' }, 'Found recipient address');
-    }
-
+    state.orderId = order.id;
     clearState(userId, {
       action: 'handler.state.clear',
       chatType: ctx.chat?.type,
       chatId: ctx.chat?.id,
     });
 
+    let recipientAddress: string | undefined;
+    if (order.pay_data?.address) {
+      recipientAddress = order.pay_data.address;
+    } else if (order.recipient) {
+      recipientAddress = order.recipient;
+    }
+
     if (recipientAddress) {
       logger.info(
         { userId, orderId: order.id, recipientAddress },
-        'Sending recipient address to user'
+        'Sending merged main message to user'
       );
 
-      if (!hasMessageBeenSent(order.id, 'wallet_address')) {
-        await ctx.reply(Messages.PAYMENT_SELL_ADDRESS(recipientAddress, state.amount), {
-          parse_mode: 'HTML',
-        });
-        await ctx.reply(`<code>${recipientAddress}</code>`, { parse_mode: 'HTML' });
-        markMessageAsSent(order.id, 'wallet_address');
-        logger.info({ orderId: order.id }, 'Wallet address messages sent');
-      }
+      const addressText = Messages.PAYMENT_SELL_ADDRESS(recipientAddress, state.amount);
+      const qrCaption =
+        `📱 <b>Quét mã QR để sao chép địa chỉ ví</b>\n\n` +
+        `⏰ Sau khi chuyển USDC, tiền VND sẽ được chuyển vào tài khoản của bạn trong vòng 3-30 giây.\n\n` +
+        `📞 Liên hệ support nếu có vấn đề!`;
+      const combinedCaption =
+        addressText + '\n\n' + `<code>${recipientAddress}</code>` + '\n\n' + qrCaption;
 
-      if (!hasMessageBeenSent(order.id, 'qr_code')) {
-        logger.info(
-          { orderId: order.id, recipientAddress },
-          'Generating QR code for wallet address'
-        );
-        const qrCodeImage = await generateQRCode(recipientAddress);
-        logger.info(
-          { orderId: order.id, qrCodeSize: qrCodeImage.length },
-          'QR code generated, sending to user'
-        );
+      logger.info({ orderId: order.id, recipientAddress }, 'Generating QR code for wallet address');
+      const qrCodeImage = await generateQRCode(recipientAddress);
+      logger.info(
+        { orderId: order.id, qrCodeSize: qrCodeImage.length },
+        'QR code generated, sending merged main message'
+      );
 
-        await ctx.replyWithPhoto(new InputFile(qrCodeImage), {
-          caption:
-            `📱 <b>Quét mã QR để sao chép địa chỉ ví</b>\n\n` +
-            `⏰ Sau khi chuyển USDC, tiền VND sẽ được chuyển vào tài khoản của bạn trong vòng 3-30 giây.\n\n` +
-            `📞 Liên hệ support nếu có vấn đề!`,
-          parse_mode: 'HTML',
-          reply_markup: Keyboards.qrCodeWithCancel(order.id),
-        });
-        markMessageAsSent(order.id, 'qr_code');
-        logger.info({ userId, orderId: order.id }, 'QR code sent successfully');
-      }
+      await sendMainMessage(
+        ctx,
+        order.id,
+        new InputFile(qrCodeImage),
+        combinedCaption,
+        Keyboards.qrCodeWithCancel(order.id)
+      );
+      logger.info({ userId, orderId: order.id }, 'Merged main message sent successfully');
 
-      if (!hasMessageBeenSent(order.id, 'processing_status')) {
-        await ctx.reply(Messages.ORDER_STATE_PROCESSING(order.id), { parse_mode: 'HTML' });
-        markMessageAsSent(order.id, 'processing_status');
-        logger.info(
-          { orderId: order.id },
-          'Processing status notification sent - sell flow complete'
-        );
-      }
+      await sendNotifyMessage(ctx, order.id, Messages.ORDER_STATE_CREATED(order.id));
 
       scheduleOrderTrackingCleanup(order.id);
     } else {
@@ -836,12 +838,14 @@ export async function handleSellConfirmation(
         },
         'No recipient address found in any expected field'
       );
-      await ctx.reply(
+      await sendOrderNotice(
+        ctx,
+        order.id,
         `❌ <b>Lỗi hệ thống</b>\n\n` +
           `Không tìm thấy địa chỉ ví nhận USDC trong phản hồi từ hệ thống.\n\n` +
           `Mã đơn: <code>${order.id}</code>\n\n` +
           `Vui lòng liên hệ support với mã đơn hàng trên để được hỗ trợ!`,
-        { parse_mode: 'HTML', reply_markup: Keyboards.backToMenu() }
+        Keyboards.backToMenu()
       );
     }
   } catch (error) {

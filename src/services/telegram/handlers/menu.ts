@@ -21,8 +21,8 @@ export function setupMenuHandlers(bot: Bot): void {
         logger.error({ userId, firstName }, 'Missing required user information in /start command');
         await ctx.reply(
           `❌ <b>Lỗi khởi tạo</b>\n\n` +
-          `Không thể lấy thông tin tài khoản của bạn.\n\n` +
-          `Vui lòng thử lại hoặc liên hệ support!`,
+            `Không thể lấy thông tin tài khoản của bạn.\n\n` +
+            `Vui lòng thử lại hoặc liên hệ support!`,
           { parse_mode: 'HTML' }
         );
         return;
@@ -83,15 +83,15 @@ export function setupMenuHandlers(bot: Bot): void {
       logger.error({ error }, 'Error handling /start command');
       await ctx.reply(
         `❌ <b>Lỗi hệ thống</b>\n\n` +
-        `Có lỗi xảy ra khi khởi động bot.\n\n` +
-        `Vui lòng thử lại sau!`,
+          `Có lỗi xảy ra khi khởi động bot.\n\n` +
+          `Vui lòng thử lại sau!`,
         { parse_mode: 'HTML' }
       );
     }
   });
 
   bot.callbackQuery('check_rate', async (ctx) => {
-    await ctx.answerCallbackQuery().catch(() => { });
+    await ctx.answerCallbackQuery().catch(() => {});
     try {
       const { fetchExchangeRates } = await import('../utils');
       const rates = await fetchExchangeRates();
@@ -116,7 +116,7 @@ export function setupMenuHandlers(bot: Bot): void {
   });
 
   bot.callbackQuery('contact_support', async (ctx) => {
-    await ctx.answerCallbackQuery().catch(() => { });
+    await ctx.answerCallbackQuery().catch(() => {});
     const supportMessage =
       `📞 <b>LIÊN HỆ SUPPORT</b>\n\n` +
       `Vui lòng liên hệ với đội ngũ hỗ trợ của chúng tôi:\n\n` +
@@ -129,7 +129,7 @@ export function setupMenuHandlers(bot: Bot): void {
   });
 
   bot.callbackQuery('referral', async (ctx) => {
-    await ctx.answerCallbackQuery().catch(() => { });
+    await ctx.answerCallbackQuery().catch(() => {});
     try {
       const userId = getUserId(ctx);
       const username = ctx.from.username;
@@ -137,8 +137,8 @@ export function setupMenuHandlers(bot: Bot): void {
       if (!username) {
         await ctx.editMessageText(
           `❌ <b>Không thể tạo link giới thiệu</b>\n\n` +
-          `Bạn cần có username Telegram để sử dụng tính năng này.\n\n` +
-          `Vui lòng thiết lập username trong cài đặt Telegram và thử lại!`,
+            `Bạn cần có username Telegram để sử dụng tính năng này.\n\n` +
+            `Vui lòng thiết lập username trong cài đặt Telegram và thử lại!`,
           { parse_mode: 'HTML', reply_markup: Keyboards.backToMenu() }
         );
         return;
@@ -158,15 +158,15 @@ export function setupMenuHandlers(bot: Bot): void {
       logger.error({ error }, 'Error showing referral information');
       await ctx.editMessageText(
         `❌ <b>Lỗi hệ thống</b>\n\n` +
-        `Không thể hiển thị thông tin giới thiệu.\n\n` +
-        `Vui lòng thử lại sau!`,
+          `Không thể hiển thị thông tin giới thiệu.\n\n` +
+          `Vui lòng thử lại sau!`,
         { parse_mode: 'HTML', reply_markup: Keyboards.backToMenu() }
       );
     }
   });
 
   bot.callbackQuery('bank_accounts', async (ctx) => {
-    await ctx.answerCallbackQuery().catch(() => { });
+    await ctx.answerCallbackQuery().catch(() => {});
     try {
       const userId = getUserId(ctx);
       const savedBankAccounts = await paymentInformationService.findByTypeAndChatId(userId, 'BANK');
@@ -201,15 +201,15 @@ export function setupMenuHandlers(bot: Bot): void {
       logger.error({ error }, 'Error fetching bank accounts');
       await ctx.editMessageText(
         `❌ <b>Lỗi tải dữ liệu</b>\n\n` +
-        `Không thể tải danh sách ngân hàng.\n\n` +
-        `Vui lòng thử lại sau!`,
+          `Không thể tải danh sách ngân hàng.\n\n` +
+          `Vui lòng thử lại sau!`,
         { parse_mode: 'HTML', reply_markup: Keyboards.backToMenu() }
       );
     }
   });
 
   bot.callbackQuery('crypto_wallets', async (ctx) => {
-    await ctx.answerCallbackQuery().catch(() => { });
+    await ctx.answerCallbackQuery().catch(() => {});
     try {
       const userId = getUserId(ctx);
       const savedWallets = await paymentInformationService.findByTypeAndChatId(userId, 'CRYPTO');
@@ -238,15 +238,15 @@ export function setupMenuHandlers(bot: Bot): void {
       logger.error({ error }, 'Error fetching crypto wallets');
       await ctx.editMessageText(
         `❌ <b>Lỗi tải dữ liệu</b>\n\n` +
-        `Không thể tải danh sách ví crypto.\n\n` +
-        `Vui lòng thử lại sau!`,
+          `Không thể tải danh sách ví crypto.\n\n` +
+          `Vui lòng thử lại sau!`,
         { parse_mode: 'HTML', reply_markup: Keyboards.backToMenu() }
       );
     }
   });
 
   bot.callbackQuery('account_info', async (ctx) => {
-    await ctx.answerCallbackQuery().catch(() => { });
+    await ctx.answerCallbackQuery().catch(() => {});
     try {
       const userId = getUserId(ctx);
       const teleUser = await teleUserService.findByChatId(userId);
@@ -254,8 +254,8 @@ export function setupMenuHandlers(bot: Bot): void {
         logger.warn({ userId }, 'User not found in database');
         await ctx.editMessageText(
           `❌ <b>Không tìm thấy thông tin</b>\n\n` +
-          `Không tìm thấy thông tin tài khoản của bạn trong hệ thống.\n\n` +
-          `Vui lòng thử lại hoặc liên hệ support!`,
+            `Không tìm thấy thông tin tài khoản của bạn trong hệ thống.\n\n` +
+            `Vui lòng thử lại hoặc liên hệ support!`,
           { parse_mode: 'HTML', reply_markup: Keyboards.backToMenu() }
         );
         return;
@@ -287,15 +287,15 @@ export function setupMenuHandlers(bot: Bot): void {
       logger.error({ error }, 'Error fetching user information');
       await ctx.editMessageText(
         `❌ <b>Lỗi tải thông tin</b>\n\n` +
-        `Không thể tải thông tin tài khoản.\n\n` +
-        `Vui lòng thử lại sau!`,
+          `Không thể tải thông tin tài khoản.\n\n` +
+          `Vui lòng thử lại sau!`,
         { parse_mode: 'HTML', reply_markup: Keyboards.backToMenu() }
       );
     }
   });
 
   bot.callbackQuery('back_to_menu', async (ctx) => {
-    await ctx.answerCallbackQuery().catch(() => { });
+    await ctx.answerCallbackQuery().catch(() => {});
     const userId = getUserId(ctx);
     clearState(userId, {
       action: 'menu.back_to_menu',

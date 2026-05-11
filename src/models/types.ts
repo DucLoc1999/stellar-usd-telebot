@@ -54,8 +54,10 @@ export interface TelegramConfig {
   webhookSecret: string;
   chainId: string;
   tokenAddress: string;
+  tokenCode: string;
   callbackUrl: string;
   horizonUrl: string;
+  stellarNetwork: string;
 }
 
 export type PaymentType = 'BANK' | 'CRYPTO';

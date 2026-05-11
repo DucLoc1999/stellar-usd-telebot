@@ -22,6 +22,7 @@ export class PaymentService {
     sell: number;
     fee_rate_buy: number;
     fee_rate_sell: number;
+    min_fee_vnd: number;
     created_at: string;
   } | null> {
     try {
@@ -35,6 +36,7 @@ export class PaymentService {
         sell: number;
         fee_rate_buy?: number;
         fee_rate_sell?: number;
+        min_fee_vnd?: number;
         created_at: string;
       };
       return {
@@ -42,10 +44,33 @@ export class PaymentService {
         sell: data.sell,
         fee_rate_buy: data.fee_rate_buy ?? 0,
         fee_rate_sell: data.fee_rate_sell ?? 0,
+        min_fee_vnd: data.min_fee_vnd ?? 0,
         created_at: data.created_at,
       };
     } catch (error) {
       logger.error({ error }, 'Error fetching rate');
+      return null;
+    }
+  }
+
+  async getXlmRate(): Promise<number | null> {
+    try {
+      const response = await fetch(`${this.apiBaseUrl}/api/rate/xlm_vnd`);
+      if (!response.ok) {
+        logger.error({ status: response.status }, 'Failed to fetch XLM rate');
+        return null;
+      }
+
+      const data = (await response.json()) as {
+        buy?: number;
+        sell?: number;
+        rate?: number;
+        xlm_vnd?: number;
+      };
+
+      return data.buy ?? data.sell ?? data.rate ?? data.xlm_vnd ?? null;
+    } catch (error) {
+      logger.error({ error }, 'Error fetching XLM rate');
       return null;
     }
   }
@@ -310,6 +335,7 @@ export class PaymentService {
       amount: request.amount,
       chain_id: request.chain_id,
       token_address: request.token_address,
+      asset_code: request.asset_code,
       recipient: request.recipient,
       callback: request.callback,
     };
