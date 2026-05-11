@@ -8,10 +8,14 @@ export interface ExchangeRate {
 
 export async function fetchExchangeRates(): Promise<ExchangeRate | null> {
   try {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 10000);
     const response = await fetch(
       process.env.EXCHANGE_RATES_URL ||
-        'https://iakzvzwriyxyshfggbwu.supabase.co/functions/v1/get_exchange_rates'
+        'https://iakzvzwriyxyshfggbwu.supabase.co/functions/v1/get_exchange_rates',
+      { signal: controller.signal }
     );
+    clearTimeout(timeout);
     if (!response.ok) {
       return null;
     }
@@ -66,7 +70,10 @@ export function isDuplicateKeyError(error: any): boolean {
 
 export async function generateQRCode(qrString: string): Promise<Buffer> {
   const qrApiUrl = `https://quickchart.io/qr?text=${encodeURIComponent(qrString)}&size=300&margin=2`;
-  const response = await fetch(qrApiUrl);
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 10000);
+  const response = await fetch(qrApiUrl, { signal: controller.signal });
+  clearTimeout(timeout);
   if (!response.ok) {
     throw new Error(`QR API returned status ${response.status}`);
   }

@@ -1,5 +1,5 @@
 import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3';
-import { readFileSync } from 'fs';
+import { createReadStream } from 'fs';
 import { logger } from '../config/logger';
 
 // AWS Configuration from environment variables
@@ -34,18 +34,15 @@ class S3Service {
     try {
       logger.info({ localFilePath, s3FileName }, 'Uploading image to S3');
 
-      // Read file content
-      const fileContent = readFileSync(localFilePath);
+      const fileStream = createReadStream(localFilePath);
 
-      // Prepare S3 upload parameters
       const params = {
         Bucket: BUCKET_NAME,
         Key: s3FileName,
-        Body: fileContent,
+        Body: fileStream,
         ContentType: contentType,
       };
 
-      // Upload to S3
       const command = new PutObjectCommand(params);
       const response = await s3Client.send(command);
 

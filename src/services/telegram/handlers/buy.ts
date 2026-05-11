@@ -33,7 +33,28 @@ type TrustlineCheckResult = {
   reason?: 'missing' | 'unauthorized' | 'wallet_not_found' | 'network_error';
 };
 
+async function fetchQrImage(url: string, timeoutMs = 10000): Promise<Buffer> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  const response = await fetch(url, { signal: controller.signal });
+  clearTimeout(timer);
+  if (!response.ok) {
+    throw new Error(`Failed to fetch QR image: ${response.status}`);
+  }
+  const arrayBuffer = await response.arrayBuffer();
+  return Buffer.from(arrayBuffer);
+}
+
 const ACTIVATION_XLM_AMOUNT = '1';
+
+let stellarServer: StellarSdk.Horizon.Server | null = null;
+
+function getStellarServer(): StellarSdk.Horizon.Server {
+  if (!stellarServer) {
+    stellarServer = new StellarSdk.Horizon.Server(telegramConfig.horizonUrl);
+  }
+  return stellarServer;
+}
 
 function extractProviderMessage(errorMessage: string): string | null {
   const jsonStart = errorMessage.indexOf('{');
@@ -48,7 +69,7 @@ function extractProviderMessage(errorMessage: string): string | null {
 
 async function checkUsdcTrustline(walletAddress: string): Promise<TrustlineCheckResult> {
   try {
-    const server = new StellarSdk.Horizon.Server(telegramConfig.horizonUrl);
+    const server = getStellarServer();
     const account = await server.accounts().accountId(walletAddress).call();
 
     const trustline = account.balances.find(
@@ -154,7 +175,28 @@ async function handleTrustlineFailure(
   }
 }
 
-const walletInvalidAttempts = new Map<number, number>();
+const WALLET_INVALID_TTL_MS = 10 * 60 * 1000;
+
+interface TimedWalletAttempt {
+  attempts: number;
+  expiresAt: number;
+}
+
+const walletInvalidAttempts = new Map<number, TimedWalletAttempt>();
+
+function incrementWalletAttempts(userId: number): number {
+  const timed = walletInvalidAttempts.get(userId);
+  const attempts = timed ? timed.attempts : 0;
+  walletInvalidAttempts.set(userId, {
+    attempts: attempts + 1,
+    expiresAt: Date.now() + WALLET_INVALID_TTL_MS,
+  });
+  return attempts + 1;
+}
+
+function clearWalletAttempts(userId: number): void {
+  walletInvalidAttempts.delete(userId);
+}
 
 function calculateGatewayFee(vndAmount: number, feeRate: number, minFeeVnd: number): number {
   const feeByRate = vndAmount * feeRate;
@@ -184,7 +226,10 @@ export function setupBuyHandlers(bot: Bot): void {
       return;
     }
 
-    const [xlmRate, usdcRate] = await Promise.all([paymentService.getXlmRate(), paymentService.getRate()]);
+    const [xlmRate, usdcRate] = await Promise.all([
+      paymentService.getXlmRate(),
+      paymentService.getRate(),
+    ]);
     if (!xlmRate || !usdcRate) {
       await ctx.reply(Messages.RATE_UNAVAILABLE(), {
         parse_mode: 'HTML',
@@ -194,9 +239,10 @@ export function setupBuyHandlers(bot: Bot): void {
     }
 
     const xlmAmount = state.activationXlmAmount || ACTIVATION_XLM_AMOUNT;
-    const activationVndTotal = parseFloat(xlmAmount) * xlmRate;
+    const vndAmount = parseFloat(xlmAmount) * xlmRate;
     const feeRate = usdcRate.fee_rate_buy ?? 0;
-    const activationFee = activationVndTotal * feeRate;
+    const activationFee = calculateGatewayFee(vndAmount, feeRate, usdcRate.min_fee_vnd);
+    const activationVndTotal = vndAmount + activationFee;
     state.action = 'activate_wallet';
     state.activationRate = xlmRate;
     state.activationFee = activationFee;
@@ -503,6 +549,7 @@ export function setupBuyHandlers(bot: Bot): void {
       rates.fee_rate_buy ?? 0,
       rates.min_fee_vnd ?? 0
     );
+    const totalAmount = vndAmount + gatewayFee;
 
     state.buyRate = rates.buy;
     state.gatewayFee = gatewayFee;
@@ -517,7 +564,7 @@ export function setupBuyHandlers(bot: Bot): void {
         Messages.ORDER_SUMMARY_BUY(
           state.amount!,
           paymentInfo.wallet_address,
-          vndAmount,
+          totalAmount,
           rates.buy,
           gatewayFee
         ),
@@ -609,19 +656,18 @@ export async function handleWalletInput(
   text: string
 ): Promise<void> {
   if (!/^G[A-Z2-7]{55}$/.test(text)) {
-    const attempts = (walletInvalidAttempts.get(userId) ?? 0) + 1;
-    walletInvalidAttempts.set(userId, attempts);
+    const attempts = incrementWalletAttempts(userId);
     await ctx.reply(Messages.INVALID_WALLET(), { parse_mode: 'HTML' });
     if (attempts >= 3) {
-      walletInvalidAttempts.delete(userId);
+      clearWalletAttempts(userId);
       await ctx.reply(Messages.WELCOME(ctx.from?.first_name || 'bạn'), {
         parse_mode: 'HTML',
-        reply_markup: await Keyboards.mainMenu(userId),
+        replyMarkup: await Keyboards.mainMenu(userId),
       });
     }
     return;
   }
-  walletInvalidAttempts.delete(userId);
+  clearWalletAttempts(userId);
 
   // Check wallet existence and trustline before saving or proceeding
   if (state.action === 'buy' && state.amount) {
@@ -699,6 +745,7 @@ export async function handleWalletInput(
   const vndAmount = usdtAmount * rates.sell;
   const feeRate = rates.fee_rate_buy ?? 0;
   const gatewayFee = calculateGatewayFee(vndAmount, feeRate, rates.min_fee_vnd ?? 0);
+  const totalAmount = vndAmount + gatewayFee;
 
   state.buyRate = rates.sell;
   state.gatewayFee = gatewayFee;
@@ -709,7 +756,7 @@ export async function handleWalletInput(
   });
 
   await ctx.reply(
-    Messages.ORDER_SUMMARY_BUY(state.amount, text, vndAmount, rates.sell, gatewayFee),
+    Messages.ORDER_SUMMARY_BUY(state.amount, text, totalAmount, rates.sell, gatewayFee),
     {
       parse_mode: 'HTML',
       reply_markup: Keyboards.confirmPayment(),
@@ -935,29 +982,72 @@ export async function handleWalletActivationConfirmation(
       state.activationRecipientWallet,
       state.activationRate ?? 0,
       state.activationFee ?? 0,
+      totalAmount,
       bankInfo?.bankName,
       bankInfo?.bankAccountNumber,
-      bankInfo?.bankAccountName,
-      totalAmount
+      bankInfo?.bankAccountName
     );
     const qrKeyboard = Keyboards.qrCodeWithCancel(order.id);
 
-    let mainUpdated = false;
-    if (qrLink) {
+    const slots = getOrderSlots(order.id);
+    const chatId = ctx.chat?.id;
+    if (slots?.mainMsgId && chatId) {
       try {
-        await updateMainMessage(ctx, order.id, qrLink, caption, qrKeyboard);
-        mainUpdated = true;
-      } catch (error) {
-        logger.warn({ orderId: order.id, error }, 'Failed to update main msg with QR link');
+        await ctx.api.deleteMessage(chatId, slots.mainMsgId);
+      } catch (err) {
+        logger.warn(
+          { orderId: order.id, msgId: slots.mainMsgId, err },
+          'Failed to delete old message'
+        );
       }
     }
-    if (!mainUpdated && qrCode) {
+
+    let msgId: number | null = null;
+    if (qrLink) {
+      try {
+        const qrImageBuffer = await fetchQrImage(qrLink);
+        const msg = await ctx.replyWithPhoto(new InputFile(qrImageBuffer), {
+          caption,
+          parse_mode: 'HTML',
+          reply_markup: qrKeyboard,
+        });
+        msgId = msg.message_id;
+      } catch (error) {
+        logger.warn(
+          { orderId: order.id, error },
+          'Failed to send QR photo from link, trying qrCode'
+        );
+      }
+    }
+    if (!msgId && qrCode) {
       const qrCodeImage = await generateQRCode(qrCode);
-      await updateMainMessage(ctx, order.id, new InputFile(qrCodeImage), caption, qrKeyboard);
+      const msg = await ctx.replyWithPhoto(new InputFile(qrCodeImage), {
+        caption,
+        parse_mode: 'HTML',
+        reply_markup: qrKeyboard,
+      });
+      msgId = msg.message_id;
     }
 
-    await sendNotifyMessage(ctx, order.id, Messages.ORDER_STATE_CREATED(order.id));
-    scheduleOrderTrackingCleanup(order.id);
+    if (msgId && order.id) {
+      initOrderSlots(order.id, chatId);
+      setMainMsgId(order.id, msgId);
+    }
+
+    if (qrLink || qrCode) {
+      await sendNotifyMessage(ctx, order.id, Messages.ORDER_STATE_CREATED(order.id));
+      scheduleOrderTrackingCleanup(order.id);
+    } else {
+      logger.error({ orderId: order.id, body: order.body }, 'No QR code in order response');
+      await sendOrderNotice(
+        ctx,
+        order.id,
+        `❌ <b>Lỗi tạo đơn hàng</b>\n\n` +
+          `Không thể tạo mã QR thanh toán.\n` +
+          `Mã đơn hàng: <code>${order.id}</code>\n\n` +
+          `Vui lòng thử lại hoặc liên hệ support!`
+      );
+    }
   } finally {
     processingUsers.delete(userId);
   }

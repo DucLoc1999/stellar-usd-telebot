@@ -4,16 +4,82 @@ import teleUserService from '../teleUserService';
 import paymentInformationService from '../paymentInformationService';
 import type { PaymentInformation } from '../../models/types';
 
+const MAIN_MENU_CACHE_TTL_MS = 30 * 1000;
+const CACHE_CLEANUP_INTERVAL_MS = 60 * 1000;
+
+interface CachedMenuData {
+  isKyc: boolean;
+  hasBankAccounts: boolean;
+  hasWallets: boolean;
+  expiresAt: number;
+}
+
+const mainMenuCache = new Map<number, CachedMenuData>();
+
+function getCachedMenuData(chatId: number): CachedMenuData | undefined {
+  const cached = mainMenuCache.get(chatId);
+  if (cached && cached.expiresAt > Date.now()) {
+    return cached;
+  }
+  mainMenuCache.delete(chatId);
+  return undefined;
+}
+
+function setCachedMenuData(
+  chatId: number,
+  isKyc: boolean,
+  hasBankAccounts: boolean,
+  hasWallets: boolean
+): void {
+  mainMenuCache.set(chatId, {
+    isKyc,
+    hasBankAccounts,
+    hasWallets,
+    expiresAt: Date.now() + MAIN_MENU_CACHE_TTL_MS,
+  });
+}
+
+function clearMenuCache(chatId?: number): void {
+  if (chatId) {
+    mainMenuCache.delete(chatId);
+  } else {
+    mainMenuCache.clear();
+  }
+}
+
+export { clearMenuCache };
+
+setInterval(() => {
+  const now = Date.now();
+  for (const [key, value] of mainMenuCache) {
+    if (value.expiresAt <= now) {
+      mainMenuCache.delete(key);
+    }
+  }
+}, CACHE_CLEANUP_INTERVAL_MS);
+
 export class Keyboards {
   static async mainMenu(chatId: number): Promise<InlineKeyboard> {
-    const user = await teleUserService.findByChatId(chatId);
-    const isKyc = user?.is_kyc ?? false;
+    const cached = getCachedMenuData(chatId);
+    let isKyc: boolean;
+    let hasBankAccounts: boolean;
+    let hasWallets: boolean;
 
-    const savedBankAccounts = await paymentInformationService.findByTypeAndChatId(chatId, 'BANK');
-    const hasBankAccounts = savedBankAccounts.length > 0;
-
-    const savedWallets = await paymentInformationService.findByTypeAndChatId(chatId, 'CRYPTO');
-    const hasWallets = savedWallets.length > 0;
+    if (cached) {
+      isKyc = cached.isKyc;
+      hasBankAccounts = cached.hasBankAccounts;
+      hasWallets = cached.hasWallets;
+    } else {
+      const [user, savedBankAccounts, savedWallets] = await Promise.all([
+        teleUserService.findByChatId(chatId),
+        paymentInformationService.findByTypeAndChatId(chatId, 'BANK'),
+        paymentInformationService.findByTypeAndChatId(chatId, 'CRYPTO'),
+      ]);
+      isKyc = user?.is_kyc ?? false;
+      hasBankAccounts = savedBankAccounts.length > 0;
+      hasWallets = savedWallets.length > 0;
+      setCachedMenuData(chatId, isKyc, hasBankAccounts, hasWallets);
+    }
 
     const kycIndicator = isKyc ? '🟢' : '🔴';
     const bankIndicator = hasBankAccounts ? '🟢' : '🔴';

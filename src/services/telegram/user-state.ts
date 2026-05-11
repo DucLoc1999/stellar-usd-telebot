@@ -1,5 +1,38 @@
 import { logger } from '../../config/logger';
 
+const STATE_CLEANUP_INTERVAL_MS = 5 * 60 * 1000;
+const USER_STATE_TTL_MS = 30 * 60 * 1000;
+
+interface TimedUserState {
+  state: UserState;
+  expiresAt: number;
+}
+
+const userStatesWithExpiry = new Map<number, TimedUserState>();
+export const processingUsers = new Set<number>();
+export const userCancelledOrders = new Set<string>();
+export const newlyCreatedOrders = new Set<string>();
+export const sentMessages = new Map<string, Set<string>>();
+
+function cleanupExpiredStates(): void {
+  const now = Date.now();
+  let deletedCount = 0;
+  for (const [userId, timedState] of userStatesWithExpiry) {
+    if (timedState.expiresAt <= now) {
+      userStatesWithExpiry.delete(userId);
+      deletedCount++;
+    }
+  }
+  if (deletedCount > 0) {
+    logger.debug(
+      { deletedCount, remaining: userStatesWithExpiry.size },
+      'Cleaned up expired user states'
+    );
+  }
+}
+
+setInterval(cleanupExpiredStates, STATE_CLEANUP_INTERVAL_MS);
+
 export interface UserState {
   action?: 'buy' | 'sell' | 'kyc' | 'activate_wallet';
   assetCode?: string;
@@ -17,6 +50,7 @@ export interface UserState {
     | 'delete_wallet_index'
     | 'kyc_phone'
     | 'kyc_id_card'
+    | 'kyc_id_card_back'
     | 'kyc_processing';
   bankId?: number;
   bankName?: string;
@@ -34,6 +68,8 @@ export interface UserState {
   kycDocumentType?: 'cccd' | 'passport';
   kycIdCardData?: any;
   kycImageUrl?: string;
+  kycIdCardBackData?: any;
+  kycImageUrlBack?: string;
   lastProcessedPhotoId?: string;
   activationRecipientWallet?: string;
   activationXlmAmount?: string;
@@ -48,29 +84,31 @@ export interface StateLogMeta {
   chatId?: number;
 }
 
-export const userStates = new Map<number, UserState>();
-export const processingUsers = new Set<number>();
-export const userCancelledOrders = new Set<string>();
-export const newlyCreatedOrders = new Set<string>();
-export const sentMessages = new Map<string, Set<string>>();
-
 export function getState(userId: number, meta: StateLogMeta = {}): UserState | undefined {
-  const state = userStates.get(userId);
+  const timedState = userStatesWithExpiry.get(userId);
+  if (!timedState) return undefined;
+  if (timedState.expiresAt <= Date.now()) {
+    userStatesWithExpiry.delete(userId);
+    return undefined;
+  }
   logger.debug(
     {
       userId,
       chatType: meta.chatType ?? 'unknown',
       chatId: meta.chatId ?? null,
       action: meta.action ?? 'state.get',
-      waitingFor: state?.waitingFor ?? null,
+      waitingFor: timedState.state?.waitingFor ?? null,
     },
     'Telegram user state read'
   );
-  return state;
+  return timedState.state;
 }
 
 export function setState(userId: number, state: UserState, meta: StateLogMeta = {}): void {
-  userStates.set(userId, state);
+  userStatesWithExpiry.set(userId, {
+    state,
+    expiresAt: Date.now() + USER_STATE_TTL_MS,
+  });
   logger.debug(
     {
       userId,
@@ -84,16 +122,24 @@ export function setState(userId: number, state: UserState, meta: StateLogMeta = 
 }
 
 export function clearState(userId: number, meta: StateLogMeta = {}): void {
-  const state = userStates.get(userId);
-  userStates.delete(userId);
+  const timedState = userStatesWithExpiry.get(userId);
+  userStatesWithExpiry.delete(userId);
   logger.debug(
     {
       userId,
       chatType: meta.chatType ?? 'unknown',
       chatId: meta.chatId ?? null,
       action: meta.action ?? 'state.clear',
-      waitingFor: state?.waitingFor ?? null,
+      waitingFor: timedState?.state?.waitingFor ?? null,
     },
     'Telegram user state cleared'
   );
+}
+
+export function getAllStatesForCleanup(): Map<number, UserState> {
+  const result = new Map<number, UserState>();
+  for (const [userId, timedState] of userStatesWithExpiry) {
+    result.set(userId, timedState.state);
+  }
+  return result;
 }

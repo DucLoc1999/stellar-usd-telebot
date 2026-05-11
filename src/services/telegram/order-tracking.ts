@@ -8,34 +8,85 @@ export interface OrderMessageSlots {
   notifyMsgId?: number;
 }
 
-export const orderMessageSlots = new Map<string, OrderMessageSlots>();
+const ORDER_SLOTS_TTL_MS = 5 * 60 * 1000;
+const ORDER_CLEANUP_INTERVAL_MS = 5 * 60 * 1000;
+
+interface TimedOrderSlots {
+  slots: OrderMessageSlots;
+  expiresAt: number;
+}
+
+export const orderMessageSlots = new Map<string, TimedOrderSlots>();
+
+const pendingTimers = new Map<string, NodeJS.Timeout>();
+
+function cleanupExpiredOrderSlots(): void {
+  const now = Date.now();
+  let deletedCount = 0;
+  for (const [orderId, timedSlots] of orderMessageSlots) {
+    if (timedSlots.expiresAt <= now) {
+      orderMessageSlots.delete(orderId);
+      const timer = pendingTimers.get(orderId);
+      if (timer) {
+        clearTimeout(timer);
+        pendingTimers.delete(orderId);
+      }
+      deletedCount++;
+    }
+  }
+  if (deletedCount > 0) {
+    logger.debug(
+      { deletedCount, remaining: orderMessageSlots.size },
+      'Cleaned up expired order slots'
+    );
+  }
+}
+
+setInterval(cleanupExpiredOrderSlots, ORDER_CLEANUP_INTERVAL_MS);
 
 export function getOrderSlots(orderId: string): OrderMessageSlots | undefined {
-  return orderMessageSlots.get(orderId);
+  const timedSlots = orderMessageSlots.get(orderId);
+  if (!timedSlots) return undefined;
+  if (timedSlots.expiresAt <= Date.now()) {
+    orderMessageSlots.delete(orderId);
+    pendingTimers.delete(orderId);
+    return undefined;
+  }
+  return timedSlots.slots;
 }
 
 export function initOrderSlots(orderId: string, chatId: number): OrderMessageSlots {
   const slots: OrderMessageSlots = { chatId };
-  orderMessageSlots.set(orderId, slots);
+  orderMessageSlots.set(orderId, {
+    slots,
+    expiresAt: Date.now() + ORDER_SLOTS_TTL_MS,
+  });
   return slots;
 }
 
 export function setMainMsgId(orderId: string, msgId: number): void {
-  const slots = orderMessageSlots.get(orderId);
-  if (slots) {
-    slots.mainMsgId = msgId;
+  const timedSlots = orderMessageSlots.get(orderId);
+  if (timedSlots) {
+    timedSlots.slots.mainMsgId = msgId;
+    timedSlots.expiresAt = Date.now() + ORDER_SLOTS_TTL_MS;
   }
 }
 
 export function setNotifyMsgId(orderId: string, msgId: number): void {
-  const slots = orderMessageSlots.get(orderId);
-  if (slots) {
-    slots.notifyMsgId = msgId;
+  const timedSlots = orderMessageSlots.get(orderId);
+  if (timedSlots) {
+    timedSlots.slots.notifyMsgId = msgId;
+    timedSlots.expiresAt = Date.now() + ORDER_SLOTS_TTL_MS;
   }
 }
 
 export function clearOrderSlots(orderId: string): void {
   orderMessageSlots.delete(orderId);
+  const timer = pendingTimers.get(orderId);
+  if (timer) {
+    clearTimeout(timer);
+    pendingTimers.delete(orderId);
+  }
 }
 
 export async function sendMainMessage(
@@ -80,9 +131,10 @@ export async function updateMainMessage(
   }
 
   try {
+    const mediaContent = typeof photo === 'string' ? { url: photo } : photo;
     await ctx.api.editMessageMedia(ctx.chat.id, slots.mainMsgId, {
       type: 'photo',
-      media: photo,
+      media: mediaContent,
       caption,
       parse_mode: 'HTML',
     });
@@ -162,11 +214,32 @@ export function markMessageAsSent(orderId: string, messageType: string): void {
 }
 
 export function scheduleOrderTrackingCleanup(orderId: string, delayMs: number = 300000): void {
-  setTimeout(() => {
+  const existingTimer = pendingTimers.get(orderId);
+  if (existingTimer) {
+    clearTimeout(existingTimer);
+  }
+  const timer = setTimeout(() => {
     sentMessages.delete(orderId);
     newlyCreatedOrders.delete(orderId);
     userCancelledOrders.delete(orderId);
     orderMessageSlots.delete(orderId);
+    pendingTimers.delete(orderId);
     logger.debug({ orderId }, 'Cleaned up order tracking data');
   }, delayMs);
+  pendingTimers.set(orderId, timer);
+}
+
+export function cancelOrderTrackingCleanup(orderId: string): void {
+  const timer = pendingTimers.get(orderId);
+  if (timer) {
+    clearTimeout(timer);
+    pendingTimers.delete(orderId);
+  }
+}
+
+export function clearAllPendingTimers(): void {
+  for (const timer of pendingTimers.values()) {
+    clearTimeout(timer);
+  }
+  pendingTimers.clear();
 }

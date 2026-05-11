@@ -2,7 +2,6 @@ export { Messages, formatTimeWithTimeZone } from './messages';
 export { Keyboards } from './keyboards';
 export { TelegramService, default as telegramService } from './telegram.service';
 export {
-  userStates,
   processingUsers,
   userCancelledOrders,
   newlyCreatedOrders,

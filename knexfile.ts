@@ -16,8 +16,8 @@ const config: { [key: string]: Knex.Config } = {
       charset: 'utf8mb4',
     },
     pool: {
-      min: 2,
-      max: 10,
+      min: 5,
+      max: 15,
     },
     migrations: {
       tableName: 'knex_migrations',
@@ -41,8 +41,8 @@ const config: { [key: string]: Knex.Config } = {
       charset: 'utf8mb4',
     },
     pool: {
-      min: 5,
-      max: 20,
+      min: 10,
+      max: 25,
     },
     migrations: {
       tableName: 'knex_migrations',
@@ -66,8 +66,8 @@ const config: { [key: string]: Knex.Config } = {
       charset: 'utf8mb4',
     },
     pool: {
-      min: 5,
-      max: 30,
+      min: 10,
+      max: 40,
     },
     migrations: {
       tableName: 'knex_migrations',

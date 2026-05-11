@@ -4,8 +4,47 @@ import dotenv from 'dotenv';
 import { buildApp } from './app';
 import { appConfig } from './config/app';
 import { logger } from './config/logger';
+import db from './config/knex';
+import notificationQueueService from './services/notificationQueueService';
+import { clearAllPendingTimers } from './services/telegram/order-tracking';
 
 dotenv.config();
+
+let isShuttingDown = false;
+
+const gracefulShutdown = async (signal: string): Promise<void> => {
+  if (isShuttingDown) {
+    logger.warn({ signal }, 'Shutdown already in progress, ignoring repeated signal');
+    return;
+  }
+  isShuttingDown = true;
+
+  logger.info({ signal }, 'Starting graceful shutdown...');
+
+  const shutdownTimeout = setTimeout(() => {
+    logger.error('Graceful shutdown timed out after 30 seconds, forcing exit');
+    process.exit(1);
+  }, 30000);
+
+  try {
+    logger.info('Draining notification queues...');
+    await notificationQueueService.drainQueues(10000);
+
+    logger.info('Cancelling pending order tracking timers...');
+    clearAllPendingTimers();
+
+    logger.info('Closing database connections...');
+    await db.destroy();
+
+    clearTimeout(shutdownTimeout);
+    logger.info('Graceful shutdown completed');
+    process.exit(0);
+  } catch (error) {
+    logger.error({ error }, 'Error during graceful shutdown');
+    clearTimeout(shutdownTimeout);
+    process.exit(1);
+  }
+};
 
 const start = async (): Promise<void> => {
   try {
@@ -23,12 +62,15 @@ const start = async (): Promise<void> => {
     logger.info(`🏥 Health check available at http://${appConfig.host}:${appConfig.port}/health`);
     logger.info(`📋 Logs API available at http://${appConfig.host}:${appConfig.port}/api/logs`);
 
-    // check exchange rate
     try {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 10000);
       const response = await fetch(
         process.env.EXCHANGE_RATES_URL ||
-          'https://iakzvzwriyxyshfggbwu.supabase.co/functions/v1/get_exchange_rates'
+          'https://iakzvzwriyxyshfggbwu.supabase.co/functions/v1/get_exchange_rates',
+        { signal: controller.signal }
       );
+      clearTimeout(timeout);
       if (!response.ok) {
         logger.error({
           error: '📚 Failed to fetch exchange rates',
@@ -48,14 +90,11 @@ const start = async (): Promise<void> => {
   }
 };
 
-// Handle graceful shutdown
 process.on('SIGINT', () => {
-  logger.info('Received SIGINT, shutting down gracefully...');
-  process.exit(0);
+  void gracefulShutdown('SIGINT');
+});
+process.on('SIGTERM', () => {
+  void gracefulShutdown('SIGTERM');
 });
 
-process.on('SIGTERM', () => {
-  logger.info('Received SIGTERM, shutting down gracefully...');
-  process.exit(0);
-});
 void start();
