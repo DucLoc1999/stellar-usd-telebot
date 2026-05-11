@@ -1,7 +1,8 @@
 import { logger } from '../../config/logger';
 
 export interface UserState {
-  action?: 'buy' | 'sell' | 'kyc';
+  action?: 'buy' | 'sell' | 'kyc' | 'activate_wallet';
+  assetCode?: string;
   amount?: string;
   walletAddress?: string;
   waitingFor?:
@@ -25,6 +26,8 @@ export interface UserState {
   paymentInfoId?: number;
   isNewPaymentInfo?: boolean;
   orderId?: string;
+  buyRate?: number;
+  gatewayFee?: number;
   savedBankAccounts?: any[];
   savedWallets?: any[];
   kycPhoneNumber?: string;
@@ -32,6 +35,11 @@ export interface UserState {
   kycIdCardData?: any;
   kycImageUrl?: string;
   lastProcessedPhotoId?: string;
+  activationRecipientWallet?: string;
+  activationXlmAmount?: string;
+  activationRate?: number;
+  activationVndTotal?: number;
+  activationFee?: number;
 }
 
 export interface StateLogMeta {

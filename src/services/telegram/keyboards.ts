@@ -64,8 +64,30 @@ export class Keyboards {
       .text('❌ Hủy', 'cancel_payment');
   }
 
+  static activateWalletOffer(): InlineKeyboard {
+    return new InlineKeyboard()
+      .text('⚡ Kích hoạt ví (1 XLM)', 'activate_wallet_confirm_prompt')
+      .row()
+      .text('❌ Hủy', 'cancel_activate_wallet');
+  }
+
+  static confirmActivateWallet(): InlineKeyboard {
+    return new InlineKeyboard()
+      .text('✅ Xác nhận kích hoạt ví', 'confirm_activate_wallet')
+      .row()
+      .text('❌ Hủy', 'cancel_activate_wallet');
+  }
+
   static backToMenu(): InlineKeyboard {
     return new InlineKeyboard().text('🔙 Quay lại Menu', 'back_to_menu');
+  }
+
+  static trustlineActions(webSignUrl: string | undefined, viewDetailsUrl: string): InlineKeyboard {
+    const kb = new InlineKeyboard();
+    kb.url('🔍 Xem transaction', viewDetailsUrl);
+    if (webSignUrl) kb.url('✍️ Ký & gửi giao dịch', webSignUrl);
+    kb.row().text('🔙 Quay lại Menu', 'back_to_menu');
+    return kb;
   }
 
   static kycStart(): InlineKeyboard {

@@ -21,6 +21,16 @@ export {
   hasMessageBeenSent,
   markMessageAsSent,
   scheduleOrderTrackingCleanup,
+  getOrderSlots,
+  initOrderSlots,
+  setMainMsgId,
+  setNotifyMsgId,
+  clearOrderSlots,
+  sendMainMessage,
+  updateMainMessage,
+  sendNotifyMessage,
+  sendOrderNotice,
+  type OrderMessageSlots,
 } from './order-tracking';
 export { NotificationService } from './notification.service';
 export { setupHandlers } from './handlers/setup';
