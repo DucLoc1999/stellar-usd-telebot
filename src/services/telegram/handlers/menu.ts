@@ -1,5 +1,5 @@
 import { Bot } from 'grammy';
-import { Messages, Keyboards } from '../index';
+import { Messages, Keyboards, formatTimeWithTimeZone } from '../index';
 import teleUserService from '../../teleUserService';
 import paymentInformationService from '../../paymentInformationService';
 import kycService from '../../kycService';
@@ -96,7 +96,7 @@ export function setupMenuHandlers(bot: Bot): void {
       const { fetchExchangeRates } = await import('../utils');
       const rates = await fetchExchangeRates();
       if (rates) {
-        const updated = new Date(rates.created_at).toLocaleString('vi-VN');
+        const updated = formatTimeWithTimeZone(rates.created_at);
         await ctx.editMessageText(Messages.RATE_CHECK(rates.buy, rates.sell, updated), {
           parse_mode: 'HTML',
           reply_markup: Keyboards.backToMenu(),
