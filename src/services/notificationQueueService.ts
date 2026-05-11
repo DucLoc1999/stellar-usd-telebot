@@ -28,6 +28,7 @@ interface ChatQueue {
  */
 export class NotificationQueueService {
   private queues: Map<number, ChatQueue>;
+  private static readonly MAX_QUEUE_SIZE = 100;
 
   constructor() {
     this.queues = new Map();
@@ -63,6 +64,14 @@ export class NotificationQueueService {
 
     // Add notification to queue
     chatQueue.queue.push(notification);
+
+    if (chatQueue.queue.length > NotificationQueueService.MAX_QUEUE_SIZE) {
+      chatQueue.queue = chatQueue.queue.slice(-NotificationQueueService.MAX_QUEUE_SIZE);
+      logger.warn(
+        { chatId, queueLength: chatQueue.queue.length },
+        'Queue exceeded max size, trimmed oldest entries'
+      );
+    }
 
     // Sort queue by timestamp to ensure chronological order
     chatQueue.queue.sort((a, b) => {
@@ -224,6 +233,40 @@ export class NotificationQueueService {
       totalQueues: this.queues.size,
       queues: allQueues,
     };
+  }
+
+  async drainQueues(timeoutMs: number = 5000): Promise<void> {
+    const chatIds = Array.from(this.queues.keys());
+    const startTime = Date.now();
+
+    for (const chatId of chatIds) {
+      if (Date.now() - startTime >= timeoutMs) {
+        logger.warn({ remainingQueues: this.queues.size }, 'Queue drain timeout reached');
+        break;
+      }
+      const chatQueue = this.queues.get(chatId);
+      if (chatQueue && chatQueue.processing) {
+        await new Promise<void>((resolve) => {
+          const checkDone = () => {
+            if (!chatQueue.processing) {
+              resolve();
+            } else if (Date.now() - startTime >= timeoutMs) {
+              resolve();
+            } else {
+              setTimeout(checkDone, 50);
+            }
+          };
+          checkDone();
+        });
+      }
+    }
+
+    this.queues.clear();
+    logger.info('All notification queues drained');
+  }
+
+  getQueueCount(): number {
+    return this.queues.size;
   }
 }
 

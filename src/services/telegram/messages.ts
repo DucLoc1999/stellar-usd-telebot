@@ -114,14 +114,14 @@ export const Messages = {
   ORDER_SUMMARY_BUY: (
     usdtAmount: string,
     wallet: string,
-    vndAmount: number,
+    totalAmount: number,
     buyRate: number,
     gatewayFee: number
   ) =>
     `📋 <b>XÁC NHẬN ĐƠN HÀNG - MUA USDC</b>\n\n` +
     `Đơn hàng MUA <b>${usdtAmount} USDC</b> x <b>${buyRate.toLocaleString('vi-VN')}đ</b>\n\n` +
     `🌐 Mạng: Stellar | ⚡ Phí gas: $0.00\n` +
-    `💰 Thành tiền: <b>${Math.round(vndAmount).toLocaleString('vi-VN')}đ</b> | 💳 Phí dịch vụ: <b>${Math.round(gatewayFee).toLocaleString('vi-VN')}đ</b>\n` +
+    `💰 Thành tiền: <b>${Math.round(totalAmount).toLocaleString('vi-VN')}đ</b> | 💳 Phí dịch vụ: <b>${Math.round(gatewayFee).toLocaleString('vi-VN')}đ</b>\n` +
     `📮 Ví nhận: <code>${wallet}</code>\n\n` +
     `⚠️ Vui lòng kiểm tra kỹ thông tin trước khi thanh toán!`,
 
@@ -129,17 +129,16 @@ export const Messages = {
     wallet: string,
     xlmAmount: string,
     xlmRate: number,
-    vndTotal: number,
+    totalVND: number,
     serviceFee: number
   ) =>
-    `⚡ <b>XÁC NHẬN KÍCH HOẠT VÍ</b>\n\n` +
+    `⚡ <b>XÁC NHẬN ĐƠN HÀNG - MUA XLM (KÍCH HOẠT VÍ STELLAR)</b>\n\n` +
     `Ví Stellar của bạn chưa được kích hoạt trên mạng lưới.\n\n` +
-    `📮 Ví nhận: <code>${wallet}</code>\n` +
-    `💎 Số lượng kích hoạt: <b>${xlmAmount} XLM</b>\n` +
+    `💎 Số lượng XLM: <b>${xlmAmount} XLM</b>\n` +
     `💱 Tỷ giá XLM: <b>${xlmRate.toLocaleString('vi-VN')}đ</b>\n` +
-    `💰 Thành tiền: <b>${Math.round(vndTotal).toLocaleString('vi-VN')}đ</b>\n` +
-    `💳 Phí dịch vụ: <b>${Math.round(serviceFee).toLocaleString('vi-VN')}đ</b>\n\n` +
-    `Sau khi thanh toán, hệ thống sẽ gửi XLM để kích hoạt ví và bạn có thể mua USDC lại.`,
+    `💰 Thành tiền: <b>${Math.round(totalVND).toLocaleString('vi-VN')}đ</b> |  💳 Phí dịch vụ: <b>${Math.round(serviceFee).toLocaleString('vi-VN')}đ</b>\n\n` +
+    `📮 Ví nhận: <code>${wallet}</code>\n` +
+    `Sau khi thanh toán, hệ thống sẽ gửi XLM để kích hoạt ví, sau đó bạn có thể bắt đầu mua/bán USDC.`,
 
   ORDER_SUMMARY_SELL: (amount: string) =>
     `📋 <b>XÁC NHẬN ĐƠN HÀNG - BÁN USDC</b>\n\n` +
@@ -167,7 +166,7 @@ export const Messages = {
     bankName?: string,
     accountNumber?: string,
     accountName?: string,
-    vndAmount?: number
+    totalAmount?: number
   ) => {
     let message = `🏦 <b>THÔNG TIN CHUYỂN KHOẢN</b>\n\n`;
 
@@ -177,8 +176,8 @@ export const Messages = {
       message += `👤 Chủ tài khoản: <b>${accountName}</b>\n\n`;
     }
 
-    if (vndAmount) {
-      message += `💰 Số tiền: <code>${Math.round(vndAmount).toLocaleString('vi-VN')}đ</code>\n\n`;
+    if (totalAmount) {
+      message += `💰 Số tiền: <code>${Math.round(totalAmount).toLocaleString('vi-VN')}đ</code>\n\n`;
     }
 
     message += `💰 Vui lòng quét mã QR bên dưới để thanh toán`;
@@ -195,19 +194,16 @@ export const Messages = {
     accountName?: string,
     totalVnd?: number
   ) => {
-    const vndAmount = parseFloat(usdtAmount) * buyRate;
+    const totalAmount = totalVnd || parseFloat(usdtAmount) * buyRate + gatewayFee;
     let message = `🏦 <b>ĐƠN HÀNG - MUA USDC</b>\n\n`;
     message += `Đơn hàng MUA <b>${usdtAmount} USDC</b> x <b>${buyRate.toLocaleString('vi-VN')}đ</b>\n\n`;
     message += `🌐 Mạng: Stellar | ⚡ Phí gas: $0.00\n`;
-    message += `💰 Thành tiền: <b>${Math.round(vndAmount).toLocaleString('vi-VN')}đ</b> | 💳 Phí dịch vụ: <b>${Math.round(gatewayFee).toLocaleString('vi-VN')}đ</b>\n`;
+    message += `💰 Thành tiền: <b>${Math.round(totalAmount).toLocaleString('vi-VN')}đ</b> | 💳 Phí dịch vụ: <b>${Math.round(gatewayFee).toLocaleString('vi-VN')}đ</b>\n`;
     message += `📮 Ví nhận: <code>${wallet}</code>\n\n`;
     if (bankName && accountNumber && accountName) {
       message += `🏛️ Ngân hàng: <b>${bankName}</b>\n`;
       message += `💳 Số tài khoản: <code>${accountNumber}</code>\n`;
       message += `👤 Chủ tài khoản: <b>${accountName}</b>\n\n`;
-    }
-    if (totalVnd) {
-      message += `💰 Số tiền: <code>${Math.round(totalVnd).toLocaleString('vi-VN')}đ</code>\n\n`;
     }
     message += `💰 Vui lòng quét mã QR bên dưới để thanh toán`;
     return message;
@@ -218,23 +214,20 @@ export const Messages = {
     wallet: string,
     xlmRate: number,
     serviceFee: number,
+    totalAmount: number,
     bankName?: string,
     accountNumber?: string,
-    accountName?: string,
-    totalVnd?: number
+    accountName?: string
   ) => {
-    const vndAmount = parseFloat(xlmAmount) * xlmRate;
-    let message = `🏦 <b>ĐƠN HÀNG - KÍCH HOẠT VÍ STELLAR</b>\n\n`;
+    let message = `🏦 <b>ĐƠN HÀNG - MUA XLM (KÍCH HOẠT VÍ STELLAR)</b>\n\n`;
     message += `Kích hoạt ví với <b>${xlmAmount} XLM</b> x <b>${xlmRate.toLocaleString('vi-VN')}đ</b>\n\n`;
-    message += `💰 Thành tiền: <b>${Math.round(vndAmount).toLocaleString('vi-VN')}đ</b> | 💳 Phí dịch vụ: <b>${Math.round(serviceFee).toLocaleString('vi-VN')}đ</b>\n`;
+    message += `🌐 Mạng: Stellar | ⚡ Phí gas: $0.00\n`;
+    message += `💰 Thành tiền: <b>${Math.round(totalAmount).toLocaleString('vi-VN')}đ</b> |  💳 Phí dịch vụ: <b>${Math.round(serviceFee).toLocaleString('vi-VN')}đ</b>\n`;
     message += `📮 Ví nhận: <code>${wallet}</code>\n\n`;
     if (bankName && accountNumber && accountName) {
       message += `🏛️ Ngân hàng: <b>${bankName}</b>\n`;
       message += `💳 Số tài khoản: <code>${accountNumber}</code>\n`;
       message += `👤 Chủ tài khoản: <b>${accountName}</b>\n\n`;
-    }
-    if (totalVnd) {
-      message += `💰 Số tiền: <code>${Math.round(totalVnd).toLocaleString('vi-VN')}đ</code>\n\n`;
     }
     message += `💰 Vui lòng quét mã QR bên dưới để thanh toán`;
     return message;
@@ -413,6 +406,17 @@ export const Messages = {
     `• Ánh sáng đủ, không bị lóa\n\n` +
     `📷 Nhấn nút 📎 và chọn ảnh từ thư viện hoặc chụp ảnh mới.`,
 
+  KYC_REQUEST_ID_CARD_BACK: () =>
+    `📸 <b>CHỤP ẢNH CCCD - MẶT SAU</b>\n\n` +
+    `✅ <b>Mặt trước đã xử lý thành công!</b>\n\n` +
+    `Bây giờ vui lòng gửi ảnh <b>mặt sau</b> của Căn cước công dân (CCCD) của bạn.\n\n` +
+    `📝 <b>Lưu ý:</b>\n` +
+    `• Ảnh phải rõ nét, không bị mờ\n` +
+    `• Đảm bảo đầy đủ 4 góc của CCCD\n` +
+    `• Không chụp qua màn hình\n` +
+    `• Ánh sáng đủ, không bị lóa\n\n` +
+    `📷 Nhấn nút 📎 và chọn ảnh từ thư viện hoặc chụp ảnh mới.`,
+
   KYC_REQUEST_PASSPORT: () =>
     `📸 <b>CHỤP ẢNH HỘ CHIẾU</b>\n\n` +
     `Vui lòng gửi ảnh <b>trang thông tin cá nhân</b> của Hộ chiếu (Passport) của bạn.\n\n` +
@@ -478,15 +482,15 @@ export const Messages = {
     );
   },
 
-  KYC_IMAGE_ERROR: () =>
-    `❌ <b>LỖI XỬ LÝ ẢNH</b>\n\n` +
-    `Không thể trích xuất thông tin từ ảnh CCCD.\n\n` +
+  KYC_IMAGE_ERROR: (side: 'front' | 'back' = 'front') =>
+    `❌ <b>LỖI XỬ LÝ ẢNH ${side === 'back' ? 'MẶT SAU' : 'MẶT TRƯỚC'}</b>\n\n` +
+    `Không thể trích xuất thông tin từ ảnh CCCD ${side === 'back' ? 'mặt sau' : 'mặt trước'}.\n\n` +
     `<b>Nguyên nhân có thể:</b>\n` +
     `• Ảnh không rõ nét hoặc bị mờ\n` +
     `• Không phải ảnh CCCD hợp lệ\n` +
     `• Ảnh bị che khuất hoặc thiếu góc\n` +
     `• Ánh sáng không đủ\n\n` +
-    `Vui lòng chụp lại ảnh CCCD của bạn.`,
+    `Vui lòng chụp lại ảnh CCCD ${side === 'back' ? 'mặt sau' : 'mặt trước'} của bạn.`,
 
   KYC_SAVE_SUCCESS: (name: string, phoneNumber: string) =>
     `🎉 <b>HOÀN TẤT KYC</b>\n\n` +

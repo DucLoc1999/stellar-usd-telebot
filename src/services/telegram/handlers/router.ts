@@ -4,6 +4,15 @@ import { getState, setState } from '../user-state';
 import { logger } from '../../../config/logger';
 import { getUserId } from './context';
 import { validateVietnamesePhoneNumber } from '../utils';
+import { handleKycIdCardPhoto } from './kyc';
+import { handleBuyAmountInput, handleWalletInput } from './buy';
+import {
+  handleSellAmountInput,
+  handleFullNameInput,
+  handleAccountNumberInput,
+  handleBankDetailsSingleInput,
+} from './sell';
+import { handleDeleteBankIndexInput, handleDeleteWalletIndexInput } from './delete';
 
 export function setupRouterHandlers(bot: Bot): void {
   bot.on('message:contact', async (ctx) => {
@@ -69,7 +78,14 @@ export function setupRouterHandlers(bot: Bot): void {
       chatId: ctx.chat?.id,
     });
 
-    if (!state || state.waitingFor !== 'kyc_id_card') {
+    if (!state) {
+      return;
+    }
+
+    const isKycFront = state.waitingFor === 'kyc_id_card';
+    const isKycBack = state.waitingFor === 'kyc_id_card_back';
+
+    if (!isKycFront && !isKycBack) {
       return;
     }
 
@@ -103,14 +119,24 @@ export function setupRouterHandlers(bot: Bot): void {
       chatId: ctx.chat?.id,
     });
 
-    logger.info({ userId, photoUniqueId }, 'Starting ID card photo processing');
+    logger.info(
+      { userId, photoUniqueId, side: isKycBack ? 'back' : 'front' },
+      'Starting ID card photo processing'
+    );
 
     try {
-      const { handleKycIdCardPhoto } = await import('./kyc');
-      await handleKycIdCardPhoto(ctx, userId, state);
+      await handleKycIdCardPhoto(ctx, userId, state, isKycBack ? 'back' : 'front');
     } catch (error) {
-      logger.error({ error, userId }, 'Error handling ID card photo');
-      state.waitingFor = 'kyc_id_card';
+      logger.error(
+        {
+          error: error instanceof Error ? error.message : String(error),
+          stack: error instanceof Error ? error.stack : undefined,
+          userId,
+          side: isKycBack ? 'back' : 'front',
+        },
+        'Error handling ID card photo'
+      );
+      state.waitingFor = isKycBack ? 'kyc_id_card_back' : 'kyc_id_card';
       state.lastProcessedPhotoId = undefined;
       setState(userId, state, {
         action: 'handler.state.set',
@@ -135,28 +161,20 @@ export function setupRouterHandlers(bot: Bot): void {
     const text = ctx.message.text.trim();
 
     if (state.waitingFor === 'buy_amount') {
-      const { handleBuyAmountInput } = await import('./buy');
       await handleBuyAmountInput(ctx, userId, state, text);
     } else if (state.waitingFor === 'sell_amount') {
-      const { handleSellAmountInput } = await import('./sell');
       await handleSellAmountInput(ctx, userId, state, text);
     } else if (state.waitingFor === 'wallet') {
-      const { handleWalletInput } = await import('./buy');
       await handleWalletInput(ctx, userId, state, text);
     } else if (state.waitingFor === 'full_name') {
-      const { handleFullNameInput } = await import('./sell');
       await handleFullNameInput(ctx, userId, state, text);
     } else if (state.waitingFor === 'account_number') {
-      const { handleAccountNumberInput } = await import('./sell');
       await handleAccountNumberInput(ctx, userId, state, text);
     } else if (state.waitingFor === 'bank_details_single') {
-      const { handleBankDetailsSingleInput } = await import('./sell');
       await handleBankDetailsSingleInput(ctx, userId, state, text);
     } else if (state.waitingFor === 'delete_bank_index') {
-      const { handleDeleteBankIndexInput } = await import('./delete');
       await handleDeleteBankIndexInput(ctx, userId, state, text);
     } else if (state.waitingFor === 'delete_wallet_index') {
-      const { handleDeleteWalletIndexInput } = await import('./delete');
       await handleDeleteWalletIndexInput(ctx, userId, state, text);
     }
   });

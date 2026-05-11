@@ -95,7 +95,7 @@ export interface Kyc {
   nationality: string;
   home: string;
   address: string;
-  doe: Date;
+  doe?: Date;
   passport_number?: string; // Passport number (only for PASSPORT type)
   kyc_image?: string; // S3 URL of the uploaded KYC image
   created_at?: Date;
@@ -113,7 +113,7 @@ export interface CreateKycRequest {
   nationality: string;
   home: string;
   address: string;
-  doe: Date;
+  doe?: Date;
   passport_number?: string; // Passport number (only for PASSPORT type)
   kyc_image?: string; // S3 URL of the uploaded KYC image
 }

@@ -11,7 +11,7 @@ const databaseConfig: DatabaseConfig = {
   user: process.env.DB_USER || 'root',
   password: process.env.DB_PASSWORD || '',
   database: process.env.DB_NAME || 'fastify_db',
-  connectionLimit: 10,
+  connectionLimit: 20,
   waitForConnections: true,
   queueLimit: 0,
 };

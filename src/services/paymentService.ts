@@ -26,7 +26,12 @@ export class PaymentService {
     created_at: string;
   } | null> {
     try {
-      const response = await fetch(`${this.apiBaseUrl}/api/rate/usdt_vnd`);
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 10000);
+      const response = await fetch(`${this.apiBaseUrl}/api/rate/usdt_vnd`, {
+        signal: controller.signal,
+      });
+      clearTimeout(timeout);
       if (!response.ok) {
         logger.error({ status: response.status }, 'Failed to fetch rate');
         return null;
@@ -55,7 +60,12 @@ export class PaymentService {
 
   async getXlmRate(): Promise<number | null> {
     try {
-      const response = await fetch(`${this.apiBaseUrl}/api/rate/xlm_vnd`);
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 10000);
+      const response = await fetch(`${this.apiBaseUrl}/api/rate/xlm_vnd`, {
+        signal: controller.signal,
+      });
+      clearTimeout(timeout);
       if (!response.ok) {
         logger.error({ status: response.status }, 'Failed to fetch XLM rate');
         return null;

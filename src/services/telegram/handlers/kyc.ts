@@ -13,6 +13,40 @@ import path from 'path';
 import fs from 'fs';
 import axios from 'axios';
 
+function checkNeedsBackSide(idData: any, documentType: 'cccd' | 'passport'): boolean {
+  if (documentType === 'passport') {
+    return false;
+  }
+
+  const hasId = !!(idData && idData.id && idData.id.trim());
+  const hasName = !!(idData && idData.name && idData.name.trim());
+  const hasDob = !!(idData && idData.dob && idData.dob.trim() && idData.dob !== 'N/A');
+  const hasSex = !!(idData && idData.sex && idData.sex.trim() && idData.sex !== 'N/A');
+  const hasNationality = !!(
+    idData &&
+    idData.nationality &&
+    idData.nationality.trim() &&
+    idData.nationality !== 'N/A'
+  );
+
+  const frontHasRequiredData = hasId && hasName && hasDob && hasSex && hasNationality;
+
+  logger.info(
+    {
+      hasId,
+      hasName,
+      hasDob,
+      hasSex,
+      hasNationality,
+      frontHasRequiredData,
+      idData,
+    },
+    'Checking if front-side data is sufficient'
+  );
+
+  return !frontHasRequiredData;
+}
+
 export function setupKycHandlers(bot: Bot): void {
   bot.callbackQuery('kyc', async (ctx) => {
     await ctx.answerCallbackQuery().catch(() => {});
@@ -189,6 +223,9 @@ export function setupKycHandlers(bot: Bot): void {
     logger.info({ userId }, 'User requested to recapture ID card');
 
     state.kycIdCardData = undefined;
+    state.kycIdCardBackData = undefined;
+    state.kycImageUrl = undefined;
+    state.kycImageUrlBack = undefined;
     state.lastProcessedPhotoId = undefined;
     state.waitingFor = 'kyc_id_card';
     setState(userId, state, {
@@ -221,6 +258,9 @@ export function setupKycHandlers(bot: Bot): void {
     logger.info({ userId }, 'User requested to try different ID card after duplicate error');
 
     state.kycIdCardData = undefined;
+    state.kycIdCardBackData = undefined;
+    state.kycImageUrl = undefined;
+    state.kycImageUrlBack = undefined;
     state.lastProcessedPhotoId = undefined;
     state.waitingFor = 'kyc_id_card';
     setState(userId, state, {
@@ -241,9 +281,11 @@ export function setupKycHandlers(bot: Bot): void {
 export async function handleKycIdCardPhoto(
   ctx: any,
   userId: number,
-  state: UserState
+  state: UserState,
+  side: 'front' | 'back' = 'front'
 ): Promise<void> {
-  logger.info({ userId }, 'Processing ID card photo');
+  const documentType = state.kycDocumentType || 'cccd';
+  logger.info({ userId, documentType, side }, 'Processing ID card photo');
 
   await teleUserService.incrementKycAttempts(userId);
   logger.info({ userId }, 'Incremented KYC attempt counter');
@@ -255,7 +297,7 @@ export async function handleKycIdCardPhoto(
     const photo = photos[photos.length - 1];
 
     logger.info(
-      { userId, fileId: photo.file_id, fileUniqueId: photo.file_unique_id },
+      { userId, fileId: photo.file_id, fileUniqueId: photo.file_unique_id, side },
       'Downloading photo from Telegram'
     );
 
@@ -271,7 +313,7 @@ export async function handleKycIdCardPhoto(
       fs.mkdirSync(dataDir, { recursive: true });
     }
 
-    const localFilePath = path.join(dataDir, `${userId}.jpg`);
+    const localFilePath = path.join(dataDir, `${userId}_${side}.jpg`);
     const fileUrl = `https://api.telegram.org/file/bot${telegramConfig.botToken}/${filePath}`;
 
     const response = await axios.get(fileUrl, { responseType: 'stream' });
@@ -284,21 +326,23 @@ export async function handleKycIdCardPhoto(
       writer.on('error', reject);
     });
 
-    logger.info({ userId, localFilePath }, 'ID card image saved to disk');
+    logger.info({ userId, localFilePath, side }, 'ID card image saved to disk');
 
-    const documentType = state.kycDocumentType || 'cccd';
-
-    logger.info({ userId, documentType }, 'Calling FPT AI Vision API');
+    logger.info({ userId, documentType, side }, 'Calling FPT AI Vision API');
     const idData = await fptAiVisionService.recognizeIdCard(localFilePath, documentType);
-    logger.info({ userId, documentType, idData }, 'FPT AI Vision API call successful');
+    logger.info({ userId, documentType, side, idData }, 'FPT AI Vision API call successful');
 
-    logger.info({ userId, localFilePath }, 'Uploading KYC image to S3');
-    const s3Url = await s3Service.uploadKycImage(localFilePath, userId);
-    logger.info({ userId, s3Url }, 'KYC image uploaded to S3 successfully');
+    const s3FileName = `kyc/${userId}_${side}_${Date.now()}.jpg`;
+    logger.info({ userId, localFilePath, s3FileName, side }, 'Uploading KYC image to S3');
+    const s3Url = await s3Service.uploadImage(localFilePath, s3FileName, 'image/jpeg');
+    logger.info({ userId, s3Url, side }, 'KYC image uploaded to S3 successfully');
 
     try {
       fs.unlinkSync(localFilePath);
-      logger.info({ userId, localFilePath }, 'Temporary KYC image file deleted from local disk');
+      logger.info(
+        { userId, localFilePath, side },
+        'Temporary KYC image file deleted from local disk'
+      );
     } catch (deleteError) {
       logger.warn(
         { userId, localFilePath, error: deleteError },
@@ -306,26 +350,54 @@ export async function handleKycIdCardPhoto(
       );
     }
 
-    state.kycIdCardData = idData;
-    state.kycImageUrl = s3Url;
-    setState(userId, state, {
-      action: 'handler.state.set',
-      chatType: ctx.chat?.type,
-      chatId: ctx.chat?.id,
-    });
+    if (side === 'back') {
+      state.kycIdCardBackData = idData;
+      state.kycImageUrlBack = s3Url;
+      logger.info({ userId }, 'Back side data stored, proceeding to save KYC data');
+      await saveKycData(ctx, userId, state);
+    } else {
+      state.kycIdCardData = idData;
+      state.kycImageUrl = s3Url;
 
-    logger.info({ userId }, 'ID card data extracted, automatically saving to database');
+      const needsBackSide = checkNeedsBackSide(idData, documentType);
 
-    await saveKycData(ctx, userId, state);
+      if (needsBackSide) {
+        state.waitingFor = 'kyc_id_card_back';
+        state.lastProcessedPhotoId = undefined;
+        setState(userId, state, {
+          action: 'handler.state.set',
+          chatType: ctx.chat?.type,
+          chatId: ctx.chat?.id,
+        });
+
+        await ctx.reply(Messages.KYC_REQUEST_ID_CARD_BACK(), {
+          parse_mode: 'HTML',
+          reply_markup: Keyboards.kycCancel(),
+        });
+        logger.info({ userId }, 'Front side data insufficient, asking for back side');
+      } else {
+        logger.info({ userId }, 'Front side data sufficient, saving KYC data');
+        await saveKycData(ctx, userId, state);
+      }
+    }
   } catch (error) {
-    logger.error({ error, userId }, 'Error processing ID card photo');
+    logger.error(
+      {
+        error: error instanceof Error ? error.message : String(error),
+        stack: error instanceof Error ? error.stack : undefined,
+        userId,
+        side,
+        documentType,
+      },
+      'Error processing ID card photo'
+    );
 
-    await ctx.reply(Messages.KYC_IMAGE_ERROR(), {
+    await ctx.reply(Messages.KYC_IMAGE_ERROR(side), {
       parse_mode: 'HTML',
       reply_markup: Keyboards.kycCancel(),
     });
 
-    state.waitingFor = 'kyc_id_card';
+    state.waitingFor = side === 'back' ? 'kyc_id_card_back' : 'kyc_id_card';
     state.lastProcessedPhotoId = undefined;
     setState(userId, state, {
       action: 'handler.state.set',
@@ -338,50 +410,65 @@ export async function handleKycIdCardPhoto(
 }
 
 export async function saveKycData(ctx: any, userId: number, state: UserState): Promise<void> {
-  const idData = state.kycIdCardData;
+  const frontIdData = state.kycIdCardData;
+  const backIdData = state.kycIdCardBackData;
   const phoneNumber = state.kycPhoneNumber;
   const documentType = state.kycDocumentType || 'cccd';
   const kycImageUrl = state.kycImageUrl;
+  const kycImageUrlBack = state.kycImageUrlBack;
 
-  if (!idData || !phoneNumber) {
-    throw new Error('Missing KYC data');
+  if (!frontIdData || !phoneNumber) {
+    throw new Error('Missing KYC front data');
   }
 
-  logger.info({ userId, documentType, kycImageUrl }, 'Saving KYC data to database');
+  const kycImage = kycImageUrlBack || kycImageUrl;
+
+  logger.info({ userId, documentType, kycImage }, 'Saving KYC data to database');
 
   try {
-    const dob = fptAiVisionService.parseDate(idData.dob);
-    const doe = fptAiVisionService.parseDate(idData.doe);
+    const dob = fptAiVisionService.parseDate(frontIdData.dob);
+    if (!dob) {
+      throw new Error('Invalid date of birth in ID card data');
+    }
 
-    if (!dob || !doe) {
-      throw new Error('Invalid date format in ID card data');
+    let doe: Date | null = null;
+    if (documentType === 'passport') {
+      doe = fptAiVisionService.parseDate(frontIdData.doe);
+      if (!doe) {
+        throw new Error('Invalid date of expiry in passport data');
+      }
+    } else if (backIdData && backIdData.issue_date) {
+      doe = fptAiVisionService.parseDate(backIdData.issue_date);
     }
 
     const kycType: 'PASSPORT' | 'IDC' = documentType === 'passport' ? 'PASSPORT' : 'IDC';
     const passportNumber =
-      documentType === 'passport' && idData.passport_number ? idData.passport_number : undefined;
+      documentType === 'passport' && frontIdData.passport_number
+        ? frontIdData.passport_number
+        : undefined;
 
-    const home = documentType === 'passport' ? idData.pob || 'N/A' : idData.home || 'N/A';
-    const address = documentType === 'passport' ? idData.pob || 'N/A' : idData.address || 'N/A';
+    const home = documentType === 'passport' ? frontIdData.pob || 'N/A' : frontIdData.home || 'N/A';
+    const address =
+      documentType === 'passport' ? frontIdData.pob || 'N/A' : frontIdData.address || 'N/A';
 
-    const idNumber = documentType === 'passport' ? idData.id_number : idData.id;
+    const idNumber = documentType === 'passport' ? frontIdData.id_number : frontIdData.id;
 
-    const sexForDatabase = parseSexForDatabase(idData.sex);
+    const sexForDatabase = parseSexForDatabase(frontIdData.sex);
 
     await kycService.create({
       chat_id: userId,
       phone: phoneNumber,
       type: kycType,
       id_number: idNumber,
-      name: idData.name,
+      name: frontIdData.name,
       dob: dob,
       sex: sexForDatabase,
-      nationality: idData.nationality,
+      nationality: frontIdData.nationality,
       home: home,
       address: address,
-      doe: doe,
+      doe: doe ?? undefined,
       passport_number: passportNumber,
-      kyc_image: kycImageUrl,
+      kyc_image: kycImage,
     });
 
     await teleUserService.updateKycStatus(userId, true);
@@ -394,7 +481,7 @@ export async function saveKycData(ctx: any, userId: number, state: UserState): P
       chatId: ctx.chat?.id,
     });
 
-    await ctx.reply(Messages.KYC_SAVE_SUCCESS(idData.name, phoneNumber), {
+    await ctx.reply(Messages.KYC_SAVE_SUCCESS(frontIdData.name, phoneNumber), {
       parse_mode: 'HTML',
       reply_markup: Keyboards.backToMenu(),
     });
@@ -402,7 +489,7 @@ export async function saveKycData(ctx: any, userId: number, state: UserState): P
     const isDuplicateError = isDuplicateKeyError(error);
 
     if (isDuplicateError) {
-      const idNumberLast4 = idData.id ? idData.id.slice(-4) : 'unknown';
+      const idNumberLast4 = frontIdData.id ? frontIdData.id.slice(-4) : 'unknown';
       logger.warn(
         { userId, idNumberLast4, errorCode: error.code, errorMessage: error.message },
         'Duplicate ID card number detected - ID already registered to another account'
@@ -416,7 +503,14 @@ export async function saveKycData(ctx: any, userId: number, state: UserState): P
       return;
     }
 
-    logger.error({ error, userId }, 'Error saving KYC data to database');
+    logger.error(
+      {
+        error: error instanceof Error ? error.message : String(error),
+        stack: error instanceof Error ? error.stack : undefined,
+        userId,
+      },
+      'Error saving KYC data to database'
+    );
     throw error;
   }
 }
