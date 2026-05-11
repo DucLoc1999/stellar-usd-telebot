@@ -3,8 +3,10 @@ import type { PaymentInformation, Kyc } from '../../models/types';
 import { appConfig } from '../../config/app';
 import { DateTime } from 'luxon';
 
-const formatTimeWithTimeZone = (): string => {
-  const dt = DateTime.now().setZone(appConfig.timeZone);
+export const formatTimeWithTimeZone = (input?: string | Date): string => {
+  const dt = input
+    ? DateTime.fromJSDate(new Date(input as string)).setZone(appConfig.timeZone)
+    : DateTime.now().setZone(appConfig.timeZone);
   const time = dt.toFormat('HH:mm:ss');
   const date = dt.toFormat('d/M/yyyy');
   const offset = dt.offsetNameShort;
