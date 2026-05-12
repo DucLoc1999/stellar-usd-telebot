@@ -39,19 +39,19 @@ export interface UserState {
   amount?: string;
   walletAddress?: string;
   waitingFor?:
-    | 'buy_amount'
-    | 'sell_amount'
-    | 'wallet'
-    | 'bank_selection'
-    | 'full_name'
-    | 'account_number'
-    | 'bank_details_single'
-    | 'delete_bank_index'
-    | 'delete_wallet_index'
-    | 'kyc_phone'
-    | 'kyc_id_card'
-    | 'kyc_id_card_back'
-    | 'kyc_processing';
+  | 'buy_amount'
+  | 'sell_amount'
+  | 'wallet'
+  | 'bank_selection'
+  | 'full_name'
+  | 'account_number'
+  | 'bank_details_single'
+  | 'delete_bank_index'
+  | 'delete_wallet_index'
+  | 'kyc_phone'
+  | 'kyc_id_card'
+  | 'kyc_id_card_back'
+  | 'kyc_processing';
   bankId?: number;
   bankName?: string;
   fullName?: string;
