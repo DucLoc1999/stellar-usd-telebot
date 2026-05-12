@@ -28,8 +28,17 @@ function checkNeedsBackSide(idData: any, documentType: 'cccd' | 'passport'): boo
     idData.nationality.trim() &&
     idData.nationality !== 'N/A'
   );
+  const hasHome = !!(idData && idData.home && idData.home.trim() && idData.home !== 'N/A');
+  const hasAddress = !!(
+    idData &&
+    idData.address &&
+    idData.address.trim() &&
+    idData.address !== 'N/A'
+  );
+  const hasDoe = !!(idData && idData.doe && idData.doe.trim() && idData.doe !== 'N/A');
 
-  const frontHasRequiredData = hasId && hasName && hasDob && hasSex && hasNationality;
+  const frontHasRequiredData =
+    hasId && hasName && hasDob && hasSex && hasNationality && hasHome && hasAddress && hasDoe;
 
   logger.info(
     {
@@ -38,6 +47,9 @@ function checkNeedsBackSide(idData: any, documentType: 'cccd' | 'passport'): boo
       hasDob,
       hasSex,
       hasNationality,
+      hasHome,
+      hasAddress,
+      hasDoe,
       frontHasRequiredData,
       idData,
     },
@@ -437,8 +449,13 @@ export async function saveKycData(ctx: any, userId: number, state: UserState): P
       if (!doe) {
         throw new Error('Invalid date of expiry in passport data');
       }
-    } else if (backIdData && backIdData.issue_date) {
-      doe = fptAiVisionService.parseDate(backIdData.issue_date);
+    } else {
+      if (backIdData) {
+        doe = fptAiVisionService.parseDate(backIdData.issue_date || backIdData.doe);
+      }
+      if (!doe) {
+        throw new Error('Missing date of expiry from CCCD back side');
+      }
     }
 
     const kycType: 'PASSPORT' | 'IDC' = documentType === 'passport' ? 'PASSPORT' : 'IDC';
