@@ -52,7 +52,7 @@ export const Messages = {
   TRUSTLINE_REQUIRED: (assetCode: string, issuer: string) =>
     `🛡️ <b>THÊM TRUSTLINE ${assetCode}</b>\n\n` +
     `Ví của bạn chưa có trustline để nhận và nắm giữ <b>${assetCode}</b>.\n\n` +
-    `• Chi phí: <b>0.5 XLM</b> (có thể hoàn lại)\n` +
+    `• Chi phí: ~ <b>0.00001 XLM</b>\n` +
     `• Bảo mật: ký không lưu ký (Non-custodial)\n` +
     `• Issuer: <code>${issuer}</code>\n\n` +
     `Chọn cách ký bên dưới, sau đó quay lại bấm xác nhận mua lại.`,
