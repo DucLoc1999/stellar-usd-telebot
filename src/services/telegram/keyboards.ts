@@ -132,7 +132,7 @@ export class Keyboards {
 
   static activateWalletOffer(): InlineKeyboard {
     return new InlineKeyboard()
-      .text('⚡ Kích hoạt ví (1 XLM)', 'activate_wallet_confirm_prompt')
+      .text(`⚡ Kích hoạt ví (${process.env.ACTIVATION_XLM_AMOUNT || 5} XLM)`, 'activate_wallet_confirm_prompt')
       .row()
       .text('❌ Hủy', 'cancel_activate_wallet');
   }

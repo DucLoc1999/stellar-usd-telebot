@@ -303,9 +303,18 @@ export function setupMenuHandlers(bot: Bot): void {
       chatId: ctx.chat?.id,
     });
     const firstName = ctx.from?.first_name || 'bạn';
-    await ctx.editMessageText(Messages.WELCOME(firstName), {
-      parse_mode: 'HTML',
-      reply_markup: await Keyboards.mainMenu(userId),
-    });
+    const msg = Messages.WELCOME(firstName);
+    const markup = await Keyboards.mainMenu(userId);
+    try {
+      await ctx.editMessageText(msg, {
+        parse_mode: 'HTML',
+        reply_markup: markup,
+      });
+    } catch {
+      await ctx.reply(msg, {
+        parse_mode: 'HTML',
+        reply_markup: markup,
+      });
+    }
   });
 }

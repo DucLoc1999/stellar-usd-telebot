@@ -868,60 +868,93 @@ export async function handleBuyConfirmation(
       const chatId = ctx.chat?.id;
 
       const slots = getOrderSlots(order.id);
-      if (slots?.mainMsgId && chatId) {
-        try {
-          await ctx.api.deleteMessage(chatId, slots.mainMsgId);
-          logger.info(
-            { orderId: order.id, mainMsgId: slots.mainMsgId },
-            'Deleted old summary message'
-          );
-        } catch (deleteError) {
-          logger.warn(
-            { orderId: order.id, error: deleteError },
-            'Failed to delete old summary message'
-          );
-        }
-      }
-
       let msgId: number | null = null;
 
       if (qrLink) {
         try {
-          logger.info({ orderId: order.id, qrLink }, 'Fetching QR image from URL');
-          const qrImageBuffer = await fetchQrImage(qrLink);
-          const msg = await ctx.replyWithPhoto(new InputFile(qrImageBuffer), {
-            caption: combinedCaption,
-            parse_mode: 'HTML',
-            reply_markup: qrKeyboard,
-          });
-          msgId = msg.message_id;
-          logger.info({ orderId: order.id, msgId }, 'Sent QR photo via URL');
+          if (slots?.mainMsgId && chatId) {
+            logger.info(
+              { orderId: order.id, qrLink },
+              'Fetching and editing main message with QR photo via URL'
+            );
+            const qrImageBuffer = await fetchQrImage(qrLink);
+            await ctx.api.editMessageMedia(chatId, slots.mainMsgId, {
+              type: 'photo',
+              media: new InputFile(qrImageBuffer),
+              caption: combinedCaption,
+              parse_mode: 'HTML',
+            });
+            await ctx.api.editMessageReplyMarkup(chatId, slots.mainMsgId, {
+              reply_markup: qrKeyboard,
+            });
+            msgId = slots.mainMsgId;
+            logger.info(
+              { orderId: order.id, msgId: slots.mainMsgId },
+              'Edited main message with QR photo via URL'
+            );
+          } else {
+            logger.info({ orderId: order.id, qrLink }, 'Sending new QR photo via URL');
+            const qrImageBuffer = await fetchQrImage(qrLink);
+            const msg = await ctx.replyWithPhoto(new InputFile(qrImageBuffer), {
+              caption: combinedCaption,
+              parse_mode: 'HTML',
+              reply_markup: qrKeyboard,
+            });
+            msgId = msg.message_id;
+            logger.info({ orderId: order.id, msgId }, 'Sent new QR photo via URL');
+          }
         } catch (qrLinkError) {
           logger.warn(
             { orderId: order.id, error: qrLinkError },
-            'Failed to fetch QR from URL, falling back to generate'
+            'Failed to edit/send QR from URL, trying qrCode'
           );
         }
       }
 
       if (!msgId && qrCode) {
-        logger.info({ orderId: order.id }, 'Generating QR code from string');
-        const qrCodeImage = await generateQRCode(qrCode);
-        const msg = await ctx.replyWithPhoto(new InputFile(qrCodeImage), {
-          caption: combinedCaption,
-          parse_mode: 'HTML',
-          reply_markup: qrKeyboard,
-        });
-        msgId = msg.message_id;
-        logger.info({ orderId: order.id, msgId }, 'Sent QR photo via generated image');
+        try {
+          if (slots?.mainMsgId && chatId) {
+            logger.info({ orderId: order.id }, 'Editing main message with generated QR photo');
+            const qrCodeImage = await generateQRCode(qrCode);
+            await ctx.api.editMessageMedia(chatId, slots.mainMsgId, {
+              type: 'photo',
+              media: new InputFile(qrCodeImage),
+              caption: combinedCaption,
+              parse_mode: 'HTML',
+            });
+            await ctx.api.editMessageReplyMarkup(chatId, slots.mainMsgId, {
+              reply_markup: qrKeyboard,
+            });
+            msgId = slots.mainMsgId;
+            logger.info(
+              { orderId: order.id, msgId: slots.mainMsgId },
+              'Edited main message with generated QR'
+            );
+          } else {
+            logger.info({ orderId: order.id }, 'Sending new QR photo via generated image');
+            const qrCodeImage = await generateQRCode(qrCode);
+            const msg = await ctx.replyWithPhoto(new InputFile(qrCodeImage), {
+              caption: combinedCaption,
+              parse_mode: 'HTML',
+              reply_markup: qrKeyboard,
+            });
+            msgId = msg.message_id;
+            logger.info({ orderId: order.id, msgId }, 'Sent new QR photo via generated image');
+          }
+        } catch (qrCodeError) {
+          logger.error(
+            { orderId: order.id, error: qrCodeError },
+            'Failed to edit/send QR from qrCode'
+          );
+        }
       }
 
-      if (chatId && msgId) {
+      if (!slots?.mainMsgId && chatId && msgId) {
         initOrderSlots(order.id, chatId);
         setMainMsgId(order.id, msgId);
         logger.info(
           { orderId: order.id, mainMsgId: msgId },
-          'Updated order slots with new photo message ID'
+          'Initialized order slots with new photo message ID'
         );
       }
 
@@ -1017,47 +1050,94 @@ export async function handleWalletActivationConfirmation(
 
     const slots = getOrderSlots(order.id);
     const chatId = ctx.chat?.id;
-    if (slots?.mainMsgId && chatId) {
-      try {
-        await ctx.api.deleteMessage(chatId, slots.mainMsgId);
-      } catch (err) {
-        logger.warn(
-          { orderId: order.id, msgId: slots.mainMsgId, err },
-          'Failed to delete old message'
-        );
-      }
-    }
-
     let msgId: number | null = null;
+
     if (qrLink) {
       try {
-        const qrImageBuffer = await fetchQrImage(qrLink);
-        const msg = await ctx.replyWithPhoto(new InputFile(qrImageBuffer), {
-          caption,
-          parse_mode: 'HTML',
-          reply_markup: qrKeyboard,
-        });
-        msgId = msg.message_id;
-      } catch (error) {
+        if (slots?.mainMsgId && chatId) {
+          logger.info(
+            { orderId: order.id, qrLink },
+            'Fetching and editing main message with QR photo via URL'
+          );
+          const qrImageBuffer = await fetchQrImage(qrLink);
+          await ctx.api.editMessageMedia(chatId, slots.mainMsgId, {
+            type: 'photo',
+            media: new InputFile(qrImageBuffer),
+            caption,
+            parse_mode: 'HTML',
+          });
+          await ctx.api.editMessageReplyMarkup(chatId, slots.mainMsgId, {
+            reply_markup: qrKeyboard,
+          });
+          msgId = slots.mainMsgId;
+          logger.info(
+            { orderId: order.id, msgId: slots.mainMsgId },
+            'Edited main message with QR photo via URL'
+          );
+        } else {
+          logger.info({ orderId: order.id, qrLink }, 'Sending new QR photo via URL');
+          const qrImageBuffer = await fetchQrImage(qrLink);
+          const msg = await ctx.replyWithPhoto(new InputFile(qrImageBuffer), {
+            caption,
+            parse_mode: 'HTML',
+            reply_markup: qrKeyboard,
+          });
+          msgId = msg.message_id;
+          logger.info({ orderId: order.id, msgId }, 'Sent new QR photo via URL');
+        }
+      } catch (qrLinkError) {
         logger.warn(
-          { orderId: order.id, error },
-          'Failed to send QR photo from link, trying qrCode'
+          { orderId: order.id, error: qrLinkError },
+          'Failed to edit/send QR from URL, trying qrCode'
         );
       }
     }
+
     if (!msgId && qrCode) {
-      const qrCodeImage = await generateQRCode(qrCode);
-      const msg = await ctx.replyWithPhoto(new InputFile(qrCodeImage), {
-        caption,
-        parse_mode: 'HTML',
-        reply_markup: qrKeyboard,
-      });
-      msgId = msg.message_id;
+      try {
+        if (slots?.mainMsgId && chatId) {
+          logger.info({ orderId: order.id }, 'Editing main message with generated QR photo');
+          const qrCodeImage = await generateQRCode(qrCode);
+          await ctx.api.editMessageMedia(chatId, slots.mainMsgId, {
+            type: 'photo',
+            media: new InputFile(qrCodeImage),
+            caption,
+            parse_mode: 'HTML',
+          });
+          await ctx.api.editMessageReplyMarkup(chatId, slots.mainMsgId, {
+            reply_markup: qrKeyboard,
+          });
+          msgId = slots.mainMsgId;
+          logger.info(
+            { orderId: order.id, msgId: slots.mainMsgId },
+            'Edited main message with generated QR'
+          );
+        } else {
+          logger.info({ orderId: order.id }, 'Sending new QR photo via generated image');
+          const qrCodeImage = await generateQRCode(qrCode);
+          const msg = await ctx.replyWithPhoto(new InputFile(qrCodeImage), {
+            caption,
+            parse_mode: 'HTML',
+            reply_markup: qrKeyboard,
+          });
+          msgId = msg.message_id;
+          logger.info({ orderId: order.id, msgId }, 'Sent new QR photo via generated image');
+        }
+      } catch (qrCodeError) {
+        logger.error(
+          { orderId: order.id, error: qrCodeError },
+          'Failed to edit/send QR from qrCode'
+        );
+      }
     }
 
-    if (msgId && order.id) {
+    if (!slots?.mainMsgId && chatId && msgId) {
       initOrderSlots(order.id, chatId);
       setMainMsgId(order.id, msgId);
+      logger.info(
+        { orderId: order.id, mainMsgId: msgId },
+        'Initialized order slots with new photo message ID'
+      );
     }
 
     if (qrLink || qrCode) {
