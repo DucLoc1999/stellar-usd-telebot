@@ -616,7 +616,7 @@ export const Messages = {
     `🆔 Mã đơn: <code>${orderId}</code>\n` +
     `📊 Trạng thái: Hoàn thành\n\n` +
     `⏰ Thời gian: ${formatTimeWithTimeZone()}\n\n` +
-    `💰 Vui lòng kiểm tra ví của bạn.` +
+    `💰 Vui lòng kiểm tra tài khoản/ví của bạn.` +
     (transactionHash
       ? `\n🔗 Tx Hash: <a href='https://stellarchain.io/tx/${transactionHash}'>${transactionHash}</a>`
       : ''),
