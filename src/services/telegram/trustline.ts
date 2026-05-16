@@ -1,20 +1,12 @@
 import * as StellarSdk from 'stellar-sdk';
-import axios from 'axios';
+import { StellarNetwork, shortenUrl, resolveNetwork, NETWORK_CONFIGS } from './utils';
 import { telegramConfig } from '../../config/app';
-import { logger } from '../../config/logger';
 
-export enum StellarNetwork {
-  MAINNET = 'mainnet',
-  TESTNET = 'testnet',
-}
+export { StellarNetwork };
 
 export class StellarLinkHelper {
   private static readonly LAB_BASE_URL = 'https://lab.stellar.org';
 
-  // Stellar Lab custom URL encoding:
-  // - horizonUrl: double-encoded
-  // - passphrase: spaces -> %20, semicolons -> /; (escape with /)
-  // - xdr blob: slashes -> // (doubled), everything else literal
   private static encodePassphrase(passphrase: string): string {
     return passphrase.replace(/ /g, '%20').replace(/;/g, '/;');
   }
@@ -72,33 +64,6 @@ export interface TrustlineLinks {
   viewUrl: string;
 }
 
-async function shortenUrl(url: string): Promise<string> {
-  try {
-    const response = await axios.get(
-      `https://tinyurl.com/api-create.php?url=${encodeURIComponent(url)}`,
-      { timeout: 5000 }
-    );
-    return response.data as string;
-  } catch (error) {
-    logger.warn({ error }, 'Failed to shorten URL, using original');
-    return url;
-  }
-}
-
-function resolveNetwork(): StellarNetwork {
-  const val = (telegramConfig.stellarNetwork || 'public').toLowerCase();
-  return val === 'testnet' ? StellarNetwork.TESTNET : StellarNetwork.MAINNET;
-}
-
-const NETWORK_CONFIGS = {
-  [StellarNetwork.MAINNET]: {
-    passphrase: StellarSdk.Networks.PUBLIC,
-  },
-  [StellarNetwork.TESTNET]: {
-    passphrase: StellarSdk.Networks.TESTNET,
-  },
-};
-
 export async function buildTrustlineLinks(
   walletAddress: string,
   assetCode: string,
@@ -112,7 +77,7 @@ export async function buildTrustlineLinks(
   const asset = new StellarSdk.Asset(assetCode, assetIssuer);
 
   const tx = new StellarSdk.TransactionBuilder(sourceAccount, {
-    fee: StellarSdk.BASE_FEE,
+    fee: StellarSdk.BASE_FEE + '0', // 100 x 10 =  this for network congestion
     networkPassphrase,
   })
     .addOperation(
@@ -122,6 +87,51 @@ export async function buildTrustlineLinks(
     )
     .setTimeout(StellarSdk.TimeoutInfinite)
     .build();
+
+  const xdr = tx.toXDR();
+  const [webSignUrl, viewUrl] = await Promise.all([
+    shortenUrl(StellarLinkHelper.getSignLink(xdr, network)),
+    shortenUrl(StellarLinkHelper.getViewLink(xdr, network)),
+  ]);
+
+  return {
+    xdr,
+    webSignUrl,
+    viewUrl,
+  };
+}
+
+export async function buildPaymentTransactionLinks(
+  sourceWallet: string,
+  destAddress: string,
+  amount: string,
+  assetCode: string,
+  assetIssuer: string,
+  memo?: string
+): Promise<TrustlineLinks> {
+  const network = resolveNetwork();
+  const networkPassphrase = NETWORK_CONFIGS[network].passphrase;
+  const server = new StellarSdk.Horizon.Server(telegramConfig.horizonUrl);
+  const account = await server.accounts().accountId(sourceWallet).call();
+  const sourceAccount = new StellarSdk.Account(account.account_id, account.sequence);
+  const asset = new StellarSdk.Asset(assetCode, assetIssuer);
+
+  const txBuilder = new StellarSdk.TransactionBuilder(sourceAccount, {
+    fee: StellarSdk.BASE_FEE + '0', // 100 x 10 =  this for network congestion
+    networkPassphrase,
+  }).addOperation(
+    StellarSdk.Operation.payment({
+      destination: destAddress,
+      asset,
+      amount,
+    })
+  );
+
+  if (memo) {
+    txBuilder.addMemo(StellarSdk.Memo.text(memo));
+  }
+
+  const tx = txBuilder.setTimeout(StellarSdk.TimeoutInfinite).build();
 
   const xdr = tx.toXDR();
   const [webSignUrl, viewUrl] = await Promise.all([

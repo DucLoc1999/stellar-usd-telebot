@@ -123,11 +123,26 @@ export class PaymentService {
 
       if (!response.ok) {
         const errorText = await response.text();
+        let errorCode: string | undefined;
+        let traceId: string | undefined;
+        let errorMessage = errorText;
+
+        try {
+          const parsedError = JSON.parse(errorText) as {
+            error?: { code?: string; message?: string; trace_id?: string };
+          };
+          errorCode = parsedError.error?.code;
+          traceId = parsedError.error?.trace_id;
+          errorMessage = parsedError.error?.message || errorText;
+        } catch {
+          // Keep raw error text when API response is non-JSON.
+        }
+
         logger.error(
-          { status: response.status, errorText },
+          { status: response.status, errorText, errorCode, traceId },
           'Withdrawal API returned error status'
         );
-        throw new Error(`USDT247 API error: ${response.status} - ${errorText}`);
+        throw new Error(`USDT247 API error: ${response.status} - ${errorMessage}`);
       }
 
       const apiResponse = (await response.json()) as Usdt247CreateOrderResponse;
@@ -264,6 +279,7 @@ export class PaymentService {
       outcome: apiResponse.outcome || null,
       original_rate: apiResponse.original_rate || null,
       total_fee_vnd: apiResponse.total_fee_vnd,
+      net_vnd: apiResponse.net_vnd ?? null,
     };
 
     await db('orders').insert(orderData);
@@ -291,6 +307,7 @@ export class PaymentService {
     const apiRequest: Usdt247CreateWithdrawalRequest = {
       amount: request.amount,
       chain_id: request.chain_id,
+      asset_code: request.asset_code,
       token_address: request.token_address,
       callback: request.callback,
       payment_info: request.payment_info,
@@ -300,12 +317,27 @@ export class PaymentService {
       {
         chatId: request.chat_id,
         bankId: request.payment_info.bank_id,
+        assetCode: request.asset_code,
+        chainId: request.chain_id,
         apiUrl: `${this.apiBaseUrl}/api/orders/withdrawal`,
       },
       'Calling withdrawal API'
     );
 
     const apiResponse = await this.callWithdrawalAPI(apiRequest);
+
+    if (!apiResponse.pay_data?.address) {
+      logger.error(
+        {
+          chatId: request.chat_id,
+          orderId: apiResponse.id,
+          paymentCode: apiResponse.code,
+          payData: apiResponse.pay_data,
+          recipient: apiResponse.recipient,
+        },
+        'Withdrawal API response missing pay_data.address'
+      );
+    }
 
     logger.info(
       {

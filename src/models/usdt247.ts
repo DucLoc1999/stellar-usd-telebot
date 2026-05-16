@@ -1,5 +1,5 @@
 export interface Usdt247PaymentInfo {
-  bank_id: number;
+  bank_id: string;
   full_name: string;
   account_type: number;
   account_number: string;
@@ -41,7 +41,8 @@ export interface Usdt247PayData {
 
 export interface Usdt247CreateWithdrawalRequest {
   amount: string;
-  chain_id: string;
+  chain_id: number;
+  asset_code: string;
   token_address: string;
   callback: string;
   payment_info: Usdt247PaymentInfo;
@@ -84,6 +85,7 @@ export interface Usdt247OrderData {
   outcome: string | null;
   original_rate: string | null;
   total_fee_vnd: number;
+  net_vnd?: number;
 }
 
 export interface Usdt247CreateOrderResponse {
@@ -112,7 +114,8 @@ export enum Usdt247OrderState {
 export interface WithdrawalRequest {
   chat_id: number;
   amount: string;
-  chain_id: string;
+  chain_id: number;
+  asset_code: string;
   token_address: string;
   callback: string;
   payment_info: Usdt247PaymentInfo;
@@ -157,4 +160,5 @@ export interface Order {
   outcome: string | null;
   original_rate: string | null;
   total_fee_vnd: number | null;
+  net_vnd: number | null;
 }

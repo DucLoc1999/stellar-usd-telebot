@@ -3,6 +3,7 @@ export interface ExchangeRate {
   sell: number;
   fee_rate_buy?: number;
   fee_rate_sell?: number;
+  min_fee_vnd?: number;
   created_at: string;
 }
 
@@ -80,3 +81,45 @@ export async function generateQRCode(qrString: string): Promise<Buffer> {
   const arrayBuffer = await response.arrayBuffer();
   return Buffer.from(arrayBuffer);
 }
+
+export function calculateGatewayFee(vndAmount: number, feeRate: number, minFeeVnd: number): number {
+  const feeByRate = vndAmount * feeRate;
+  return Math.max(feeByRate, minFeeVnd);
+}
+
+import * as StellarSdk from 'stellar-sdk';
+import axios from 'axios';
+import { telegramConfig } from '../../config/app';
+import { logger } from '../../config/logger';
+
+export enum StellarNetwork {
+  MAINNET = 'mainnet',
+  TESTNET = 'testnet',
+}
+
+export async function shortenUrl(url: string): Promise<string> {
+  try {
+    const response = await axios.get(
+      `https://tinyurl.com/api-create.php?url=${encodeURIComponent(url)}`,
+      { timeout: 5000 }
+    );
+    return response.data as string;
+  } catch (error) {
+    logger.warn({ error }, 'Failed to shorten URL, using original');
+    return url;
+  }
+}
+
+export function resolveNetwork(): StellarNetwork {
+  const val = (telegramConfig.stellarNetwork || 'public').toLowerCase();
+  return val === 'testnet' ? StellarNetwork.TESTNET : StellarNetwork.MAINNET;
+}
+
+export const NETWORK_CONFIGS = {
+  [StellarNetwork.MAINNET]: {
+    passphrase: StellarSdk.Networks.PUBLIC,
+  },
+  [StellarNetwork.TESTNET]: {
+    passphrase: StellarSdk.Networks.TESTNET,
+  },
+};
