@@ -25,6 +25,7 @@ import {
   initOrderSlots,
   sendNotifyMessage,
   sendOrderNotice,
+  calculateGatewayFee,
 } from '../index';
 
 type TrustlineCheckResult = {
@@ -195,11 +196,6 @@ function incrementWalletAttempts(userId: number): number {
 
 function clearWalletAttempts(userId: number): void {
   walletInvalidAttempts.delete(userId);
-}
-
-function calculateGatewayFee(vndAmount: number, feeRate: number, minFeeVnd: number): number {
-  const feeByRate = vndAmount * feeRate;
-  return Math.max(feeByRate, minFeeVnd);
 }
 
 function getPreorderBuyNoticeKey(chatId?: number): string | null {
@@ -815,7 +811,7 @@ export async function handleBuyConfirmation(
     });
 
     const bankInfo = order.body?.bankInfo;
-    const totalAmount = bankInfo?.vaAmount ?? 0;
+    const totalAmount = order.net_vnd ?? bankInfo?.vaAmount ?? 0;
 
     logger.info(
       {
@@ -1019,7 +1015,7 @@ export async function handleWalletActivationConfirmation(
     });
 
     const bankInfo = order.body?.bankInfo;
-    const totalAmount = bankInfo?.vaAmount ?? 0;
+    const totalAmount = order.net_vnd ?? bankInfo?.vaAmount ?? 0;
     newlyCreatedOrders.add(order.id);
     setTimeout(() => newlyCreatedOrders.delete(order.id), 30000);
 

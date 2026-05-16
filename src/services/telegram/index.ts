@@ -15,6 +15,7 @@ export {
   parseSexForDatabase,
   isDuplicateKeyError,
   generateQRCode,
+  calculateGatewayFee,
 } from './utils';
 export {
   hasMessageBeenSent,

@@ -1,6 +1,6 @@
 import { banks } from '../../models/webhook';
 import type { PaymentInformation, Kyc } from '../../models/types';
-import { appConfig } from '../../config/app';
+import { appConfig, telegramConfig } from '../../config/app';
 import { DateTime } from 'luxon';
 
 export const formatTimeWithTimeZone = (input?: string | Date): string => {
@@ -158,8 +158,11 @@ export const Messages = {
     `💸 <b>XÁC NHẬN ĐƠN HÀNG - BÁN USDC</b>\n\n` +
     `Đơn hàng BÁN <b>${amount} USDC</b> x <b>${sellRate.toLocaleString('vi-VN')}đ</b>\n\n` +
     `🌐 Mạng: Stellar | ⚡ Phí gas: $0.00\n` +
-    `💰 Thành tiền: <b>${Math.round(totalVND - serviceFee).toLocaleString('vi-VN')}đ</b> |  💳 Phí dịch vụ: <b>${Math.round(serviceFee).toLocaleString('vi-VN')}đ</b>\n` +
-    `🏦 Bank nhận: <code>${bankName}</code> | <code>${accountNumber}</code> | <code>${fullName}</code>\n\n` +
+    `💰 Thành tiền: <b>${Math.round(totalVND - serviceFee).toLocaleString('vi-VN')}đ</b> |  💳 Phí dịch vụ: <b>${Math.round(serviceFee).toLocaleString('vi-VN')}đ</b>\n\n` +
+    `<b>TÀI KHOẢN NHẬN TIỀN:</b>\n` +
+    `🏦 Ngân hàng: <b>${bankName}</b>\n` +
+    `👤 Tên tài khoản: <b>${fullName}</b>\n` +
+    `💳 Số tài khoản: <code>${accountNumber}</code>\n\n` +
     `⚠️ Vui lòng kiểm tra kỹ thông tin trước khi xác nhận!`,
 
   PAYMENT_QR_MESSAGE: (
@@ -238,15 +241,31 @@ export const Messages = {
     `⏰ Sau khi thanh toán, USDC sẽ được chuyển vào ví của bạn trong vòng 3-30 giây.\n\n` +
     `📞 Liên hệ support nếu có vấn đề!`,
 
-  PAYMENT_SELL_ADDRESS: (recipientAddress: string, usdtAmount?: string) =>
-    `📮 <b>ĐỊA CHỈ VÍ NHẬN USDC</b>\n\n` +
-    (usdtAmount ? `💰 Số lượng: <code>${usdtAmount} USDC</code>\n\n` : '') +
-    `Vui lòng chuyển USDC đến địa chỉ:\n\n` +
+  PAYMENT_SELL_ADDRESS: (
+    recipientAddress: string,
+    usdtAmount: string,
+    memo: string,
+    netVndAmount?: number,
+    bankName?: string,
+    accountNumber?: string,
+    fullName?: string
+  ) =>
+    `<b>ĐƠN HÀNG - BÁN USDC</b>\n\n` +
+    `💰 Số lượng: <code>${usdtAmount} USDC</code>\n\n` +
+    `Vui lòng chuyển USDC đến địa chỉ ví:\n` +
     `<code>${recipientAddress}</code>\n\n` +
     `🌐 Mạng: <b>Stellar</b>\n` +
-    `💎 Token: <b>USDC (Circle)</b>\n\n` +
-    `⏰ Sau khi chuyển, tiền VND sẽ được chuyển vào tài khoản của bạn trong vòng 3-30 giây.\n\n` +
-    `⚠️ Lưu ý: Chỉ chuyển USDC trên mạng Stellar!`,
+    `💎 Token: <b>USDC (Circle)</b>\n` +
+    `📄 Issuer: <code>${telegramConfig.tokenAddress}</code> | Asset name: <b>USDC</b>\n\n` +
+    `🧾 <b>Memo bắt buộc:</b> <code>${memo}</code>\n` +
+    `⚠️ Nếu thiếu/sai memo, hệ thống không thể đối soát đơn hàng.\n\n` +
+    `⏰ Sau khi chuyển USDC, tiền VND sẽ được chuyển vào tài khoản của bạn trong vòng 3-30 giây.` +
+    (netVndAmount ? `\n💰 <b>Số tiền nhận:</b> ${netVndAmount.toLocaleString('vi-VN')} VND` : '') +
+    `${bankName
+      ? `\n\n🏛️ Ngân hàng: <b>${bankName}</b>\n💳 Số TK: <code>${accountNumber}</code>\n👤 Chủ TK: <b>${fullName}</b>`
+      : ''
+    }\n\n` +
+    `📞 Liên hệ support nếu có vấn đề!`,
 
   PAYMENT_CANCELLED: () =>
     `❌ <b>ĐÃ HỦY THANH TOÁN</b>\n\n` +

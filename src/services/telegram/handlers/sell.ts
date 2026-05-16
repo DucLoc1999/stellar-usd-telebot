@@ -1,4 +1,4 @@
-import { Bot, InputFile } from 'grammy';
+import { Bot } from 'grammy';
 import { Messages, Keyboards } from '../index';
 import {
   getState,
@@ -18,11 +18,12 @@ import { captureErrorWithContext } from '../../../utils/sentryHelper';
 import { banks } from '../../../models/webhook';
 import {
   fetchExchangeRates,
-  generateQRCode,
   scheduleOrderTrackingCleanup,
-  sendMainMessage,
-  sendNotifyMessage,
   sendOrderNotice,
+  calculateGatewayFee,
+  getOrderSlots,
+  setMainMsgId,
+  initOrderSlots,
 } from '../index';
 
 function getPreorderSellNoticeKey(chatId?: number): string | null {
@@ -329,9 +330,12 @@ export function setupSellHandlers(bot: Bot): void {
     }
 
     const usdtAmount = parseFloat(state.amount!);
-    const totalVND = usdtAmount * rates.buy;
-    const gatewayFeesPercent = parseFloat(process.env.GATEWAY_FEES || '0.5');
-    const serviceFee = totalVND * (gatewayFeesPercent / 100);
+    const vndAmount = usdtAmount * rates.sell;
+    const serviceFee = calculateGatewayFee(
+      vndAmount,
+      rates.fee_rate_sell ?? 0,
+      rates.min_fee_vnd ?? 0
+    );
 
     await ctx.editMessageText(
       Messages.SELL_CONFIRMATION(
@@ -339,8 +343,8 @@ export function setupSellHandlers(bot: Bot): void {
         bank.short_name,
         paymentInfo.full_name,
         paymentInfo.bank_account,
-        rates.buy,
-        totalVND,
+        rates.sell,
+        vndAmount,
         serviceFee
       ),
       { parse_mode: 'HTML', reply_markup: Keyboards.confirmPayment() }
@@ -533,9 +537,12 @@ export async function handleAccountNumberInput(
   }
 
   const usdtAmount = parseFloat(state.amount);
-  const totalVND = usdtAmount * rates.buy;
-  const gatewayFeesPercent = parseFloat(process.env.GATEWAY_FEES || '0.5');
-  const serviceFee = totalVND * (gatewayFeesPercent / 100);
+  const vndAmount = usdtAmount * rates.sell;
+  const serviceFee = calculateGatewayFee(
+    vndAmount,
+    rates.fee_rate_sell ?? 0,
+    rates.min_fee_vnd ?? 0
+  );
 
   await ctx.reply(
     Messages.SELL_CONFIRMATION(
@@ -543,8 +550,8 @@ export async function handleAccountNumberInput(
       state.bankName,
       state.fullName,
       text,
-      rates.buy,
-      totalVND,
+      rates.sell,
+      vndAmount,
       serviceFee
     ),
     { parse_mode: 'HTML', reply_markup: Keyboards.confirmPayment() }
@@ -689,9 +696,12 @@ export async function handleBankDetailsSingleInput(
   }
 
   const usdtAmount = parseFloat(state.amount);
-  const totalVND = usdtAmount * rates.buy;
-  const gatewayFeesPercent = parseFloat(process.env.GATEWAY_FEES || '0.5');
-  const serviceFee = totalVND * (gatewayFeesPercent / 100);
+  const vndAmount = usdtAmount * rates.sell;
+  const serviceFee = calculateGatewayFee(
+    vndAmount,
+    rates.fee_rate_sell ?? 0,
+    rates.min_fee_vnd ?? 0
+  );
 
   await ctx.reply(
     Messages.SELL_CONFIRMATION(
@@ -699,8 +709,8 @@ export async function handleBankDetailsSingleInput(
       bank.short_name,
       fullNameUpper,
       accountNumberInput,
-      rates.buy,
-      totalVND,
+      rates.sell,
+      vndAmount,
       serviceFee
     ),
     { parse_mode: 'HTML', reply_markup: Keyboards.confirmPayment() }
@@ -750,13 +760,14 @@ export async function handleSellConfirmation(
     const order = await paymentService.processWithdrawal({
       chat_id: userId,
       amount: state.amount,
-      chain_id: telegramConfig.chainId,
+      chain_id: 57,
+      asset_code: 'USDC',
       token_address: telegramConfig.tokenAddress,
       callback: telegramConfig.callbackUrl,
       payment_info: {
-        bank_id: state.bankId,
+        bank_id: String(state.bankId),
         full_name: state.fullName,
-        account_type: 1,
+        account_type: 0,
         account_number: state.accountNumber,
       },
     });
@@ -796,35 +807,55 @@ export async function handleSellConfirmation(
 
     if (recipientAddress) {
       logger.info(
-        { userId, orderId: order.id, recipientAddress },
-        'Sending merged main message to user'
+        { userId, orderId: order.id, paymentCode: order.code, recipientAddress },
+        'Processing payment details for sell order'
       );
 
-      const addressText = Messages.PAYMENT_SELL_ADDRESS(recipientAddress, state.amount);
-      const qrCaption =
-        `📱 <b>Quét mã QR để sao chép địa chỉ ví</b>\n\n` +
-        `⏰ Sau khi chuyển USDC, tiền VND sẽ được chuyển vào tài khoản của bạn trong vòng 3-30 giây.\n\n` +
-        `📞 Liên hệ support nếu có vấn đề!`;
-      const combinedCaption =
-        addressText + '\n\n' + `<code>${recipientAddress}</code>` + '\n\n' + qrCaption;
+      const currentMsgId = ctx.callbackQuery?.message?.message_id;
+      if (currentMsgId && ctx.chat?.id) {
+        if (!getOrderSlots(order.id)) {
+          initOrderSlots(order.id, ctx.chat.id);
+        }
+        setMainMsgId(order.id, currentMsgId);
+      }
 
-      logger.info({ orderId: order.id, recipientAddress }, 'Generating QR code for wallet address');
-      const qrCodeImage = await generateQRCode(recipientAddress);
-      logger.info(
-        { orderId: order.id, qrCodeSize: qrCodeImage.length },
-        'QR code generated, sending merged main message'
+      const caption = Messages.PAYMENT_SELL_ADDRESS(
+        recipientAddress,
+        state.amount,
+        order.code ?? '',
+        order.net_vnd,
+        state.bankName,
+        state.accountNumber,
+        state.fullName
       );
 
-      await sendMainMessage(
-        ctx,
-        order.id,
-        new InputFile(qrCodeImage),
-        combinedCaption,
-        Keyboards.qrCodeWithCancel(order.id)
-      );
-      logger.info({ userId, orderId: order.id }, 'Merged main message sent successfully');
+      const chatId = ctx.chat?.id;
+      const slots = getOrderSlots(order.id);
 
-      await sendNotifyMessage(ctx, order.id, Messages.ORDER_STATE_CREATED(order.id));
+      if (slots?.mainMsgId && chatId) {
+        logger.info(
+          { orderId: order.id, mainMsgId: slots.mainMsgId },
+          'Editing existing message with payment details and reply markup'
+        );
+        await ctx.api.editMessageText(chatId, slots.mainMsgId, caption, {
+          parse_mode: 'HTML',
+        });
+        await ctx.api.editMessageReplyMarkup(chatId, slots.mainMsgId, {
+          reply_markup: Keyboards.qrCodeWithCancel(order.id),
+        });
+        logger.info({ userId, orderId: order.id }, 'Message updated with cancel button');
+      } else {
+        logger.info({ orderId: order.id }, 'No existing message ID, sending new message');
+        await ctx.reply(caption, {
+          parse_mode: 'HTML',
+          replyMarkup: Keyboards.qrCodeWithCancel(order.id),
+        });
+      }
+
+      await ctx.reply(Messages.ORDER_STATE_CREATED(order.id), {
+        parse_mode: 'HTML',
+      });
+      logger.info({ userId, orderId: order.id }, 'Order created notification sent');
 
       scheduleOrderTrackingCleanup(order.id);
     } else {

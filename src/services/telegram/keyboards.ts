@@ -211,9 +211,9 @@ export class Keyboards {
 
   static qrCodeWithCancel(orderId: string): InlineKeyboard {
     return new InlineKeyboard()
-      .text('❌ Hủy đơn hàng', `cancel_order_${orderId}`)
-      .row()
-      .text('🔙 Quay lại Menu', 'back_to_menu');
+      .text('❌ Hủy đơn hàng', `cancel_order_${orderId}`);
+    // .row()
+    // .text('🔙 Quay lại Menu', 'back_to_menu');
   }
 
   static bankAccountsList(accounts: any[]): InlineKeyboard {
