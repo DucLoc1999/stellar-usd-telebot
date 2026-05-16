@@ -852,9 +852,7 @@ export async function handleSellConfirmation(
         });
       }
 
-      await ctx.reply(Messages.ORDER_STATE_CREATED(order.id), {
-        parse_mode: 'HTML',
-      });
+      await sendOrderNotice(ctx, order.id, Messages.ORDER_STATE_CREATED(order.id));
       logger.info({ userId, orderId: order.id }, 'Order created notification sent');
 
       scheduleOrderTrackingCleanup(order.id);
