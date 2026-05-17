@@ -1,4 +1,4 @@
-import { Bot } from 'grammy';
+import { Bot, InputFile } from 'grammy';
 import { Messages, Keyboards } from '../index';
 import {
   getState,
@@ -24,6 +24,7 @@ import {
   getOrderSlots,
   setMainMsgId,
   initOrderSlots,
+  generateStellarPayQR,
 } from '../index';
 
 function getPreorderSellNoticeKey(chatId?: number): string | null {
@@ -832,23 +833,36 @@ export async function handleSellConfirmation(
       const chatId = ctx.chat?.id;
       const slots = getOrderSlots(order.id);
 
+      const qrBuffer = await generateStellarPayQR(
+        recipientAddress,
+        state.amount,
+        order.code ?? undefined
+      );
+
       if (slots?.mainMsgId && chatId) {
         logger.info(
           { orderId: order.id, mainMsgId: slots.mainMsgId },
-          'Editing existing message with payment details and reply markup'
+          'Editing existing message with payment QR photo'
         );
-        await ctx.api.editMessageText(chatId, slots.mainMsgId, caption, {
+        await ctx.api.editMessageMedia(chatId, slots.mainMsgId, {
+          type: 'photo',
+          media: new InputFile(qrBuffer),
+          caption,
           parse_mode: 'HTML',
         });
         await ctx.api.editMessageReplyMarkup(chatId, slots.mainMsgId, {
           reply_markup: Keyboards.qrCodeWithCancel(order.id),
         });
-        logger.info({ userId, orderId: order.id }, 'Message updated with cancel button');
+        logger.info(
+          { userId, orderId: order.id },
+          'Message updated with QR photo and cancel button'
+        );
       } else {
-        logger.info({ orderId: order.id }, 'No existing message ID, sending new message');
-        await ctx.reply(caption, {
+        logger.info({ orderId: order.id }, 'No existing message ID, sending new QR photo message');
+        await ctx.replyWithPhoto(new InputFile(qrBuffer), {
+          caption,
           parse_mode: 'HTML',
-          replyMarkup: Keyboards.qrCodeWithCancel(order.id),
+          reply_markup: Keyboards.qrCodeWithCancel(order.id),
         });
       }
 

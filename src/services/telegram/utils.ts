@@ -13,7 +13,7 @@ export async function fetchExchangeRates(): Promise<ExchangeRate | null> {
     const timeout = setTimeout(() => controller.abort(), 10000);
     const response = await fetch(
       process.env.EXCHANGE_RATES_URL ||
-        'https://iakzvzwriyxyshfggbwu.supabase.co/functions/v1/get_exchange_rates',
+      'https://iakzvzwriyxyshfggbwu.supabase.co/functions/v1/get_exchange_rates',
       { signal: controller.signal }
     );
     clearTimeout(timeout);
@@ -80,6 +80,26 @@ export async function generateQRCode(qrString: string): Promise<Buffer> {
   }
   const arrayBuffer = await response.arrayBuffer();
   return Buffer.from(arrayBuffer);
+}
+
+const USDC_ISSUER = 'GCCIYEDFB7HQYMQCOI6D6R676B7O7HNYLFFY7S6T3CHWJ3FOF66FEADC';
+
+export function buildStellarPayURI(destination: string, amount: string, memo?: string): string {
+  let uri = `stellar:${destination}?destination=${destination}&amount=${amount}&asset_code=USDC&asset_issuer=${USDC_ISSUER}`;
+  if (memo) uri += `&memo=${encodeURIComponent(memo)}&memo_type=text`;
+  return uri;
+}
+
+export async function generateStellarPayQR(
+  destination: string,
+  amount: string,
+  memo?: string
+): Promise<Buffer> {
+  return generateQRCode(buildStellarPayURI(destination, amount, memo));
+}
+
+export async function generateTrustlineQR(xdr: string): Promise<Buffer> {
+  return generateQRCode(`web+stellar:tx?xdr=${encodeURIComponent(xdr)}`);
 }
 
 export function calculateGatewayFee(vndAmount: number, feeRate: number, minFeeVnd: number): number {

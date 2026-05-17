@@ -15,6 +15,9 @@ export {
   parseSexForDatabase,
   isDuplicateKeyError,
   generateQRCode,
+  buildStellarPayURI,
+  generateStellarPayQR,
+  generateTrustlineQR,
   calculateGatewayFee,
 } from './utils';
 export {
