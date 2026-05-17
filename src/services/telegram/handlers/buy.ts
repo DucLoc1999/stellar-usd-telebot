@@ -19,6 +19,7 @@ import { captureErrorWithContext } from '../../../utils/sentryHelper';
 import { buildTrustlineLinks } from '../trustline';
 import {
   generateQRCode,
+  generateTrustlineQR,
   scheduleOrderTrackingCleanup,
   getOrderSlots,
   setMainMsgId,
@@ -104,16 +105,17 @@ async function handleTrustlineFailure(
       `${Messages.TRUSTLINE_REQUIRED(assetCode, telegramConfig.tokenAddress)}\n\n` +
       `<b>Sau khi mở Stellar Lab:</b>\n` +
       `1. Chọn <b>Sign with wallet</b>\n` +
-      `2. Chọn <b>Submit transaction</b>\n\n` +
-      `<b>Import XDR thủ công (nếu cần):</b>\n` +
-      `<code>${links.xdr}</code>`;
+      `2. Chọn <b>Submit transaction</b>`;
+    // `<b>Import XDR thủ công (nếu cần):</b>\n` +
+    // `<code>${links.xdr}</code>`;
 
     const kb = Keyboards.trustlineActions(links.webSignUrl, links.viewUrl);
-    if (preorderKey) {
-      await sendOrderNotice(ctx, preorderKey, msg, kb);
-    } else {
-      await ctx.reply(msg, { parse_mode: 'HTML', reply_markup: kb });
-    }
+    const qrBuffer = await generateTrustlineQR(links.xdr);
+    await ctx.replyWithPhoto(new InputFile(qrBuffer), {
+      caption: msg,
+      parse_mode: 'HTML',
+      reply_markup: kb,
+    });
     return;
   }
 
@@ -205,7 +207,7 @@ function getPreorderBuyNoticeKey(chatId?: number): string | null {
 
 export function setupBuyHandlers(bot: Bot): void {
   bot.callbackQuery('activate_wallet_confirm_prompt', async (ctx) => {
-    await ctx.answerCallbackQuery().catch(() => {});
+    await ctx.answerCallbackQuery().catch(() => { });
     const userId = getUserId(ctx);
     const state = getState(userId, {
       action: 'handler.state.get',
@@ -269,7 +271,7 @@ export function setupBuyHandlers(bot: Bot): void {
   });
 
   bot.callbackQuery('confirm_activate_wallet', async (ctx) => {
-    await ctx.answerCallbackQuery().catch(() => {});
+    await ctx.answerCallbackQuery().catch(() => { });
     const userId = getUserId(ctx);
     const state = getState(userId, {
       action: 'handler.state.get',
@@ -309,22 +311,22 @@ export function setupBuyHandlers(bot: Bot): void {
       ) {
         await ctx.reply(
           `⚠️ <b>Không thể kích hoạt ví tự động</b>\n\n` +
-            `Hệ thống thanh toán trả về lỗi trustline/limit cho ví nhận.\n\n` +
-            `Vui lòng nạp XLM thủ công vào ví, sau đó thử mua USDC lại hoặc liên hệ hỗ trợ.`,
+          `Hệ thống thanh toán trả về lỗi trustline/limit cho ví nhận.\n\n` +
+          `Vui lòng nạp XLM thủ công vào ví, sau đó thử mua USDC lại hoặc liên hệ hỗ trợ.`,
           { parse_mode: 'HTML', reply_markup: Keyboards.backToMenu() }
         );
       } else if (errorMessage.includes('API error')) {
         await ctx.reply(
           `❌ <b>Lỗi kết nối</b>\n\n` +
-            `Không thể kết nối đến hệ thống thanh toán.\n` +
-            `Vui lòng thử lại sau ít phút!`,
+          `Không thể kết nối đến hệ thống thanh toán.\n` +
+          `Vui lòng thử lại sau ít phút!`,
           { parse_mode: 'HTML', reply_markup: Keyboards.backToMenu() }
         );
       } else {
         await ctx.reply(
           `❌ <b>Có lỗi xảy ra</b>\n\n` +
-            `Chi tiết: ${errorMessage}\n\n` +
-            `Vui lòng thử lại hoặc liên hệ support!`,
+          `Chi tiết: ${errorMessage}\n\n` +
+          `Vui lòng thử lại hoặc liên hệ support!`,
           { parse_mode: 'HTML', reply_markup: Keyboards.backToMenu() }
         );
       }
@@ -332,7 +334,7 @@ export function setupBuyHandlers(bot: Bot): void {
   });
 
   bot.callbackQuery('cancel_activate_wallet', async (ctx) => {
-    await ctx.answerCallbackQuery().catch(() => {});
+    await ctx.answerCallbackQuery().catch(() => { });
     const userId = getUserId(ctx);
     clearState(userId, {
       action: 'handler.state.clear',
@@ -346,7 +348,7 @@ export function setupBuyHandlers(bot: Bot): void {
   });
 
   bot.callbackQuery('buy_usdt', async (ctx) => {
-    await ctx.answerCallbackQuery().catch(() => {});
+    await ctx.answerCallbackQuery().catch(() => { });
     const userId = getUserId(ctx);
 
     try {
@@ -357,8 +359,8 @@ export function setupBuyHandlers(bot: Bot): void {
         logger.warn({ userId }, 'User not found in database for buy USDC');
         await ctx.editMessageText(
           `❌ <b>Lỗi tài khoản</b>\n\n` +
-            `Không tìm thấy thông tin tài khoản của bạn.\n\n` +
-            `Vui lòng liên hệ support!`,
+          `Không tìm thấy thông tin tài khoản của bạn.\n\n` +
+          `Vui lòng liên hệ support!`,
           { parse_mode: 'HTML', reply_markup: Keyboards.backToMenu() }
         );
         return;
@@ -387,15 +389,15 @@ export function setupBuyHandlers(bot: Bot): void {
       logger.error({ error, userId }, 'Error checking KYC status for buy USDC');
       await ctx.editMessageText(
         `❌ <b>Lỗi kiểm tra KYC</b>\n\n` +
-          `Không thể kiểm tra trạng thái KYC.\n\n` +
-          `Vui lòng thử lại sau!`,
+        `Không thể kiểm tra trạng thái KYC.\n\n` +
+        `Vui lòng thử lại sau!`,
         { parse_mode: 'HTML', reply_markup: Keyboards.backToMenu() }
       );
     }
   });
 
   bot.callbackQuery(/^buy_amount_\d+$/, async (ctx) => {
-    await ctx.answerCallbackQuery().catch(() => {});
+    await ctx.answerCallbackQuery().catch(() => { });
     const userId = getUserId(ctx);
     const amount = ctx.callbackQuery.data.replace('buy_amount_', '');
 
@@ -430,7 +432,7 @@ export function setupBuyHandlers(bot: Bot): void {
   });
 
   bot.callbackQuery('buy_custom', async (ctx) => {
-    await ctx.answerCallbackQuery().catch(() => {});
+    await ctx.answerCallbackQuery().catch(() => { });
     const userId = getUserId(ctx);
     setState(
       userId,
@@ -445,7 +447,7 @@ export function setupBuyHandlers(bot: Bot): void {
 
   bot.callbackQuery(/^use_saved_wallet_\d+$/, async (ctx) => {
     try {
-      await ctx.answerCallbackQuery().catch(() => {});
+      await ctx.answerCallbackQuery().catch(() => { });
     } catch (error) {
       logger.debug({ error, userId: ctx.from.id }, 'Failed to answer callback query');
     }
@@ -572,7 +574,7 @@ export function setupBuyHandlers(bot: Bot): void {
   });
 
   bot.callbackQuery('add_new_wallet', async (ctx) => {
-    await ctx.answerCallbackQuery().catch(() => {});
+    await ctx.answerCallbackQuery().catch(() => { });
     const userId = getUserId(ctx);
     const state = getState(userId, {
       action: 'handler.state.get',
@@ -707,8 +709,8 @@ export async function handleWalletInput(
     });
     await ctx.reply(
       `✅ <b>ĐÃ LƯU ĐỊA CHỈ VÍ</b>\n\n` +
-        `Địa chỉ ví đã được lưu thành công!\n\n` +
-        `📮 Địa chỉ: <code>${text}</code>`,
+      `Địa chỉ ví đã được lưu thành công!\n\n` +
+      `📮 Địa chỉ: <code>${text}</code>`,
       { parse_mode: 'HTML', reply_markup: await Keyboards.mainMenu(userId) }
     );
     return;
@@ -778,8 +780,8 @@ export async function handleBuyConfirmation(
     logger.error({ userId, state }, 'Missing amount or wallet address in buy confirmation');
     await ctx.reply(
       `❌ <b>Lỗi thông tin</b>\n\n` +
-        `Thiếu thông tin số lượng hoặc địa chỉ ví.\n\n` +
-        `Vui lòng bắt đầu lại!`,
+      `Thiếu thông tin số lượng hoặc địa chỉ ví.\n\n` +
+      `Vui lòng bắt đầu lại!`,
       { parse_mode: 'HTML' }
     );
     return;
@@ -963,9 +965,9 @@ export async function handleBuyConfirmation(
         ctx,
         order.id,
         `❌ <b>Lỗi tạo đơn hàng</b>\n\n` +
-          `Không thể tạo mã QR thanh toán.\n` +
-          `Mã đơn hàng: <code>${order.id}</code>\n\n` +
-          `Vui lòng thử lại hoặc liên hệ support!`
+        `Không thể tạo mã QR thanh toán.\n` +
+        `Mã đơn hàng: <code>${order.id}</code>\n\n` +
+        `Vui lòng thử lại hoặc liên hệ support!`
       );
     }
   } catch (error) {
@@ -988,7 +990,7 @@ export async function handleWalletActivationConfirmation(
   state: UserState
 ): Promise<void> {
   if (processingUsers.has(userId)) {
-    await ctx.answerCallbackQuery('⏳ Đơn hàng đang được xử lý, vui lòng đợi...').catch(() => {});
+    await ctx.answerCallbackQuery('⏳ Đơn hàng đang được xử lý, vui lòng đợi...').catch(() => { });
     return;
   }
 
@@ -1145,9 +1147,9 @@ export async function handleWalletActivationConfirmation(
         ctx,
         order.id,
         `❌ <b>Lỗi tạo đơn hàng</b>\n\n` +
-          `Không thể tạo mã QR thanh toán.\n` +
-          `Mã đơn hàng: <code>${order.id}</code>\n\n` +
-          `Vui lòng thử lại hoặc liên hệ support!`
+        `Không thể tạo mã QR thanh toán.\n` +
+        `Mã đơn hàng: <code>${order.id}</code>\n\n` +
+        `Vui lòng thử lại hoặc liên hệ support!`
       );
     }
   } finally {

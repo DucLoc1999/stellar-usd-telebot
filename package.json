@@ -42,6 +42,7 @@
     "stellar-sdk": "^13.3.0"
   },
   "devDependencies": {
+    "@stellarguard/stellar-uri": "^3.0.1",
     "@types/form-data": "^2.2.1",
     "@types/knex": "^0.15.2",
     "@types/luxon": "^3.7.1",
@@ -53,6 +54,7 @@
     "eslint-plugin-prettier": "^5.2.1",
     "pino-pretty": "^13.1.2",
     "prettier": "^3.3.3",
+    "qrcode": "^1.5.4",
     "tsx": "^4.19.0",
     "typescript": "^5.5.4"
   },
