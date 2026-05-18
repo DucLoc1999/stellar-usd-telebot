@@ -1,7 +1,7 @@
 import { Bot } from 'grammy';
 import { Messages, Keyboards } from '../index';
 import { getState, clearState, userCancelledOrders } from '../user-state';
-import { sendNotifyMessage, getOrderSlots } from '../index';
+import { sendNotifyMessage, getOrderSlots, clearMainMsgId } from '../index';
 import { logger } from '../../../config/logger';
 import { getUserId } from './context';
 import { handleBuyConfirmation } from './buy';
@@ -165,6 +165,46 @@ export function setupPaymentHandlers(bot: Bot): void {
           userCancelledOrders.delete(orderId);
           logger.debug({ orderId }, 'Removed order from user-cancelled tracking set');
         }, 60000);
+
+        const slots = getOrderSlots(orderId);
+        if (slots?.mainMsgId) {
+          try {
+            await ctx.api.deleteMessage(slots.chatId, slots.mainMsgId);
+          } catch (err: any) {
+            if (err?.error_code !== 403 && err?.error_code !== 400) {
+              logger.warn(
+                { userId, orderId, msgId: slots.mainMsgId, err },
+                'Failed to delete main order message on cancel'
+              );
+            }
+          } finally {
+            clearMainMsgId(orderId);
+          }
+        }
+
+        // Update existing order-state notice message in place (no new "🚫 ĐÃ HỦY" message).
+        const slotsAfterDelete = getOrderSlots(orderId);
+        if (slotsAfterDelete?.notifyMsgId) {
+          try {
+            await ctx.api.editMessageText(
+              slotsAfterDelete.chatId,
+              slotsAfterDelete.notifyMsgId,
+              Messages.ORDER_STATE_CANCELLED(orderId),
+              {
+                parse_mode: 'HTML',
+                link_preview_options: { is_disabled: true },
+                // Remove all buttons on "🚫 ĐÃ HỦY" status message.
+                reply_markup: { inline_keyboard: [] },
+              }
+            );
+          } catch (err: any) {
+            // If message cannot be edited (not found / too old / rights), don't send a new status message.
+            logger.warn(
+              { userId, orderId, msgId: slotsAfterDelete.notifyMsgId, err },
+              'Failed to edit notify message to cancelled state'
+            );
+          }
+        }
 
         await ctx.reply(Messages.ORDER_CANCELLED(), {
           parse_mode: 'HTML',

@@ -139,7 +139,7 @@ export const Messages = {
     `⏰ Sau khi thanh toán, USDC sẽ được chuyển vào ví của bạn trong vòng 3-30 giây.\n\n` +
     `📞 Liên hệ support nếu có vấn đề!`,
 
-  PAYMENT_SELL_ADDRESS: (recipientAddress: string) =>
+  ORDER_PAYMENT_SELL: (recipientAddress: string) =>
     `📮 <b>ĐỊA CHỈ VÍ NHẬN USDC</b>\n\n` +
     `Vui lòng chuyển USDC đến địa chỉ:\n\n` +
     `<code>${recipientAddress}</code>\n\n` +
@@ -1573,7 +1573,7 @@ export class TelegramService {
       );
 
       // Send wallet address message
-      await ctx.reply(Messages.PAYMENT_SELL_ADDRESS(recipientAddress), {
+      await ctx.reply(Messages.ORDER_PAYMENT_SELL(recipientAddress), {
         parse_mode: 'HTML',
       });
 
