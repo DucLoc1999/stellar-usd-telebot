@@ -27,6 +27,7 @@ export {
   getOrderSlots,
   initOrderSlots,
   setMainMsgId,
+  clearMainMsgId,
   setNotifyMsgId,
   clearOrderSlots,
   sendMainMessage,

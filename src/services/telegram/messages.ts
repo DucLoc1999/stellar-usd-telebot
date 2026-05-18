@@ -241,7 +241,7 @@ export const Messages = {
     `⏰ Sau khi thanh toán, USDC sẽ được chuyển vào ví của bạn trong vòng 3-30 giây.\n\n` +
     `📞 Liên hệ support nếu có vấn đề!`,
 
-  PAYMENT_SELL_ADDRESS: (
+  ORDER_PAYMENT_SELL: (
     recipientAddress: string,
     usdtAmount: string,
     memo: string,

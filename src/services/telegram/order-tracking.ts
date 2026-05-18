@@ -80,6 +80,14 @@ export function setNotifyMsgId(orderId: string, msgId: number): void {
   }
 }
 
+export function clearMainMsgId(orderId: string): void {
+  const timedSlots = orderMessageSlots.get(orderId);
+  if (timedSlots) {
+    timedSlots.slots.mainMsgId = undefined;
+    timedSlots.expiresAt = Date.now() + ORDER_SLOTS_TTL_MS;
+  }
+}
+
 export function clearOrderSlots(orderId: string): void {
   orderMessageSlots.delete(orderId);
   const timer = pendingTimers.get(orderId);
