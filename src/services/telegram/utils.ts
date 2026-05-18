@@ -82,10 +82,11 @@ export async function generateQRCode(qrString: string): Promise<Buffer> {
   return Buffer.from(arrayBuffer);
 }
 
-const USDC_ISSUER = 'GCCIYEDFB7HQYMQCOI6D6R676B7O7HNYLFFY7S6T3CHWJ3FOF66FEADC';
+const USDC_ISSUER = process.env.TOKEN_ADDRESS || 'GA5ZSEJYB37JRC5AVCIA5MOP4RHTM335X2KGX3IHOJAPP5RE34K4KZVN';
+const ASSET_CODE = process.env.TOKEN_CODE || 'USDC';
 
 export function buildStellarPayURI(destination: string, amount: string, memo?: string): string {
-  let uri = `stellar:${destination}?destination=${destination}&amount=${amount}&asset_code=USDC&asset_issuer=${USDC_ISSUER}`;
+  let uri = `stellar:${destination}?destination=${destination}&amount=${amount}&asset_code=${ASSET_CODE}&asset_issuer=${USDC_ISSUER}`;
   if (memo) uri += `&memo=${encodeURIComponent(memo)}&memo_type=text`;
   return uri;
 }
