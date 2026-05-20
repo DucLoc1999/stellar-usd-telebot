@@ -85,6 +85,36 @@ export class PaymentService {
     }
   }
 
+  async getXlmRates(): Promise<{ buy: number; sell: number; created_at?: string } | null> {
+    try {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 10000);
+      const response = await fetch(`${this.apiBaseUrl}/api/rate/xlm_vnd`, {
+        signal: controller.signal,
+      });
+      clearTimeout(timeout);
+      if (!response.ok) {
+        logger.error({ status: response.status }, 'Failed to fetch XLM rates');
+        return null;
+      }
+
+      const data = (await response.json()) as {
+        buy: number;
+        sell: number;
+        created_at?: string;
+      };
+
+      return {
+        buy: data.buy,
+        sell: data.sell,
+        created_at: data.created_at,
+      };
+    } catch (error) {
+      logger.error({ error }, 'Error fetching XLM rates');
+      return null;
+    }
+  }
+
   private convertTimestamp(timestamp: Usdt247Timestamp): Date {
     const milliseconds = timestamp.seconds * 1000 + timestamp.nanos / 1000000;
     return new Date(milliseconds);

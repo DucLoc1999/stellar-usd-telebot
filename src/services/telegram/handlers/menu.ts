@@ -2,6 +2,7 @@ import { Bot } from 'grammy';
 import { Messages, Keyboards, formatTimeWithTimeZone } from '../index';
 import teleUserService from '../../teleUserService';
 import paymentInformationService from '../../paymentInformationService';
+import paymentService from '../../paymentService';
 import kycService from '../../kycService';
 import referralService from '../../referralService';
 import { clearState } from '../user-state';
@@ -94,13 +95,25 @@ export function setupMenuHandlers(bot: Bot): void {
     await ctx.answerCallbackQuery().catch(() => {});
     try {
       const { fetchExchangeRates } = await import('../utils');
-      const rates = await fetchExchangeRates();
+      const [rates, xlmRates] = await Promise.all([
+        fetchExchangeRates(),
+        paymentService.getXlmRates(),
+      ]);
       if (rates) {
         const updated = formatTimeWithTimeZone(rates.created_at);
-        await ctx.editMessageText(Messages.RATE_CHECK(rates.buy, rates.sell, updated), {
-          parse_mode: 'HTML',
-          reply_markup: Keyboards.backToMenu(),
-        });
+        await ctx.editMessageText(
+          Messages.RATE_CHECK(
+            rates.buy,
+            rates.sell,
+            xlmRates?.buy ?? null,
+            xlmRates?.sell ?? null,
+            updated
+          ),
+          {
+            parse_mode: 'HTML',
+            reply_markup: Keyboards.backToMenu(),
+          }
+        );
       } else {
         await ctx.editMessageText(Messages.RATE_UNAVAILABLE(), {
           parse_mode: 'HTML',

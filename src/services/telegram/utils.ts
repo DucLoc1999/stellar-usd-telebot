@@ -13,7 +13,7 @@ export async function fetchExchangeRates(): Promise<ExchangeRate | null> {
     const timeout = setTimeout(() => controller.abort(), 10000);
     const response = await fetch(
       process.env.EXCHANGE_RATES_URL ||
-      'https://iakzvzwriyxyshfggbwu.supabase.co/functions/v1/get_exchange_rates',
+        'https://iakzvzwriyxyshfggbwu.supabase.co/functions/v1/get_exchange_rates',
       { signal: controller.signal }
     );
     clearTimeout(timeout);
@@ -82,11 +82,23 @@ export async function generateQRCode(qrString: string): Promise<Buffer> {
   return Buffer.from(arrayBuffer);
 }
 
-const USDC_ISSUER = process.env.TOKEN_ADDRESS || 'GA5ZSEJYB37JRC5AVCIA5MOP4RHTM335X2KGX3IHOJAPP5RE34K4KZVN';
+const USDC_ISSUER =
+  process.env.TOKEN_ADDRESS || 'GA5ZSEJYB37JRC5AVCIA5MOP4RHTM335X2KGX3IHOJAPP5RE34K4KZVN';
 const ASSET_CODE = process.env.TOKEN_CODE || 'USDC';
 
-export function buildStellarPayURI(destination: string, amount: string, memo?: string): string {
-  let uri = `stellar:${destination}?destination=${destination}&amount=${amount}&asset_code=${ASSET_CODE}&asset_issuer=${USDC_ISSUER}`;
+export function buildStellarPayURI(
+  destination: string,
+  amount: string,
+  memo?: string,
+  assetCode?: string
+): string {
+  const isNative = assetCode === 'XLM';
+  let uri: string;
+  if (isNative) {
+    uri = `stellar:${destination}?destination=${destination}&amount=${amount}`;
+  } else {
+    uri = `stellar:${destination}?destination=${destination}&amount=${amount}&asset_code=${ASSET_CODE}&asset_issuer=${USDC_ISSUER}`;
+  }
   if (memo) uri += `&memo=${encodeURIComponent(memo)}&memo_type=text`;
   return uri;
 }
@@ -94,9 +106,10 @@ export function buildStellarPayURI(destination: string, amount: string, memo?: s
 export async function generateStellarPayQR(
   destination: string,
   amount: string,
-  memo?: string
+  memo?: string,
+  assetCode?: string
 ): Promise<Buffer> {
-  return generateQRCode(buildStellarPayURI(destination, amount, memo));
+  return generateQRCode(buildStellarPayURI(destination, amount, memo, assetCode));
 }
 
 export async function generateTrustlineQR(xdr: string): Promise<Buffer> {

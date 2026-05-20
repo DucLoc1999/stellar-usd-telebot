@@ -1,10 +1,24 @@
 import { Bot } from 'grammy';
 import { Messages } from './messages';
 import { userCancelledOrders, newlyCreatedOrders } from './user-state';
-import { getOrderSlots, initOrderSlots, setNotifyMsgId } from './order-tracking';
+import { getOrderSlots, initOrderSlots, setNotifyMsgId, clearMainMsgId } from './order-tracking';
 import { Keyboards } from './keyboards';
 import { logger } from '../../config/logger';
+import db from '../../config/knex';
+import { Usdt247OrderType, type Order, type Usdt247PaymentInfo } from '../../models/usdt247';
 import teleUserService from '../teleUserService';
+
+function parsePaymentInfo(paymentInfo: unknown): Usdt247PaymentInfo | null {
+  if (!paymentInfo) return null;
+  if (typeof paymentInfo === 'string') {
+    try {
+      return JSON.parse(paymentInfo) as Usdt247PaymentInfo;
+    } catch {
+      return null;
+    }
+  }
+  return paymentInfo as Usdt247PaymentInfo;
+}
 
 export class NotificationService {
   constructor(private bot: Bot) {}
@@ -42,7 +56,7 @@ export class NotificationService {
       return;
     }
 
-    const message = this.getOrderStateMessage(orderId, state, transactionHash);
+    const message = await this.getOrderStateMessage(orderId, state, transactionHash);
 
     logger.info(
       { chatId, orderId, state, processingState: processingState ?? 'N/A' },
@@ -68,9 +82,46 @@ export class NotificationService {
     const msg = await this.bot.api.sendMessage(chatId, message, {
       parse_mode: 'HTML',
       link_preview_options: { is_disabled: true },
+      ...(state === 5 ? { reply_markup: await Keyboards.mainMenu(chatId) } : {}),
     });
 
     setNotifyMsgId(orderId, msg.message_id);
+
+    if (state === 3) {
+      const slotsAfterCompleted = getOrderSlots(orderId);
+      if (slotsAfterCompleted?.mainMsgId) {
+        try {
+          await this.bot.api.deleteMessage(chatId, slotsAfterCompleted.mainMsgId);
+        } catch (err: any) {
+          if (err?.error_code !== 403 && err?.error_code !== 400) {
+            logger.warn(
+              { orderId, msgId: slotsAfterCompleted.mainMsgId, err },
+              'Failed to delete main order summary message after completion'
+            );
+          }
+        } finally {
+          clearMainMsgId(orderId);
+        }
+      }
+    }
+
+    if (state === 5) {
+      const slotsAfterNotify = getOrderSlots(orderId);
+      if (slotsAfterNotify?.mainMsgId) {
+        try {
+          await this.bot.api.deleteMessage(chatId, slotsAfterNotify.mainMsgId);
+        } catch (err: any) {
+          if (err?.error_code !== 403 && err?.error_code !== 400) {
+            logger.warn(
+              { orderId, msgId: slotsAfterNotify.mainMsgId, err },
+              'Failed to delete main order message for expired order'
+            );
+          }
+        } finally {
+          clearMainMsgId(orderId);
+        }
+      }
+    }
 
     if (state === 3) {
       const user = await teleUserService.findByChatId(chatId);
@@ -82,18 +133,51 @@ export class NotificationService {
     }
   }
 
-  private getOrderStateMessage(orderId: string, state: number, transactionHash?: string): string {
+  private async getOrderStateMessage(
+    orderId: string,
+    state: number,
+    transactionHash?: string
+  ): Promise<string> {
     switch (state) {
       case 1:
         return Messages.ORDER_STATE_CREATED(orderId);
       case 2:
         return Messages.ORDER_STATE_PROCESSING(orderId);
-      case 3:
+      case 3: {
+        const order = await db('orders').where('id', orderId).first<Order>();
+        if (order) {
+          const paymentInfo = parsePaymentInfo(order.payment_info);
+          const orderType = Number(order.order_type);
+          const assetCode = order.currency || 'USDC';
+
+          if (orderType === Usdt247OrderType.DEPOSIT) {
+            return Messages.ORDER_STATE_COMPLETED_BUY(
+              order.id,
+              order.amount,
+              order.recipient,
+              assetCode,
+              transactionHash
+            );
+          }
+
+          if (orderType === Usdt247OrderType.WITHDRAWAL) {
+            return Messages.ORDER_STATE_COMPLETED_SELL(
+              order.id,
+              order.amount,
+              Number(order.net_vnd ?? 0),
+              paymentInfo?.account_number ?? 'N/A',
+              assetCode,
+              paymentInfo?.bank_id ?? null
+            );
+          }
+        }
+
         return Messages.ORDER_STATE_COMPLETED(orderId, transactionHash);
+      }
       case 4:
         return Messages.ORDER_STATE_FAILED(orderId);
       case 5:
-        return Messages.ORDER_STATE_CANCELLED(orderId);
+        return Messages.ORDER_STATE_EXPIRED(orderId);
       default:
         return Messages.ORDER_STATUS_UPDATE(orderId, `State ${state}`);
     }

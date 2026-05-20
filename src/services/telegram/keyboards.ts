@@ -88,8 +88,8 @@ export class Keyboards {
     return new InlineKeyboard()
       .text('💱 Kiểm tra tỷ giá', 'check_rate')
       .row()
-      .text('💰 Mua USDC', 'buy_usdt')
-      .text('💸 Bán USDC', 'sell_usdt')
+      .text('💰 Mua/bán USDC', 'trade_usdc')
+      .text('💎 Mua/bán XLM', 'trade_xlm')
       .row()
       .text(`🔐 Xác minh KYC ${kycIndicator}`, 'kyc')
       .text(`🏦 Ngân hàng ${bankIndicator}`, 'bank_accounts')
@@ -101,23 +101,39 @@ export class Keyboards {
       .text('📞 Liên hệ hỗ trợ', 'contact_support');
   }
 
-  static buyAmountSelection(): InlineKeyboard {
+  static tradeUsdcMenu(): InlineKeyboard {
     return new InlineKeyboard()
-      .text('10 USDC', 'buy_amount_10')
-      .text('20 USDC', 'buy_amount_20')
+      .text('💰 Mua USDC', 'buy_usdc')
+      .text('💸 Bán USDC', 'sell_usdc')
       .row()
-      .text('50 USDC', 'buy_amount_50')
+      .text('🔙 Quay lại Menu', 'back_to_menu');
+  }
+
+  static tradeXlmMenu(): InlineKeyboard {
+    return new InlineKeyboard()
+      .text('💰 Mua XLM', 'buy_xlm')
+      .text('💸 Bán XLM', 'sell_xlm')
+      .row()
+      .text('🔙 Quay lại Menu', 'back_to_menu');
+  }
+
+  static buyAmountSelection(assetCode = 'USDC'): InlineKeyboard {
+    return new InlineKeyboard()
+      .text(`10 ${assetCode}`, 'buy_amount_10')
+      .text(`20 ${assetCode}`, 'buy_amount_20')
+      .row()
+      .text(`50 ${assetCode}`, 'buy_amount_50')
       .text('✏️ Nhập số khác', 'buy_custom')
       .row()
       .text('🔙 Quay lại Menu', 'back_to_menu');
   }
 
-  static sellAmountSelection(): InlineKeyboard {
+  static sellAmountSelection(assetCode = 'USDC'): InlineKeyboard {
     return new InlineKeyboard()
-      .text('10 USDC', 'sell_amount_10')
-      .text('50 USDC', 'sell_amount_50')
+      .text(`10 ${assetCode}`, 'sell_amount_10')
+      .text(`50 ${assetCode}`, 'sell_amount_50')
       .row()
-      .text('100 USDC', 'sell_amount_100')
+      .text(`100 ${assetCode}`, 'sell_amount_100')
       .text('✏️ Nhập số khác', 'sell_custom')
       .row()
       .text('🔙 Quay lại Menu', 'back_to_menu');
@@ -210,8 +226,7 @@ export class Keyboards {
   }
 
   static qrCodeWithCancel(orderId: string): InlineKeyboard {
-    return new InlineKeyboard()
-      .text('❌ Hủy đơn hàng', `cancel_order_${orderId}`);
+    return new InlineKeyboard().text('❌ Hủy đơn hàng', `cancel_order_${orderId}`);
     // .row()
     // .text('🔙 Quay lại Menu', 'back_to_menu');
   }
