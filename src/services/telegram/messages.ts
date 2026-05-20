@@ -1,12 +1,28 @@
 import { banks } from '../../models/webhook';
 import type { PaymentInformation, Kyc } from '../../models/types';
+import type { Usdt247Timestamp } from '../../models/usdt247';
 import { appConfig, telegramConfig } from '../../config/app';
 import { DateTime } from 'luxon';
 
-export const formatTimeWithTimeZone = (input?: string | Date): string => {
-  const dt = input
-    ? DateTime.fromJSDate(new Date(input as string)).setZone(appConfig.timeZone)
-    : DateTime.now().setZone(appConfig.timeZone);
+function resolveBankName(bankId?: string | number | null): string {
+  if (bankId === undefined || bankId === null || bankId === '') return 'N/A';
+  const numericBankId = typeof bankId === 'string' ? Number(bankId) : bankId;
+  if (!Number.isFinite(numericBankId)) return String(bankId);
+  const bank = banks.find((item) => item.id === numericBankId);
+  return bank?.short_name || bank?.bank_name || String(bankId);
+}
+
+export const formatTimeWithTimeZone = (input?: string | Date | Usdt247Timestamp): string => {
+  let dateValue: Date | undefined;
+  if (input instanceof Date) {
+    dateValue = input;
+  } else if (typeof input === 'string') {
+    dateValue = new Date(input);
+  } else if (input && typeof input === 'object' && 'seconds' in input && 'nanos' in input) {
+    dateValue = new Date(input.seconds * 1000 + input.nanos / 1000000);
+  }
+
+  const dt = dateValue ? DateTime.fromJSDate(dateValue).setZone(appConfig.timeZone) : DateTime.now().setZone(appConfig.timeZone);
   const time = dt.toFormat('HH:mm:ss');
   const date = dt.toFormat('d/M/yyyy');
   const offset = dt.offsetNameShort;
@@ -22,10 +38,18 @@ export const Messages = {
     `🔒 Bảo mật tuyệt đối\n\n` +
     `Vui lòng chọn chức năng bên dưới:`,
 
-  RATE_CHECK: (buyRate: number, sellRate: number, updated: string) =>
+  RATE_CHECK: (
+    buyRate: number,
+    sellRate: number,
+    xlmBuyRate: number | string | null,
+    xlmSellRate: number | string | null,
+    updated: string
+  ) =>
     `💱 <b>TỶ GIÁ USDC HIỆN TẠI</b>\n\n` +
-    `📈 Giá mua: <b>${buyRate.toLocaleString('vi-VN')} VND</b>\n` +
-    `📉 Giá bán: <b>${sellRate.toLocaleString('vi-VN')} VND</b>\n\n` +
+    `<b>💵 Tỷ giá USDC:</b>\n` +
+    `mua: <b>${buyRate.toLocaleString('vi-VN')}đ</b> | bán: <b>${sellRate.toLocaleString('vi-VN')}đ</b>\n\n` +
+    `<b>💵 Tỷ giá XLM:</b>\n` +
+    `mua: <b>${typeof xlmBuyRate === 'number' ? xlmBuyRate.toLocaleString('vi-VN') + 'đ' : xlmBuyRate || 'N/A'}</b> | bán: <b>${typeof xlmSellRate === 'number' ? xlmSellRate.toLocaleString('vi-VN') + 'đ' : xlmSellRate || 'N/A'}</b>\n\n` +
     `🕐 Cập nhật: ${updated}\n\n` +
     `💡 Tỷ giá được cập nhật liên tục`,
 
@@ -34,19 +58,42 @@ export const Messages = {
     `Hệ thống đang bảo trì hoặc có lỗi kết nối.\n` +
     `Vui lòng thử lại sau ít phút.`,
 
-  BUY_SELECT_AMOUNT: () => `💰 <b>MUA USDC</b>\n\n` + `Vui lòng chọn số lượng USDC muốn mua:`,
+  TRADE_MENU: (assetCode: string) =>
+    `💱 <b>GIAO DỊCH ${assetCode}</b>\n\n` + `Chọn hành động bạn muốn thực hiện:`,
 
-  SELL_SELECT_AMOUNT: () => `💸 <b>BÁN USDC</b>\n\n` + `Vui lòng chọn số lượng USDC muốn bán:`,
+  BUY_SELECT_AMOUNT: (assetCode = 'USDC') =>
+    `💰 <b>MUA ${assetCode}</b>\n\n` + `Vui lòng chọn số lượng ${assetCode} muốn mua:`,
 
-  ENTER_CUSTOM_AMOUNT_BUY: () =>
-    `✏️ Vui lòng nhập số lượng USDC muốn mua:\n\n` + `📊 Ví dụ: 10, 50, 100`,
+  SELL_SELECT_AMOUNT: (assetCode = 'USDC') =>
+    `💸 <b>BÁN ${assetCode}</b>\n\n` + `Vui lòng chọn số lượng ${assetCode} muốn bán:`,
 
-  ENTER_CUSTOM_AMOUNT_SELL: () =>
-    `✏️ Vui lòng nhập số lượng USDC muốn bán:\n\n` + `📊 Ví dụ: 10, 50, 100`,
+  ENTER_CUSTOM_AMOUNT_BUY: (assetCode = 'USDC') => {
+    const minAmount =
+      assetCode === 'XLM'
+        ? parseFloat(process.env.MIN_XLM_AMOUNT || '5')
+        : parseFloat(process.env.MIN_USDC_AMOUNT || '1');
+    return (
+      `✏️ Vui lòng nhập số lượng ${assetCode} muốn mua:\n\n` +
+      `⚠️ Tối thiểu: <b>${minAmount} ${assetCode}</b>\n` +
+      `📊 Ví dụ: 10, 50, 100`
+    );
+  },
 
-  ENTER_WALLET_ADDRESS: () =>
+  ENTER_CUSTOM_AMOUNT_SELL: (assetCode = 'USDC') => {
+    const minAmount =
+      assetCode === 'XLM'
+        ? parseFloat(process.env.MIN_XLM_AMOUNT || '5')
+        : parseFloat(process.env.MIN_USDC_AMOUNT || '1');
+    return (
+      `✏️ Vui lòng nhập số lượng ${assetCode} muốn bán:\n\n` +
+      `⚠️ Tối thiểu: <b>${minAmount} ${assetCode}</b>\n` +
+      `📊 Ví dụ: 10, 50, 100`
+    );
+  },
+
+  ENTER_WALLET_ADDRESS: (assetCode = 'USDC') =>
     `📮 <b>NHẬP ĐỊA CHỈ VÍ</b>\n\n` +
-    `Vui lòng nhập địa chỉ ví Stellar để nhận USDC:\n\n` +
+    `Vui lòng nhập địa chỉ ví Stellar để nhận ${assetCode}:\n\n` +
     `⚠️ Lưu ý: Kiểm tra kỹ địa chỉ ví trước khi gửi!`,
 
   TRUSTLINE_REQUIRED: (assetCode: string, issuer: string) =>
@@ -80,6 +127,11 @@ export const Messages = {
     `• Phân cách bằng dấu phẩy (,)`,
 
   INVALID_AMOUNT: () => `❌ Số lượng không hợp lệ!\n\n` + `Vui lòng nhập số hợp lệ (VD: 100)`,
+
+  INVALID_MIN_AMOUNT: (assetCode: string, minAmount: number) =>
+    `❌ <b>Số lượng không hợp lệ!</b>\n\n` +
+    `Số lượng ${assetCode} tối thiểu cho phép giao dịch là <b>${minAmount} ${assetCode}</b>.\n\n` +
+    `Vui lòng nhập lại số lượng hợp lệ!`,
 
   INVALID_WALLET: () =>
     `❌ Địa chỉ ví không hợp lệ!\n\n` + `Vui lòng nhập địa chỉ ví Stellar hợp lệ (G...)`,
@@ -116,10 +168,11 @@ export const Messages = {
     wallet: string,
     totalAmount: number,
     buyRate: number,
-    gatewayFee: number
+    gatewayFee: number,
+    assetCode = 'USDC'
   ) =>
-    `📋 <b>XÁC NHẬN ĐƠN HÀNG - MUA USDC</b>\n\n` +
-    `Đơn hàng MUA <b>${usdtAmount} USDC</b> x <b>${buyRate.toLocaleString('vi-VN')}đ</b>\n\n` +
+    `📋 <b>XÁC NHẬN ĐƠN HÀNG - MUA ${assetCode}</b>\n\n` +
+    `Đơn hàng MUA <b>${usdtAmount} ${assetCode}</b> x <b>${buyRate.toLocaleString('vi-VN')}đ</b>\n\n` +
     `🌐 Mạng: Stellar | ⚡ Phí gas: $0.00\n` +
     `💰 Thành tiền: <b>${Math.round(totalAmount).toLocaleString('vi-VN')}đ</b> | 💳 Phí dịch vụ: <b>${Math.round(gatewayFee).toLocaleString('vi-VN')}đ</b>\n` +
     `📮 Ví nhận: <code>${wallet}</code>\n\n` +
@@ -140,11 +193,11 @@ export const Messages = {
     `📮 Ví nhận: <code>${wallet}</code>\n` +
     `Sau khi thanh toán, hệ thống sẽ gửi XLM để kích hoạt ví, sau đó bạn có thể bắt đầu mua/bán USDC.`,
 
-  ORDER_SUMMARY_SELL: (amount: string) =>
-    `📋 <b>XÁC NHẬN ĐƠN HÀNG - BÁN USDC</b>\n\n` +
-    `💎 Số lượng: <b>${amount} USDC</b>\n` +
+  ORDER_SUMMARY_SELL: (amount: string, assetCode = 'USDC') =>
+    `📋 <b>XÁC NHẬN ĐƠN HÀNG - BÁN ${assetCode}</b>\n\n` +
+    `💎 Số lượng: <b>${amount} ${assetCode}</b>\n` +
     `🌐 Mạng: Stellar\n\n` +
-    `⚠️ Vui lòng kiểm tra kỹ thông tin trước khi chuyển USDC!`,
+    `⚠️ Vui lòng kiểm tra kỹ thông tin trước khi chuyển ${assetCode}!`,
 
   SELL_CONFIRMATION: (
     amount: string,
@@ -153,10 +206,11 @@ export const Messages = {
     accountNumber: string,
     sellRate: number,
     totalVND: number,
-    serviceFee: number
+    serviceFee: number,
+    assetCode = 'USDC'
   ) =>
-    `💸 <b>XÁC NHẬN ĐƠN HÀNG - BÁN USDC</b>\n\n` +
-    `Đơn hàng BÁN <b>${amount} USDC</b> x <b>${sellRate.toLocaleString('vi-VN')}đ</b>\n\n` +
+    `💸 <b>XÁC NHẬN ĐƠN HÀNG - BÁN ${assetCode}</b>\n\n` +
+    `Đơn hàng BÁN <b>${amount} ${assetCode}</b> x <b>${sellRate.toLocaleString('vi-VN')}đ</b>\n\n` +
     `🌐 Mạng: Stellar | ⚡ Phí gas: $0.00\n` +
     `💰 Thành tiền: <b>${Math.round(totalVND - serviceFee).toLocaleString('vi-VN')}đ</b> |  💳 Phí dịch vụ: <b>${Math.round(serviceFee).toLocaleString('vi-VN')}đ</b>\n\n` +
     `<b>TÀI KHOẢN NHẬN TIỀN:</b>\n` +
@@ -195,11 +249,13 @@ export const Messages = {
     bankName?: string,
     accountNumber?: string,
     accountName?: string,
-    totalVnd?: number
+    totalVnd?: number,
+    assetCode = 'USDC',
+    expiredAt?: Parameters<typeof formatTimeWithTimeZone>[0]
   ) => {
     const totalAmount = totalVnd || parseFloat(usdtAmount) * buyRate + gatewayFee;
-    let message = `🏦 <b>ĐƠN HÀNG - MUA USDC</b>\n\n`;
-    message += `Đơn hàng MUA <b>${usdtAmount} USDC</b> x <b>${buyRate.toLocaleString('vi-VN')}đ</b>\n\n`;
+    let message = `🏦 <b>ĐƠN HÀNG - MUA ${assetCode}</b>\n\n`;
+    message += `Đơn hàng MUA <b>${usdtAmount} ${assetCode}</b> x <b>${buyRate.toLocaleString('vi-VN')}đ</b>\n\n`;
     message += `🌐 Mạng: Stellar | ⚡ Phí gas: $0.00\n`;
     message += `💰 Thành tiền: <b>${Math.round(totalAmount).toLocaleString('vi-VN')}đ</b> | 💳 Phí dịch vụ: <b>${Math.round(gatewayFee).toLocaleString('vi-VN')}đ</b>\n`;
     message += `📮 Ví nhận: <code>${wallet}</code>\n\n`;
@@ -209,6 +265,10 @@ export const Messages = {
       message += `👤 Chủ tài khoản: <b>${accountName}</b>\n\n`;
     }
     message += `💰 Vui lòng quét mã QR bên dưới để thanh toán`;
+    if (expiredAt) {
+      message +=
+        `\n\n⚠️ <b>Lưu ý:</b> Vui lòng thanh toán trước <b>${formatTimeWithTimeZone(expiredAt)}</b> để tránh bị hủy đơn.\n`;
+    }
     return message;
   },
 
@@ -248,24 +308,39 @@ export const Messages = {
     netVndAmount?: number,
     bankName?: string,
     accountNumber?: string,
-    fullName?: string
-  ) =>
-    `<b>ĐƠN HÀNG - BÁN USDC</b>\n\n` +
-    `💰 Số lượng: <code>${usdtAmount} USDC</code>\n\n` +
-    `Vui lòng chuyển USDC đến địa chỉ ví:\n` +
-    `<code>${recipientAddress}</code>\n\n` +
-    `🌐 Mạng: <b>Stellar</b>\n` +
-    `💎 Token: <b>USDC (Circle)</b>\n` +
-    `📄 Issuer: <code>${telegramConfig.tokenAddress}</code> | Asset name: <b>USDC</b>\n\n` +
-    `🧾 <b>Memo bắt buộc:</b> <code>${memo}</code>\n` +
-    `⚠️ Nếu thiếu/sai memo, hệ thống không thể đối soát đơn hàng.\n\n` +
-    `⏰ Sau khi chuyển USDC, tiền VND sẽ được chuyển vào tài khoản của bạn trong vòng 3-30 giây.` +
-    (netVndAmount ? `\n💰 <b>Số tiền nhận:</b> ${netVndAmount.toLocaleString('vi-VN')} VND` : '') +
-    `${bankName
-      ? `\n\n🏛️ Ngân hàng: <b>${bankName}</b>\n💳 Số TK: <code>${accountNumber}</code>\n👤 Chủ TK: <b>${fullName}</b>`
-      : ''
-    }\n\n` +
-    `📞 Liên hệ support nếu có vấn đề!`,
+    fullName?: string,
+    assetCode = 'USDC',
+    expiredAt?: Parameters<typeof formatTimeWithTimeZone>[0]
+  ) => {
+    const isXlm = assetCode === 'XLM';
+    const tokenLine = isXlm
+      ? `💎 Token: <b>XLM (Native)</b>\n`
+      : `💎 Token: <b>USDC (Circle)</b>\n` +
+      `📄 Issuer: <code>${telegramConfig.tokenAddress}</code> | Asset name: <b>USDC</b>\n`;
+    return (
+      `<b>ĐƠN HÀNG - BÁN ${assetCode}</b>\n\n` +
+      `💰 Số lượng: <code>${usdtAmount} ${assetCode}</code>\n\n` +
+      `Vui lòng chuyển ${assetCode} đến địa chỉ ví:\n` +
+      `<code>${recipientAddress}</code>\n\n` +
+      `🌐 Mạng: <b>Stellar</b>\n` +
+      tokenLine +
+      `\n` +
+      `🧾 <b>Memo bắt buộc:</b> <code>${memo}</code>\n` +
+      `⚠️ Nếu thiếu/sai memo, hệ thống không thể đối soát đơn hàng.\n\n` +
+      `⏰ Sau khi chuyển ${assetCode}, tiền VND sẽ được chuyển vào tài khoản của bạn trong vòng 3-30 giây.` +
+      (netVndAmount
+        ? `\n💰 <b>Số tiền nhận:</b> ${netVndAmount.toLocaleString('vi-VN')} VND`
+        : '') +
+      `${bankName
+        ? `\n\n🏛️ Ngân hàng: <b>${bankName}</b>\n💳 Số TK: <code>${accountNumber}</code>\n👤 Chủ TK: <b>${fullName}</b>`
+        : ''
+      }\n\n` +
+      (expiredAt
+        ? `⚠️ <b>Lưu ý:</b> Vui lòng thanh toán trước <b>${formatTimeWithTimeZone(expiredAt)}</b> để tránh bị hủy đơn.\n\n`
+        : '') +
+      `📞 Liên hệ support nếu có vấn đề!`
+    );
+  },
 
   PAYMENT_CANCELLED: () =>
     `❌ <b>ĐÃ HỦY THANH TOÁN</b>\n\n` +
@@ -611,6 +686,40 @@ export const Messages = {
     `⏰ Thời gian: ${formatTimeWithTimeZone()}\n\n` +
     `💡 Đơn hàng của bạn đang được xử lý...`,
 
+  ORDER_STATE_COMPLETED_BUY: (
+    orderId: string,
+    usdcAmount: string,
+    walletAddress: string,
+    assetCode: string = 'USDC',
+    transactionHash?: string
+  ) =>
+    `✅ <b>GIAO DỊCH HOÀN THÀNH</b>\n\n` +
+    `Bạn đã nhận được <b>${usdcAmount} ${assetCode}</b> vào địa chỉ ví <code>${walletAddress}</code>.\n\n` +
+    `ℹ️ Chi tiết lệnh Onramp:\n` +
+    `• Hình thức: Mua <b>${usdcAmount} ${assetCode} (Stellar)</b>\n` +
+    `• Trạng thái: Thành công (Đã chuyển khoản)\n` +
+    `• Mã lệnh: <code>${orderId}</code>\n` +
+    (transactionHash
+      ? `• ID giao dịch: <a href='https://stellarchain.io/tx/${transactionHash}'>${transactionHash}</a>\n`
+      : '') +
+    `\nCảm ơn bạn đã tin tưởng sử dụng dịch vụ!`,
+
+  ORDER_STATE_COMPLETED_SELL: (
+    orderId: string,
+    usdcAmount: string,
+    netVndAmount: number,
+    bankAccountNumber: string,
+    assetCode: string = 'USDC',
+    bankId?: string | number | null
+  ) =>
+    `✅ <b>GIAO DỊCH HOÀN THÀNH</b>\n\n` +
+    `Bạn đã nhận được số tiền <b>${Math.round(netVndAmount).toLocaleString('vi-VN')} VND</b> vào tài khoản <code>${bankAccountNumber}</code> ngân hàng <b>${resolveBankName(bankId)}</b>.\n\n` +
+    `ℹ️ Chi tiết lệnh Offramp:\n` +
+    `• Hình thức: Bán <b>${usdcAmount} ${assetCode} (Stellar)</b>\n` +
+    `• Trạng thái: Thành công (Đã chuyển khoản)\n` +
+    `• Mã lệnh: <code>${orderId}</code>\n\n` +
+    `Cảm ơn bạn đã tin tưởng sử dụng dịch vụ!`,
+
   ORDER_STATE_COMPLETED: (orderId: string, transactionHash?: string) =>
     `🎉 <b>HOÀN THÀNH</b>\n\n` +
     `🆔 Mã đơn: <code>${orderId}</code>\n` +
@@ -634,6 +743,13 @@ export const Messages = {
     `📊 Trạng thái: Đã hủy\n\n` +
     `⏰ Thời gian: ${formatTimeWithTimeZone()}\n\n` +
     `💡 Đơn hàng đã được hủy.`,
+
+  ORDER_STATE_EXPIRED: (orderId: string) =>
+    `🚫 <b>ĐÃ HẾT HẠN</b>\n\n` +
+    `🆔 Mã đơn: <code>${orderId}</code>\n` +
+    `📊 Trạng thái: Đã hết hạn\n\n` +
+    `⏰ Thời gian: ${formatTimeWithTimeZone()}\n\n` +
+    `💡 Đơn hàng đã bị hủy vì quá thời hạn thanh toán theo quy định.`,
 
   PROCESSING_STATE_WAITING_FIAT: (orderId: string) =>
     `⏳ <b>CHỜ CHUYỂN KHOẢN VND</b>\n\n` +

@@ -206,8 +206,24 @@ function getPreorderBuyNoticeKey(chatId?: number): string | null {
 }
 
 export function setupBuyHandlers(bot: Bot): void {
+  bot.callbackQuery('trade_usdc', async (ctx) => {
+    await ctx.answerCallbackQuery().catch(() => {});
+    await ctx.editMessageText(Messages.TRADE_MENU('USDC'), {
+      parse_mode: 'HTML',
+      reply_markup: Keyboards.tradeUsdcMenu(),
+    });
+  });
+
+  bot.callbackQuery('trade_xlm', async (ctx) => {
+    await ctx.answerCallbackQuery().catch(() => {});
+    await ctx.editMessageText(Messages.TRADE_MENU('XLM'), {
+      parse_mode: 'HTML',
+      reply_markup: Keyboards.tradeXlmMenu(),
+    });
+  });
+
   bot.callbackQuery('activate_wallet_confirm_prompt', async (ctx) => {
-    await ctx.answerCallbackQuery().catch(() => { });
+    await ctx.answerCallbackQuery().catch(() => {});
     const userId = getUserId(ctx);
     const state = getState(userId, {
       action: 'handler.state.get',
@@ -271,7 +287,7 @@ export function setupBuyHandlers(bot: Bot): void {
   });
 
   bot.callbackQuery('confirm_activate_wallet', async (ctx) => {
-    await ctx.answerCallbackQuery().catch(() => { });
+    await ctx.answerCallbackQuery().catch(() => {});
     const userId = getUserId(ctx);
     const state = getState(userId, {
       action: 'handler.state.get',
@@ -311,22 +327,22 @@ export function setupBuyHandlers(bot: Bot): void {
       ) {
         await ctx.reply(
           `⚠️ <b>Không thể kích hoạt ví tự động</b>\n\n` +
-          `Hệ thống thanh toán trả về lỗi trustline/limit cho ví nhận.\n\n` +
-          `Vui lòng nạp XLM thủ công vào ví, sau đó thử mua USDC lại hoặc liên hệ hỗ trợ.`,
+            `Hệ thống thanh toán trả về lỗi trustline/limit cho ví nhận.\n\n` +
+            `Vui lòng nạp XLM thủ công vào ví, sau đó thử mua USDC lại hoặc liên hệ hỗ trợ.`,
           { parse_mode: 'HTML', reply_markup: Keyboards.backToMenu() }
         );
       } else if (errorMessage.includes('API error')) {
         await ctx.reply(
           `❌ <b>Lỗi kết nối</b>\n\n` +
-          `Không thể kết nối đến hệ thống thanh toán.\n` +
-          `Vui lòng thử lại sau ít phút!`,
+            `Không thể kết nối đến hệ thống thanh toán.\n` +
+            `Vui lòng thử lại sau ít phút!`,
           { parse_mode: 'HTML', reply_markup: Keyboards.backToMenu() }
         );
       } else {
         await ctx.reply(
           `❌ <b>Có lỗi xảy ra</b>\n\n` +
-          `Chi tiết: ${errorMessage}\n\n` +
-          `Vui lòng thử lại hoặc liên hệ support!`,
+            `Chi tiết: ${errorMessage}\n\n` +
+            `Vui lòng thử lại hoặc liên hệ support!`,
           { parse_mode: 'HTML', reply_markup: Keyboards.backToMenu() }
         );
       }
@@ -334,7 +350,7 @@ export function setupBuyHandlers(bot: Bot): void {
   });
 
   bot.callbackQuery('cancel_activate_wallet', async (ctx) => {
-    await ctx.answerCallbackQuery().catch(() => { });
+    await ctx.answerCallbackQuery().catch(() => {});
     const userId = getUserId(ctx);
     clearState(userId, {
       action: 'handler.state.clear',
@@ -347,8 +363,8 @@ export function setupBuyHandlers(bot: Bot): void {
     });
   });
 
-  bot.callbackQuery('buy_usdt', async (ctx) => {
-    await ctx.answerCallbackQuery().catch(() => { });
+  bot.callbackQuery('buy_usdc', async (ctx) => {
+    await ctx.answerCallbackQuery().catch(() => {});
     const userId = getUserId(ctx);
 
     try {
@@ -359,8 +375,8 @@ export function setupBuyHandlers(bot: Bot): void {
         logger.warn({ userId }, 'User not found in database for buy USDC');
         await ctx.editMessageText(
           `❌ <b>Lỗi tài khoản</b>\n\n` +
-          `Không tìm thấy thông tin tài khoản của bạn.\n\n` +
-          `Vui lòng liên hệ support!`,
+            `Không tìm thấy thông tin tài khoản của bạn.\n\n` +
+            `Vui lòng liên hệ support!`,
           { parse_mode: 'HTML', reply_markup: Keyboards.backToMenu() }
         );
         return;
@@ -381,32 +397,90 @@ export function setupBuyHandlers(bot: Bot): void {
         { action: 'buy', assetCode: telegramConfig.tokenCode || 'USDC' },
         { action: 'handler.state.set', chatType: ctx.chat?.type, chatId: ctx.chat?.id }
       );
-      await ctx.editMessageText(Messages.BUY_SELECT_AMOUNT(), {
+      await ctx.editMessageText(Messages.BUY_SELECT_AMOUNT('USDC'), {
         parse_mode: 'HTML',
-        reply_markup: Keyboards.buyAmountSelection(),
+        reply_markup: Keyboards.buyAmountSelection('USDC'),
       });
     } catch (error) {
       logger.error({ error, userId }, 'Error checking KYC status for buy USDC');
       await ctx.editMessageText(
         `❌ <b>Lỗi kiểm tra KYC</b>\n\n` +
-        `Không thể kiểm tra trạng thái KYC.\n\n` +
-        `Vui lòng thử lại sau!`,
+          `Không thể kiểm tra trạng thái KYC.\n\n` +
+          `Vui lòng thử lại sau!`,
+        { parse_mode: 'HTML', reply_markup: Keyboards.backToMenu() }
+      );
+    }
+  });
+
+  bot.callbackQuery('buy_xlm', async (ctx) => {
+    await ctx.answerCallbackQuery().catch(() => {});
+    const userId = getUserId(ctx);
+
+    try {
+      logger.info({ userId }, 'Checking KYC status for buy XLM');
+      const user = await teleUserService.findByChatId(userId);
+
+      if (!user) {
+        logger.warn({ userId }, 'User not found in database for buy XLM');
+        await ctx.editMessageText(
+          `❌ <b>Lỗi tài khoản</b>\n\n` +
+            `Không tìm thấy thông tin tài khoản của bạn.\n\n` +
+            `Vui lòng liên hệ support!`,
+          { parse_mode: 'HTML', reply_markup: Keyboards.backToMenu() }
+        );
+        return;
+      }
+
+      if (!user.is_kyc) {
+        logger.info({ userId, isKyc: user.is_kyc }, 'User attempted to buy XLM without KYC');
+        await ctx.editMessageText(Messages.KYC_REQUIRED_FOR_TRADING(), {
+          parse_mode: 'HTML',
+          reply_markup: Keyboards.kycRequiredForTrading(),
+        });
+        return;
+      }
+
+      logger.info(
+        { userId, isKyc: user.is_kyc },
+        'User is KYC verified, proceeding with buy XLM flow'
+      );
+      setState(
+        userId,
+        { action: 'buy', assetCode: 'XLM' },
+        { action: 'handler.state.set', chatType: ctx.chat?.type, chatId: ctx.chat?.id }
+      );
+      await ctx.editMessageText(Messages.BUY_SELECT_AMOUNT('XLM'), {
+        parse_mode: 'HTML',
+        reply_markup: Keyboards.buyAmountSelection('XLM'),
+      });
+    } catch (error) {
+      logger.error({ error, userId }, 'Error checking KYC status for buy XLM');
+      await ctx.editMessageText(
+        `❌ <b>Lỗi kiểm tra KYC</b>\n\n` +
+          `Không thể kiểm tra trạng thái KYC.\n\n` +
+          `Vui lòng thử lại sau!`,
         { parse_mode: 'HTML', reply_markup: Keyboards.backToMenu() }
       );
     }
   });
 
   bot.callbackQuery(/^buy_amount_\d+$/, async (ctx) => {
-    await ctx.answerCallbackQuery().catch(() => { });
+    await ctx.answerCallbackQuery().catch(() => {});
     const userId = getUserId(ctx);
     const amount = ctx.callbackQuery.data.replace('buy_amount_', '');
+    const currentState = getState(userId, {
+      action: 'handler.state.get',
+      chatType: ctx.chat?.type,
+      chatId: ctx.chat?.id,
+    });
+    const assetCode = currentState?.assetCode || 'USDC';
 
     const savedWallets = await paymentInformationService.findByTypeAndChatId(userId, 'CRYPTO');
 
     if (savedWallets.length > 0) {
       setState(
         userId,
-        { action: 'buy', amount },
+        { action: 'buy', assetCode, amount },
         { action: 'handler.state.set', chatType: ctx.chat?.type, chatId: ctx.chat?.id }
       );
       await ctx.editMessageText(Messages.SELECT_SAVED_WALLET(), {
@@ -418,13 +492,14 @@ export function setupBuyHandlers(bot: Bot): void {
         userId,
         {
           action: 'buy',
+          assetCode,
           amount,
           waitingFor: 'wallet',
           isNewPaymentInfo: true,
         },
         { action: 'handler.state.set', chatType: ctx.chat?.type, chatId: ctx.chat?.id }
       );
-      await ctx.editMessageText(Messages.ENTER_WALLET_ADDRESS(), {
+      await ctx.editMessageText(Messages.ENTER_WALLET_ADDRESS(assetCode), {
         parse_mode: 'HTML',
         reply_markup: Keyboards.backToMenu(),
       });
@@ -432,14 +507,20 @@ export function setupBuyHandlers(bot: Bot): void {
   });
 
   bot.callbackQuery('buy_custom', async (ctx) => {
-    await ctx.answerCallbackQuery().catch(() => { });
+    await ctx.answerCallbackQuery().catch(() => {});
     const userId = getUserId(ctx);
+    const currentState = getState(userId, {
+      action: 'handler.state.get',
+      chatType: ctx.chat?.type,
+      chatId: ctx.chat?.id,
+    });
+    const assetCode = currentState?.assetCode || 'USDC';
     setState(
       userId,
-      { action: 'buy', waitingFor: 'buy_amount' },
+      { action: 'buy', assetCode, waitingFor: 'buy_amount' },
       { action: 'handler.state.set', chatType: ctx.chat?.type, chatId: ctx.chat?.id }
     );
-    await ctx.editMessageText(Messages.ENTER_CUSTOM_AMOUNT_BUY(), {
+    await ctx.editMessageText(Messages.ENTER_CUSTOM_AMOUNT_BUY(assetCode), {
       parse_mode: 'HTML',
       reply_markup: Keyboards.backToMenu(),
     });
@@ -447,7 +528,7 @@ export function setupBuyHandlers(bot: Bot): void {
 
   bot.callbackQuery(/^use_saved_wallet_\d+$/, async (ctx) => {
     try {
-      await ctx.answerCallbackQuery().catch(() => { });
+      await ctx.answerCallbackQuery().catch(() => {});
     } catch (error) {
       logger.debug({ error, userId: ctx.from.id }, 'Failed to answer callback query');
     }
@@ -487,14 +568,18 @@ export function setupBuyHandlers(bot: Bot): void {
       return;
     }
 
-    const trustlineCheck = await checkUsdcTrustline(paymentInfo.wallet_address);
-    if (!trustlineCheck.valid) {
-      logger.info(
-        { userId, wallet: paymentInfo.wallet_address, reason: trustlineCheck.reason },
-        'Trustline check failed for saved wallet'
-      );
-      await handleTrustlineFailure(ctx, state, trustlineCheck, paymentInfo.wallet_address);
-      return;
+    const isXlm = state.assetCode === 'XLM';
+
+    if (!isXlm) {
+      const trustlineCheck = await checkUsdcTrustline(paymentInfo.wallet_address);
+      if (!trustlineCheck.valid) {
+        logger.info(
+          { userId, wallet: paymentInfo.wallet_address, reason: trustlineCheck.reason },
+          'Trustline check failed for saved wallet'
+        );
+        await handleTrustlineFailure(ctx, state, trustlineCheck, paymentInfo.wallet_address);
+        return;
+      }
     }
 
     state.walletAddress = paymentInfo.wallet_address;
@@ -511,15 +596,28 @@ export function setupBuyHandlers(bot: Bot): void {
       'Using saved wallet'
     );
 
-    let rates;
-    try {
-      rates = await paymentService.getRate();
-    } catch (error) {
-      logger.error({ error, userId }, 'Failed to fetch exchange rates');
-      rates = null;
+    let buyRate: number | null = null;
+    let feeRateBuy = 0;
+    let minFeeVnd = 0;
+
+    if (isXlm) {
+      const [xlmRate, usdcRates] = await Promise.all([
+        paymentService.getXlmRate(),
+        paymentService.getRate(),
+      ]);
+      buyRate = xlmRate;
+      feeRateBuy = usdcRates?.fee_rate_buy ?? 0;
+      minFeeVnd = usdcRates?.min_fee_vnd ?? 0;
+    } else {
+      const rates = await paymentService.getRate();
+      if (rates) {
+        buyRate = rates.buy;
+        feeRateBuy = rates.fee_rate_buy ?? 0;
+        minFeeVnd = rates.min_fee_vnd ?? 0;
+      }
     }
 
-    if (!rates) {
+    if (!buyRate) {
       try {
         await ctx.editMessageText(Messages.RATE_UNAVAILABLE(), {
           parse_mode: 'HTML',
@@ -540,15 +638,11 @@ export function setupBuyHandlers(bot: Bot): void {
     }
 
     const usdtAmount = parseFloat(state.amount!);
-    const vndAmount = usdtAmount * rates.buy;
-    const gatewayFee = calculateGatewayFee(
-      vndAmount,
-      rates.fee_rate_buy ?? 0,
-      rates.min_fee_vnd ?? 0
-    );
+    const vndAmount = usdtAmount * buyRate;
+    const gatewayFee = calculateGatewayFee(vndAmount, feeRateBuy, minFeeVnd);
     const totalAmount = vndAmount + gatewayFee;
 
-    state.buyRate = rates.buy;
+    state.buyRate = buyRate;
     state.gatewayFee = gatewayFee;
     setState(userId, state, {
       action: 'handler.state.set',
@@ -562,8 +656,9 @@ export function setupBuyHandlers(bot: Bot): void {
           state.amount!,
           paymentInfo.wallet_address,
           totalAmount,
-          rates.buy,
-          gatewayFee
+          buyRate,
+          gatewayFee,
+          state.assetCode || 'USDC'
         ),
         { parse_mode: 'HTML', reply_markup: Keyboards.confirmPayment() }
       );
@@ -574,7 +669,7 @@ export function setupBuyHandlers(bot: Bot): void {
   });
 
   bot.callbackQuery('add_new_wallet', async (ctx) => {
-    await ctx.answerCallbackQuery().catch(() => { });
+    await ctx.answerCallbackQuery().catch(() => {});
     const userId = getUserId(ctx);
     const state = getState(userId, {
       action: 'handler.state.get',
@@ -600,7 +695,7 @@ export function setupBuyHandlers(bot: Bot): void {
 
     logger.info({ userId }, 'User chose to add new wallet');
 
-    await ctx.editMessageText(Messages.ENTER_WALLET_ADDRESS(), {
+    await ctx.editMessageText(Messages.ENTER_WALLET_ADDRESS(state.assetCode || 'USDC'), {
       parse_mode: 'HTML',
       reply_markup: Keyboards.backToMenu(),
     });
@@ -617,6 +712,17 @@ export async function handleBuyAmountInput(
 
   if (isNaN(amount) || amount <= 0) {
     await ctx.reply(Messages.INVALID_AMOUNT(), { parse_mode: 'HTML' });
+    return;
+  }
+
+  const assetCode = state.assetCode || 'USDC';
+  const minAmount =
+    assetCode === 'XLM'
+      ? parseFloat(process.env.MIN_XLM_AMOUNT || '5')
+      : parseFloat(process.env.MIN_USDC_AMOUNT || '1');
+
+  if (amount < minAmount) {
+    await ctx.reply(Messages.INVALID_MIN_AMOUNT(assetCode, minAmount), { parse_mode: 'HTML' });
     return;
   }
 
@@ -666,8 +772,7 @@ export async function handleWalletInput(
   }
   clearWalletAttempts(userId);
 
-  // Check wallet existence and trustline before saving or proceeding
-  if (state.action === 'buy' && state.amount) {
+  if (state.action === 'buy' && state.amount && state.assetCode !== 'XLM') {
     const trustlineCheck = await checkUsdcTrustline(text);
     if (!trustlineCheck.valid) {
       logger.info(
@@ -709,8 +814,8 @@ export async function handleWalletInput(
     });
     await ctx.reply(
       `✅ <b>ĐÃ LƯU ĐỊA CHỈ VÍ</b>\n\n` +
-      `Địa chỉ ví đã được lưu thành công!\n\n` +
-      `📮 Địa chỉ: <code>${text}</code>`,
+        `Địa chỉ ví đã được lưu thành công!\n\n` +
+        `📮 Địa chỉ: <code>${text}</code>`,
       { parse_mode: 'HTML', reply_markup: await Keyboards.mainMenu(userId) }
     );
     return;
@@ -722,15 +827,33 @@ export async function handleWalletInput(
     chatId: ctx.chat?.id,
   });
 
-  let rates;
+  const isXlm = state.assetCode === 'XLM';
+  let buyRate: number | null = null;
+  let feeRateBuy = 0;
+  let minFeeVnd = 0;
+
   try {
-    rates = await paymentService.getRate();
+    if (isXlm) {
+      const [xlmRate, usdcRates] = await Promise.all([
+        paymentService.getXlmRate(),
+        paymentService.getRate(),
+      ]);
+      buyRate = xlmRate;
+      feeRateBuy = usdcRates?.fee_rate_buy ?? 0;
+      minFeeVnd = usdcRates?.min_fee_vnd ?? 0;
+    } else {
+      const rates = await paymentService.getRate();
+      if (rates) {
+        buyRate = rates.buy;
+        feeRateBuy = rates.fee_rate_buy ?? 0;
+        minFeeVnd = rates.min_fee_vnd ?? 0;
+      }
+    }
   } catch (error) {
     logger.error({ error, userId }, 'Failed to fetch exchange rates');
-    rates = null;
   }
 
-  if (!rates) {
+  if (!buyRate) {
     await ctx.reply(Messages.RATE_UNAVAILABLE(), {
       parse_mode: 'HTML',
       reply_markup: Keyboards.backToMenu(),
@@ -739,12 +862,11 @@ export async function handleWalletInput(
   }
 
   const usdtAmount = parseFloat(state.amount);
-  const vndAmount = usdtAmount * rates.sell;
-  const feeRate = rates.fee_rate_buy ?? 0;
-  const gatewayFee = calculateGatewayFee(vndAmount, feeRate, rates.min_fee_vnd ?? 0);
+  const vndAmount = usdtAmount * buyRate;
+  const gatewayFee = calculateGatewayFee(vndAmount, feeRateBuy, minFeeVnd);
   const totalAmount = vndAmount + gatewayFee;
 
-  state.buyRate = rates.sell;
+  state.buyRate = buyRate;
   state.gatewayFee = gatewayFee;
   setState(userId, state, {
     action: 'handler.state.set',
@@ -753,7 +875,14 @@ export async function handleWalletInput(
   });
 
   await ctx.reply(
-    Messages.ORDER_SUMMARY_BUY(state.amount, text, totalAmount, rates.sell, gatewayFee),
+    Messages.ORDER_SUMMARY_BUY(
+      state.amount,
+      text,
+      totalAmount,
+      buyRate,
+      gatewayFee,
+      state.assetCode || 'USDC'
+    ),
     {
       parse_mode: 'HTML',
       reply_markup: Keyboards.confirmPayment(),
@@ -780,8 +909,8 @@ export async function handleBuyConfirmation(
     logger.error({ userId, state }, 'Missing amount or wallet address in buy confirmation');
     await ctx.reply(
       `❌ <b>Lỗi thông tin</b>\n\n` +
-      `Thiếu thông tin số lượng hoặc địa chỉ ví.\n\n` +
-      `Vui lòng bắt đầu lại!`,
+        `Thiếu thông tin số lượng hoặc địa chỉ ví.\n\n` +
+        `Vui lòng bắt đầu lại!`,
       { parse_mode: 'HTML' }
     );
     return;
@@ -790,24 +919,27 @@ export async function handleBuyConfirmation(
   processingUsers.add(userId);
   logger.info({ userId }, 'User marked as processing order');
 
+  const isXlm = state.assetCode === 'XLM';
+  const assetCode = state.assetCode || telegramConfig.tokenCode;
+
   try {
     logger.info(
       {
         userId,
-        usdtAmount: state.amount,
+        amount: state.amount,
+        assetCode,
         wallet: state.walletAddress,
         chainId: telegramConfig.chainId,
-        tokenAddress: telegramConfig.tokenAddress,
       },
-      'Calling deposit API with USDC amount'
+      'Calling deposit API'
     );
 
     const order = await paymentService.processDeposit({
       chat_id: userId,
       amount: state.amount,
       chain_id: telegramConfig.chainId,
-      token_address: telegramConfig.tokenAddress,
-      asset_code: telegramConfig.tokenCode,
+      token_address: isXlm ? '' : telegramConfig.tokenAddress,
+      asset_code: assetCode,
       recipient: state.walletAddress,
       callback: telegramConfig.callbackUrl,
     });
@@ -859,7 +991,9 @@ export async function handleBuyConfirmation(
         bankInfo?.bankName,
         bankInfo?.bankAccountNumber,
         bankInfo?.bankAccountName,
-        totalAmount
+        totalAmount,
+        assetCode,
+        order.expired_at
       );
 
       const qrKeyboard = Keyboards.qrCodeWithCancel(order.id);
@@ -965,9 +1099,9 @@ export async function handleBuyConfirmation(
         ctx,
         order.id,
         `❌ <b>Lỗi tạo đơn hàng</b>\n\n` +
-        `Không thể tạo mã QR thanh toán.\n` +
-        `Mã đơn hàng: <code>${order.id}</code>\n\n` +
-        `Vui lòng thử lại hoặc liên hệ support!`
+          `Không thể tạo mã QR thanh toán.\n` +
+          `Mã đơn hàng: <code>${order.id}</code>\n\n` +
+          `Vui lòng thử lại hoặc liên hệ support!`
       );
     }
   } catch (error) {
@@ -990,7 +1124,7 @@ export async function handleWalletActivationConfirmation(
   state: UserState
 ): Promise<void> {
   if (processingUsers.has(userId)) {
-    await ctx.answerCallbackQuery('⏳ Đơn hàng đang được xử lý, vui lòng đợi...').catch(() => { });
+    await ctx.answerCallbackQuery('⏳ Đơn hàng đang được xử lý, vui lòng đợi...').catch(() => {});
     return;
   }
 
@@ -1147,9 +1281,9 @@ export async function handleWalletActivationConfirmation(
         ctx,
         order.id,
         `❌ <b>Lỗi tạo đơn hàng</b>\n\n` +
-        `Không thể tạo mã QR thanh toán.\n` +
-        `Mã đơn hàng: <code>${order.id}</code>\n\n` +
-        `Vui lòng thử lại hoặc liên hệ support!`
+          `Không thể tạo mã QR thanh toán.\n` +
+          `Mã đơn hàng: <code>${order.id}</code>\n\n` +
+          `Vui lòng thử lại hoặc liên hệ support!`
       );
     }
   } finally {
