@@ -157,3 +157,9 @@ export const NETWORK_CONFIGS = {
     passphrase: StellarSdk.Networks.TESTNET,
   },
 };
+
+export function messageDelay(): Promise<void> {
+  const ms = telegramConfig.messageDelayMs;
+  if (ms <= 0) return Promise.resolve();
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}

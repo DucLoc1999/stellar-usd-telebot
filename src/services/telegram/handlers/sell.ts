@@ -26,6 +26,7 @@ import {
   initOrderSlots,
   generateStellarPayQR,
 } from '../index';
+import { messageDelay } from '../utils';
 
 function getPreorderSellNoticeKey(chatId?: number): string | null {
   if (!chatId) return null;
@@ -978,6 +979,7 @@ export async function handleSellConfirmation(
           caption,
           parse_mode: 'HTML',
         });
+        await messageDelay();
         await ctx.api.editMessageReplyMarkup(chatId, slots.mainMsgId, {
           reply_markup: Keyboards.qrCodeWithCancel(order.id),
         });
@@ -994,6 +996,7 @@ export async function handleSellConfirmation(
         });
       }
 
+      await messageDelay();
       await sendOrderNotice(ctx, order.id, Messages.ORDER_STATE_CREATED(order.id));
       logger.info({ userId, orderId: order.id }, 'Order created notification sent');
 
