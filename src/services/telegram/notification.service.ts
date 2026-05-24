@@ -7,6 +7,7 @@ import { logger } from '../../config/logger';
 import db from '../../config/knex';
 import { Usdt247OrderType, type Order, type Usdt247PaymentInfo } from '../../models/usdt247';
 import teleUserService from '../teleUserService';
+import { messageDelay } from './utils';
 
 function parsePaymentInfo(paymentInfo: unknown): Usdt247PaymentInfo | null {
   if (!paymentInfo) return null;
@@ -77,6 +78,7 @@ export class NotificationService {
           );
         }
       }
+      await messageDelay();
     }
 
     const msg = await this.bot.api.sendMessage(chatId, message, {
@@ -88,6 +90,7 @@ export class NotificationService {
     setNotifyMsgId(orderId, msg.message_id);
 
     if (state === 3) {
+      await messageDelay();
       const slotsAfterCompleted = getOrderSlots(orderId);
       if (slotsAfterCompleted?.mainMsgId) {
         try {
@@ -106,6 +109,7 @@ export class NotificationService {
     }
 
     if (state === 5) {
+      await messageDelay();
       const slotsAfterNotify = getOrderSlots(orderId);
       if (slotsAfterNotify?.mainMsgId) {
         try {
@@ -124,6 +128,7 @@ export class NotificationService {
     }
 
     if (state === 3) {
+      await messageDelay();
       const user = await teleUserService.findByChatId(chatId);
       const firstName = user?.first_name || 'bạn';
       await this.bot.api.sendMessage(chatId, Messages.WELCOME(firstName), {

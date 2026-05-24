@@ -16,6 +16,7 @@ export const telegramConfig: TelegramConfig = {
   callbackUrl: process.env.CALLBACK_URL || '',
   horizonUrl: process.env.HORIZON_URL || 'https://horizon.stellar.org',
   stellarNetwork: process.env.STELLAR_NETWORK || 'public',
+  messageDelayMs: parseInt(process.env.TELEGRAM_MESSAGE_DELAY_MS || '200', 10),
 };
 
 export default appConfig;

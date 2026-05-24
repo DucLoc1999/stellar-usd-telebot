@@ -28,6 +28,7 @@ import {
   sendOrderNotice,
   calculateGatewayFee,
 } from '../index';
+import { messageDelay } from '../utils';
 
 type TrustlineCheckResult = {
   valid: boolean;
@@ -1016,6 +1017,7 @@ export async function handleBuyConfirmation(
               caption: combinedCaption,
               parse_mode: 'HTML',
             });
+            await messageDelay();
             await ctx.api.editMessageReplyMarkup(chatId, slots.mainMsgId, {
               reply_markup: qrKeyboard,
             });
@@ -1054,6 +1056,7 @@ export async function handleBuyConfirmation(
               caption: combinedCaption,
               parse_mode: 'HTML',
             });
+            await messageDelay();
             await ctx.api.editMessageReplyMarkup(chatId, slots.mainMsgId, {
               reply_markup: qrKeyboard,
             });
@@ -1090,6 +1093,7 @@ export async function handleBuyConfirmation(
         );
       }
 
+      await messageDelay();
       await sendNotifyMessage(ctx, order.id, Messages.ORDER_STATE_CREATED(order.id));
 
       scheduleOrderTrackingCleanup(order.id);
@@ -1198,6 +1202,7 @@ export async function handleWalletActivationConfirmation(
             caption,
             parse_mode: 'HTML',
           });
+          await messageDelay();
           await ctx.api.editMessageReplyMarkup(chatId, slots.mainMsgId, {
             reply_markup: qrKeyboard,
           });
@@ -1236,6 +1241,7 @@ export async function handleWalletActivationConfirmation(
             caption,
             parse_mode: 'HTML',
           });
+          await messageDelay();
           await ctx.api.editMessageReplyMarkup(chatId, slots.mainMsgId, {
             reply_markup: qrKeyboard,
           });
@@ -1273,6 +1279,7 @@ export async function handleWalletActivationConfirmation(
     }
 
     if (qrLink || qrCode) {
+      await messageDelay();
       await sendNotifyMessage(ctx, order.id, Messages.ORDER_STATE_CREATED(order.id));
       scheduleOrderTrackingCleanup(order.id);
     } else {

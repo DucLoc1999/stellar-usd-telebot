@@ -6,6 +6,7 @@ import { logger } from '../../../config/logger';
 import { getUserId } from './context';
 import { handleBuyConfirmation } from './buy';
 import { handleSellConfirmation } from './sell';
+import { messageDelay } from '../utils';
 
 export function setupPaymentHandlers(bot: Bot): void {
   bot.callbackQuery('confirm_payment', async (ctx) => {
@@ -182,6 +183,8 @@ export function setupPaymentHandlers(bot: Bot): void {
           }
         }
 
+        await messageDelay();
+
         // Update existing order-state notice message in place (no new "🚫 ĐÃ HỦY" message).
         const slotsAfterDelete = getOrderSlots(orderId);
         if (slotsAfterDelete?.notifyMsgId) {
@@ -205,6 +208,8 @@ export function setupPaymentHandlers(bot: Bot): void {
             );
           }
         }
+
+        await messageDelay();
 
         await ctx.reply(Messages.ORDER_CANCELLED(), {
           parse_mode: 'HTML',

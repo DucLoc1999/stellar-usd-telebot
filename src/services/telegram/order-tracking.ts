@@ -1,6 +1,7 @@
 import { InputFile } from 'grammy';
 import { logger } from '../../config/logger';
 import { sentMessages, newlyCreatedOrders, userCancelledOrders } from './user-state';
+import { messageDelay } from './utils';
 
 export interface OrderMessageSlots {
   chatId: number;
@@ -147,6 +148,8 @@ export async function updateMainMessage(
       parse_mode: 'HTML',
     });
 
+    await messageDelay();
+
     await ctx.api.editMessageReplyMarkup(ctx.chat.id, slots.mainMsgId, {
       reply_markup: replyMarkup,
     });
@@ -194,6 +197,7 @@ export async function sendOrderNotice(
         );
       }
     }
+    await messageDelay();
   }
 
   const msg = await ctx.reply(text, {

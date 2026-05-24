@@ -58,6 +58,7 @@ export interface TelegramConfig {
   callbackUrl: string;
   horizonUrl: string;
   stellarNetwork: string;
+  messageDelayMs: number;
 }
 
 export type PaymentType = 'BANK' | 'CRYPTO';
