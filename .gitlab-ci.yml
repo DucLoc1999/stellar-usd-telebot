@@ -1,0 +1,76 @@
+stages:
+  - test
+  - deploy
+
+# ==========================================
+# STAGE 1: CI / Testing (GitLab Cloud Runner)
+# ==========================================
+test_application:
+  stage: test
+  image: node:24-alpine
+  cache:
+    key: ${CI_COMMIT_REF_SLUG}
+    paths:
+      - node_modules/
+  script:
+    - npm ci
+    - npx tsc --noEmit
+    - npm run lint
+  allow_failure: false
+  rules:
+    - if: $CI_COMMIT_BRANCH == "main"
+
+# ==========================================
+# STAGE 2: CD / Docker Deployment (Runs on Production Server)
+# Requires a GitLab Runner registered on the server with tag: prod-deploy
+# ==========================================
+deploy_to_production:
+  stage: deploy
+  rules:
+    - if: $CI_COMMIT_BRANCH == "main"
+  tags:
+    - prod-deploy
+  needs: ["test_application"]
+  script:
+    - echo "Starting Docker-based deployment..."
+
+    # Fix git dubious ownership issue on server
+    - git config --global --add safe.directory /mnt/code/be/usdt247-telebot
+
+    # Navigate to deployment directory on server
+    - cd /mnt/code/be/usdt247-telebot
+
+    # Pull latest code from main branch
+    - git pull origin main
+
+    # Build Docker image (uses layer cache — only rebuilds changed layers)
+    - echo "Building Docker image..."
+    - docker compose build
+
+    # Stop old containers gracefully
+    - echo "Stopping old containers..."
+    - docker compose down || true
+
+    # Start new containers
+    - echo "Starting new containers..."
+    - docker compose up -d
+
+    # Run database migrations
+    - echo "Running migrations..."
+    - docker compose exec -T app npm run migrate:latest || true
+
+    # Wait for health check
+    - echo "Waiting for service to be healthy..."
+    - sleep 10
+    - docker compose ps
+
+    # Clean up dangling images
+    - echo "Cleaning up old images..."
+    - docker image prune -f
+
+    # Tail logs for verification
+    - echo "Container logs:"
+    - docker compose logs --tail=50
+
+  after_script:
+    - docker ps -a
