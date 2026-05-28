@@ -144,14 +144,9 @@ export const Messages = {
 
   INVALID_AMOUNT: () => `❌ Số lượng không hợp lệ!\n\n` + `Vui lòng nhập số hợp lệ (VD: 100)`,
 
-  INVALID_MIN_AMOUNT: (assetCode: string, minAmount: number) =>
+  INVALID_AMOUNT_RANGE: (assetCode: string, minAmount: number, maxAmount: number) =>
     `❌ <b>Số lượng không hợp lệ!</b>\n\n` +
-    `Số lượng ${assetCode} tối thiểu cho phép giao dịch là <b>${minAmount} ${assetCode}</b>.\n\n` +
-    `Vui lòng nhập lại số lượng hợp lệ!`,
-
-  INVALID_MAX_AMOUNT: (assetCode: string, maxAmount: number) =>
-    `❌ <b>Số lượng vượt quá giới hạn!</b>\n\n` +
-    `Số lượng ${assetCode} tối đa cho phép giao dịch là <b>${maxAmount} ${assetCode}</b>.\n\n` +
+    `Số lượng ${assetCode} phải nằm trong khoảng từ <b>${minAmount}</b> đến <b>${maxAmount}</b>.\n\n` +
     `Vui lòng nhập lại số lượng hợp lệ!`,
 
   INVALID_WALLET: () =>
@@ -336,7 +331,7 @@ export const Messages = {
     const tokenLine = isXlm
       ? `💎 Token: <b>XLM (Native)</b>\n`
       : `💎 Token: <b>USDC (Circle)</b>\n` +
-        `📄 Issuer: <code>${telegramConfig.tokenAddress}</code> | Asset name: <b>USDC</b>\n`;
+      `📄 Issuer: <code>${telegramConfig.tokenAddress}</code> | Asset name: <b>USDC</b>\n`;
     return (
       `<b>ĐƠN HÀNG - BÁN ${assetCode}</b>\n\n` +
       `💰 Số lượng: <code>${usdtAmount} ${assetCode}</code>\n\n` +
@@ -351,10 +346,9 @@ export const Messages = {
       (netVndAmount
         ? `\n💰 <b>Số tiền nhận:</b> ${netVndAmount.toLocaleString('vi-VN')} VND`
         : '') +
-      `${
-        bankName
-          ? `\n\n🏛️ Ngân hàng: <b>${bankName}</b>\n💳 Số TK: <code>${accountNumber}</code>\n👤 Chủ TK: <b>${fullName}</b>`
-          : ''
+      `${bankName
+        ? `\n\n🏛️ Ngân hàng: <b>${bankName}</b>\n💳 Số TK: <code>${accountNumber}</code>\n👤 Chủ TK: <b>${fullName}</b>`
+        : ''
       }\n\n` +
       (expiredAt
         ? `⚠️ <b>Lưu ý:</b> Vui lòng thanh toán trước <b>${formatTimeWithTimeZone(expiredAt)}</b> để tránh bị hủy đơn.\n\n`

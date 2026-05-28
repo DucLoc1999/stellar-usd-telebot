@@ -35,7 +35,7 @@ function getPreorderSellNoticeKey(chatId?: number): string | null {
 
 export function setupSellHandlers(bot: Bot): void {
   bot.callbackQuery('sell_usdc', async (ctx) => {
-    await ctx.answerCallbackQuery().catch(() => {});
+    await ctx.answerCallbackQuery().catch(() => { });
     const userId = getUserId(ctx);
 
     try {
@@ -46,8 +46,8 @@ export function setupSellHandlers(bot: Bot): void {
         logger.warn({ userId }, 'User not found in database for sell USDC');
         await ctx.editMessageText(
           `❌ <b>Lỗi tài khoản</b>\n\n` +
-            `Không tìm thấy thông tin tài khoản của bạn.\n\n` +
-            `Vui lòng liên hệ support!`,
+          `Không tìm thấy thông tin tài khoản của bạn.\n\n` +
+          `Vui lòng liên hệ support!`,
           { parse_mode: 'HTML', reply_markup: Keyboards.backToMenu() }
         );
         return;
@@ -79,15 +79,15 @@ export function setupSellHandlers(bot: Bot): void {
       logger.error({ error, userId }, 'Error checking KYC status for sell USDC');
       await ctx.editMessageText(
         `❌ <b>Lỗi kiểm tra KYC</b>\n\n` +
-          `Không thể kiểm tra trạng thái KYC.\n\n` +
-          `Vui lòng thử lại sau!`,
+        `Không thể kiểm tra trạng thái KYC.\n\n` +
+        `Vui lòng thử lại sau!`,
         { parse_mode: 'HTML', reply_markup: Keyboards.backToMenu() }
       );
     }
   });
 
   bot.callbackQuery('sell_xlm', async (ctx) => {
-    await ctx.answerCallbackQuery().catch(() => {});
+    await ctx.answerCallbackQuery().catch(() => { });
     const userId = getUserId(ctx);
 
     try {
@@ -98,8 +98,8 @@ export function setupSellHandlers(bot: Bot): void {
         logger.warn({ userId }, 'User not found in database for sell XLM');
         await ctx.editMessageText(
           `❌ <b>Lỗi tài khoản</b>\n\n` +
-            `Không tìm thấy thông tin tài khoản của bạn.\n\n` +
-            `Vui lòng liên hệ support!`,
+          `Không tìm thấy thông tin tài khoản của bạn.\n\n` +
+          `Vui lòng liên hệ support!`,
           { parse_mode: 'HTML', reply_markup: Keyboards.backToMenu() }
         );
         return;
@@ -131,15 +131,15 @@ export function setupSellHandlers(bot: Bot): void {
       logger.error({ error, userId }, 'Error checking KYC status for sell XLM');
       await ctx.editMessageText(
         `❌ <b>Lỗi kiểm tra KYC</b>\n\n` +
-          `Không thể kiểm tra trạng thái KYC.\n\n` +
-          `Vui lòng thử lại sau!`,
+        `Không thể kiểm tra trạng thái KYC.\n\n` +
+        `Vui lòng thử lại sau!`,
         { parse_mode: 'HTML', reply_markup: Keyboards.backToMenu() }
       );
     }
   });
 
   bot.callbackQuery(/^sell_amount_\d+$/, async (ctx) => {
-    await ctx.answerCallbackQuery().catch(() => {});
+    await ctx.answerCallbackQuery().catch(() => { });
     const userId = getUserId(ctx);
     const amount = ctx.callbackQuery.data.replace('sell_amount_', '');
     const currentState = getState(userId, {
@@ -192,7 +192,7 @@ export function setupSellHandlers(bot: Bot): void {
   });
 
   bot.callbackQuery('sell_custom', async (ctx) => {
-    await ctx.answerCallbackQuery().catch(() => {});
+    await ctx.answerCallbackQuery().catch(() => { });
     const userId = getUserId(ctx);
     const currentState = getState(userId, {
       action: 'handler.state.get',
@@ -223,7 +223,7 @@ export function setupSellHandlers(bot: Bot): void {
   });
 
   bot.callbackQuery(/^select_bank_\d+$/, async (ctx) => {
-    await ctx.answerCallbackQuery().catch(() => {});
+    await ctx.answerCallbackQuery().catch(() => { });
     const userId = getUserId(ctx);
     const bankId = parseInt(ctx.callbackQuery.data.replace('select_bank_', ''));
     const state = getState(userId, {
@@ -245,8 +245,8 @@ export function setupSellHandlers(bot: Bot): void {
       logger.error({ userId, bankId }, 'Bank not found');
       await ctx.reply(
         `❌ <b>Lỗi ngân hàng</b>\n\n` +
-          `Không tìm thấy thông tin ngân hàng.\n\n` +
-          `Vui lòng thử lại!`,
+        `Không tìm thấy thông tin ngân hàng.\n\n` +
+        `Vui lòng thử lại!`,
         { parse_mode: 'HTML' }
       );
       return;
@@ -270,7 +270,7 @@ export function setupSellHandlers(bot: Bot): void {
   });
 
   bot.callbackQuery(/^show_more_banks_\d+$/, async (ctx) => {
-    await ctx.answerCallbackQuery().catch(() => {});
+    await ctx.answerCallbackQuery().catch(() => { });
     const userId = getUserId(ctx);
     const offset = parseInt(ctx.callbackQuery.data.replace('show_more_banks_', ''));
     const state = getState(userId, {
@@ -304,7 +304,7 @@ export function setupSellHandlers(bot: Bot): void {
 
   bot.callbackQuery(/^use_saved_bank_\d+$/, async (ctx) => {
     try {
-      await ctx.answerCallbackQuery().catch(() => {});
+      await ctx.answerCallbackQuery().catch(() => { });
     } catch (error) {
       logger.debug({ error, userId: ctx.from.id }, 'Failed to answer callback query');
     }
@@ -339,14 +339,14 @@ export function setupSellHandlers(bot: Bot): void {
           ctx,
           key,
           `❌ <b>Lỗi ngân hàng</b>\n\n` +
-            `Không tìm thấy thông tin ngân hàng đã lưu.\n\n` +
-            `Vui lòng thử lại!`
+          `Không tìm thấy thông tin ngân hàng đã lưu.\n\n` +
+          `Vui lòng thử lại!`
         );
       } else {
         await ctx.reply(
           `❌ <b>Lỗi ngân hàng</b>\n\n` +
-            `Không tìm thấy thông tin ngân hàng đã lưu.\n\n` +
-            `Vui lòng thử lại!`,
+          `Không tìm thấy thông tin ngân hàng đã lưu.\n\n` +
+          `Vui lòng thử lại!`,
           { parse_mode: 'HTML' }
         );
       }
@@ -358,8 +358,8 @@ export function setupSellHandlers(bot: Bot): void {
       logger.error({ userId, bankId: paymentInfo.bank_id }, 'Bank not found');
       await ctx.reply(
         `❌ <b>Lỗi ngân hàng</b>\n\n` +
-          `Không tìm thấy thông tin ngân hàng.\n\n` +
-          `Vui lòng thử lại!`,
+        `Không tìm thấy thông tin ngân hàng.\n\n` +
+        `Vui lòng thử lại!`,
         { parse_mode: 'HTML' }
       );
       return;
@@ -445,7 +445,7 @@ export function setupSellHandlers(bot: Bot): void {
   });
 
   bot.callbackQuery('add_new_bank', async (ctx) => {
-    await ctx.answerCallbackQuery().catch(() => {});
+    await ctx.answerCallbackQuery().catch(() => { });
     const userId = getUserId(ctx);
     const state = getState(userId, {
       action: 'handler.state.get',
@@ -505,13 +505,8 @@ export async function handleSellAmountInput(
       ? parseFloat(process.env.MAX_XLM_AMOUNT || '100000')
       : parseFloat(process.env.MAX_USDC_AMOUNT || '100000'));
 
-  if (amount < minAmount) {
-    await ctx.reply(Messages.INVALID_MIN_AMOUNT(assetCode, minAmount), { parse_mode: 'HTML' });
-    return;
-  }
-
-  if (amount > maxAmount) {
-    await ctx.reply(Messages.INVALID_MAX_AMOUNT(assetCode, maxAmount), { parse_mode: 'HTML' });
+  if (amount < minAmount || amount > maxAmount) {
+    await ctx.reply(Messages.INVALID_AMOUNT_RANGE(assetCode, minAmount, maxAmount), { parse_mode: 'HTML' });
     return;
   }
 
@@ -594,8 +589,8 @@ export async function handleAccountNumberInput(
     logger.error({ userId, state }, 'Missing required fields for sell confirmation');
     await ctx.reply(
       `❌ <b>Lỗi thông tin</b>\n\n` +
-        `Thiếu thông tin cần thiết để xác nhận giao dịch.\n\n` +
-        `Vui lòng bắt đầu lại!`,
+      `Thiếu thông tin cần thiết để xác nhận giao dịch.\n\n` +
+      `Vui lòng bắt đầu lại!`,
       { parse_mode: 'HTML' }
     );
     return;
@@ -796,10 +791,10 @@ export async function handleBankDetailsSingleInput(
     });
     await ctx.reply(
       `✅ <b>ĐÃ LƯU TÀI KHOẢN NGÂN HÀNG</b>\n\n` +
-        `Tài khoản ngân hàng đã được lưu thành công!\n\n` +
-        `🏛️ Ngân hàng: <b>${bank.short_name}</b>\n` +
-        `👤 Chủ TK: <b>${fullNameUpper}</b>\n` +
-        `💳 Số TK: <code>${accountNumberInput}</code>`,
+      `Tài khoản ngân hàng đã được lưu thành công!\n\n` +
+      `🏛️ Ngân hàng: <b>${bank.short_name}</b>\n` +
+      `👤 Chủ TK: <b>${fullNameUpper}</b>\n` +
+      `💳 Số TK: <code>${accountNumberInput}</code>`,
       { parse_mode: 'HTML', reply_markup: await Keyboards.mainMenu(userId) }
     );
     return;
@@ -879,8 +874,8 @@ export async function handleSellConfirmation(
     logger.error({ userId, state }, 'Missing required fields for sell confirmation');
     await ctx.reply(
       `❌ <b>Lỗi thông tin</b>\n\n` +
-        `Thiếu thông tin cần thiết để xác nhận giao dịch.\n\n` +
-        `Vui lòng bắt đầu lại!`,
+      `Thiếu thông tin cần thiết để xác nhận giao dịch.\n\n` +
+      `Vui lòng bắt đầu lại!`,
       { parse_mode: 'HTML' }
     );
     return;
@@ -1040,9 +1035,9 @@ export async function handleSellConfirmation(
         ctx,
         order.id,
         `❌ <b>Lỗi hệ thống</b>\n\n` +
-          `Không tìm thấy địa chỉ ví nhận ${assetCode} trong phản hồi từ hệ thống.\n\n` +
-          `Mã đơn: <code>${order.id}</code>\n\n` +
-          `Vui lòng liên hệ support với mã đơn hàng trên để được hỗ trợ!`,
+        `Không tìm thấy địa chỉ ví nhận ${assetCode} trong phản hồi từ hệ thống.\n\n` +
+        `Mã đơn: <code>${order.id}</code>\n\n` +
+        `Vui lòng liên hệ support với mã đơn hàng trên để được hỗ trợ!`,
         Keyboards.backToMenu()
       );
     }
