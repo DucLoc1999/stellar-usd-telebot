@@ -7,6 +7,7 @@ import { getUserId } from './context';
 import { handleBuyConfirmation } from './buy';
 import { handleSellConfirmation } from './sell';
 import { messageDelay } from '../utils';
+import { PaymentAPIError } from '../../paymentService';
 
 export function setupPaymentHandlers(bot: Bot): void {
   bot.callbackQuery('confirm_payment', async (ctx) => {
@@ -45,12 +46,15 @@ export function setupPaymentHandlers(bot: Bot): void {
       }
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      const isPaymentAPIError = error instanceof PaymentAPIError;
 
       const { captureErrorWithContext } = await import('../../../utils/sentryHelper');
       captureErrorWithContext(error, {
         userId,
         action: 'processPaymentConfirmation',
         state: state.action,
+        errorCode: isPaymentAPIError ? error.code : undefined,
+        errorRetriable: isPaymentAPIError ? error.retriable : undefined,
       });
 
       const stateForError = getState(userId, {
@@ -59,7 +63,43 @@ export function setupPaymentHandlers(bot: Bot): void {
         chatId: ctx.chat?.id,
       });
 
-      if (stateForError?.orderId && getOrderSlots(stateForError.orderId)) {
+      if (isPaymentAPIError && stateForError?.orderId && getOrderSlots(stateForError.orderId)) {
+        const orderId = stateForError.orderId;
+        let errorMsg: string;
+
+        switch (error.code) {
+          case 'INSUFFICIENT_LIQUIDITY':
+            errorMsg = Messages.ORDER_STATE_LIQUIDITY_FAILED(orderId);
+            break;
+          case 'MAX_ORDER_EXCEEDED':
+            errorMsg = Messages.ORDER_STATE_MAX_ORDER_EXCEEDED(orderId);
+            break;
+          case 'MIN_ORDER_EXCEEDED':
+            errorMsg = Messages.ORDER_STATE_MIN_ORDER_EXCEEDED(orderId);
+            break;
+          case 'INSUFFICIENT_VND_BALANCE':
+          case 'VND_BALANCE_CHECK_FAILED':
+            errorMsg = Messages.ORDER_STATE_VND_BALANCE_FAILED(orderId);
+            break;
+          default:
+            if (error.retriable) {
+              errorMsg =
+                `❌ <b>LỖI MÁY CHỦ</b>\n\n` +
+                `🆔 Mã đơn: <code>${orderId}</code>\n` +
+                `📊 Trạng thái: Máy chủ bận\n\n` +
+                `⏰ Thời gian: ${new Date().toLocaleString('vi-VN')}\n\n` +
+                `💡 Không thể kết nối đến hệ thống thanh toán. Vui lòng thử lại sau ít phút!`;
+            } else {
+              errorMsg =
+                `❌ <b>THẤT BẠI</b>\n\n` +
+                `🆔 Mã đơn: <code>${orderId}</code>\n` +
+                `📊 Trạng thái: Thất bại\n\n` +
+                `⏰ Thời gian: ${new Date().toLocaleString('vi-VN')}\n\n` +
+                `💡 Giao dịch không thành công. Vui lòng liên hệ support để được hỗ trợ!`;
+            }
+        }
+        await sendNotifyMessage(ctx, orderId, errorMsg);
+      } else if (stateForError?.orderId && getOrderSlots(stateForError.orderId)) {
         const errorMsg =
           errorMessage === 'KYC verification required'
             ? Messages.KYC_REQUIRED()
@@ -69,6 +109,44 @@ export function setupPaymentHandlers(bot: Bot): void {
                 ? `❌ <b>Lỗi kết nối</b>\n\nKhông thể kết nối đến hệ thống thanh toán.\nVui lòng thử lại sau ít phút!`
                 : `❌ <b>Có lỗi xảy ra</b>\n\nChi tiết: ${errorMessage}\n\nVui lòng thử lại hoặc liên hệ support!`;
         await sendNotifyMessage(ctx, stateForError.orderId, errorMsg);
+      } else if (isPaymentAPIError) {
+        let errorMsg: string;
+        switch (error.code) {
+          case 'INSUFFICIENT_LIQUIDITY':
+            errorMsg =
+              `❌ <b>THẤT BẠI</b>\n\n` +
+              `📊 Trạng thái: Thất bại (Hệ thống thiếu thanh khoản)\n\n` +
+              `⏰ Thời gian: ${new Date().toLocaleString('vi-VN')}\n\n` +
+              `💡 Không thể thực hiện đơn hàng do máy chủ hiện đang thiếu thanh khoản. Vui lòng thử lại sau hoặc liên hệ support để được hỗ trợ!`;
+            break;
+          case 'MAX_ORDER_EXCEEDED':
+            errorMsg =
+              `❌ <b>THẤT BẠI</b>\n\n` +
+              `📊 Trạng thái: Thất bại (Vượt giới hạn tối đa)\n\n` +
+              `⏰ Thời gian: ${new Date().toLocaleString('vi-VN')}\n\n` +
+              `💡 Số lượng đơn hàng vượt quá giới hạn tối đa cho phép. Vui lòng giảm số lượng và thử lại!`;
+            break;
+          case 'MIN_ORDER_EXCEEDED':
+            errorMsg =
+              `❌ <b>THẤT BẠI</b>\n\n` +
+              `📊 Trạng thái: Thất bại (Dưới giới hạn tối thiểu)\n\n` +
+              `⏰ Thời gian: ${new Date().toLocaleString('vi-VN')}\n\n` +
+              `💡 Số lượng đơn hàng dưới giới hạn tối thiểu cho phép. Vui lòng tăng số lượng và thử lại!`;
+            break;
+          case 'INSUFFICIENT_VND_BALANCE':
+          case 'VND_BALANCE_CHECK_FAILED':
+            errorMsg =
+              `❌ <b>THẤT BẠI</b>\n\n` +
+              `📊 Trạng thái: Thất bại (Hệ thống thiếu số dư VND)\n\n` +
+              `⏰ Thời gian: ${new Date().toLocaleString('vi-VN')}\n\n` +
+              `💡 Không thể thực hiện đơn hàng do máy chủ hiện đang thiếu số dư VND. Vui lòng thử lại sau hoặc liên hệ support để được hỗ trợ!`;
+            break;
+          default:
+            errorMsg =
+              `❌ <b>LỖI MÁY CHỦ</b>\n\n` +
+              `Không thể kết nối đến hệ thống thanh toán. Vui lòng thử lại sau ít phút!`;
+        }
+        await ctx.reply(errorMsg, { parse_mode: 'HTML' });
       } else if (errorMessage === 'KYC verification required') {
         await ctx.reply(Messages.KYC_REQUIRED(), { parse_mode: 'HTML' });
       } else if (errorMessage.includes('User not found')) {

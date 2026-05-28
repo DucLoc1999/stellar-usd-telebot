@@ -516,12 +516,23 @@ export function setupBuyHandlers(bot: Bot): void {
       chatId: ctx.chat?.id,
     });
     const assetCode = currentState?.assetCode || 'USDC';
+    const feeConfig = await paymentService.getFeeConfig(assetCode);
+    const minAmount =
+      feeConfig?.min_order_amount ??
+      (assetCode === 'XLM'
+        ? parseFloat(process.env.MIN_XLM_AMOUNT || '5')
+        : parseFloat(process.env.MIN_USDC_AMOUNT || '1'));
+    const maxAmount =
+      feeConfig?.max_order_amount ??
+      (assetCode === 'XLM'
+        ? parseFloat(process.env.MAX_XLM_AMOUNT || '100000')
+        : parseFloat(process.env.MAX_USDC_AMOUNT || '100000'));
     setState(
       userId,
       { action: 'buy', assetCode, waitingFor: 'buy_amount' },
       { action: 'handler.state.set', chatType: ctx.chat?.type, chatId: ctx.chat?.id }
     );
-    await ctx.editMessageText(Messages.ENTER_CUSTOM_AMOUNT_BUY(assetCode), {
+    await ctx.editMessageText(Messages.ENTER_CUSTOM_AMOUNT_BUY(assetCode, minAmount, maxAmount), {
       parse_mode: 'HTML',
       reply_markup: Keyboards.backToMenu(),
     });
@@ -717,13 +728,26 @@ export async function handleBuyAmountInput(
   }
 
   const assetCode = state.assetCode || 'USDC';
+
+  const feeConfig = await paymentService.getFeeConfig(assetCode);
   const minAmount =
-    assetCode === 'XLM'
+    feeConfig?.min_order_amount ??
+    (assetCode === 'XLM'
       ? parseFloat(process.env.MIN_XLM_AMOUNT || '5')
-      : parseFloat(process.env.MIN_USDC_AMOUNT || '1');
+      : parseFloat(process.env.MIN_USDC_AMOUNT || '1'));
+  const maxAmount =
+    feeConfig?.max_order_amount ??
+    (assetCode === 'XLM'
+      ? parseFloat(process.env.MAX_XLM_AMOUNT || '100000')
+      : parseFloat(process.env.MAX_USDC_AMOUNT || '100000'));
 
   if (amount < minAmount) {
     await ctx.reply(Messages.INVALID_MIN_AMOUNT(assetCode, minAmount), { parse_mode: 'HTML' });
+    return;
+  }
+
+  if (amount > maxAmount) {
+    await ctx.reply(Messages.INVALID_MAX_AMOUNT(assetCode, maxAmount), { parse_mode: 'HTML' });
     return;
   }
 

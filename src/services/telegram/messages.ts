@@ -22,7 +22,9 @@ export const formatTimeWithTimeZone = (input?: string | Date | Usdt247Timestamp)
     dateValue = new Date(input.seconds * 1000 + input.nanos / 1000000);
   }
 
-  const dt = dateValue ? DateTime.fromJSDate(dateValue).setZone(appConfig.timeZone) : DateTime.now().setZone(appConfig.timeZone);
+  const dt = dateValue
+    ? DateTime.fromJSDate(dateValue).setZone(appConfig.timeZone)
+    : DateTime.now().setZone(appConfig.timeZone);
   const time = dt.toFormat('HH:mm:ss');
   const date = dt.toFormat('d/M/yyyy');
   const offset = dt.offsetNameShort;
@@ -67,26 +69,40 @@ export const Messages = {
   SELL_SELECT_AMOUNT: (assetCode = 'USDC') =>
     `💸 <b>BÁN ${assetCode}</b>\n\n` + `Vui lòng chọn số lượng ${assetCode} muốn bán:`,
 
-  ENTER_CUSTOM_AMOUNT_BUY: (assetCode = 'USDC') => {
-    const minAmount =
-      assetCode === 'XLM'
+  ENTER_CUSTOM_AMOUNT_BUY: (assetCode = 'USDC', minAmount?: number, maxAmount?: number) => {
+    const min =
+      minAmount ??
+      (assetCode === 'XLM'
         ? parseFloat(process.env.MIN_XLM_AMOUNT || '5')
-        : parseFloat(process.env.MIN_USDC_AMOUNT || '1');
+        : parseFloat(process.env.MIN_USDC_AMOUNT || '1'));
+    const max =
+      maxAmount ??
+      (assetCode === 'XLM'
+        ? parseFloat(process.env.MAX_XLM_AMOUNT || '100000')
+        : parseFloat(process.env.MAX_USDC_AMOUNT || '100000'));
     return (
       `✏️ Vui lòng nhập số lượng ${assetCode} muốn mua:\n\n` +
-      `⚠️ Tối thiểu: <b>${minAmount} ${assetCode}</b>\n` +
+      `⚠️ Tối thiểu: <b>${min} ${assetCode}</b>\n` +
+      `⚠️ Tối đa: <b>${max} ${assetCode}</b>\n` +
       `📊 Ví dụ: 10, 50, 100`
     );
   },
 
-  ENTER_CUSTOM_AMOUNT_SELL: (assetCode = 'USDC') => {
-    const minAmount =
-      assetCode === 'XLM'
+  ENTER_CUSTOM_AMOUNT_SELL: (assetCode = 'USDC', minAmount?: number, maxAmount?: number) => {
+    const min =
+      minAmount ??
+      (assetCode === 'XLM'
         ? parseFloat(process.env.MIN_XLM_AMOUNT || '5')
-        : parseFloat(process.env.MIN_USDC_AMOUNT || '1');
+        : parseFloat(process.env.MIN_USDC_AMOUNT || '1'));
+    const max =
+      maxAmount ??
+      (assetCode === 'XLM'
+        ? parseFloat(process.env.MAX_XLM_AMOUNT || '100000')
+        : parseFloat(process.env.MAX_USDC_AMOUNT || '100000'));
     return (
       `✏️ Vui lòng nhập số lượng ${assetCode} muốn bán:\n\n` +
-      `⚠️ Tối thiểu: <b>${minAmount} ${assetCode}</b>\n` +
+      `⚠️ Tối thiểu: <b>${min} ${assetCode}</b>\n` +
+      `⚠️ Tối đa: <b>${max} ${assetCode}</b>\n` +
       `📊 Ví dụ: 10, 50, 100`
     );
   },
@@ -131,6 +147,11 @@ export const Messages = {
   INVALID_MIN_AMOUNT: (assetCode: string, minAmount: number) =>
     `❌ <b>Số lượng không hợp lệ!</b>\n\n` +
     `Số lượng ${assetCode} tối thiểu cho phép giao dịch là <b>${minAmount} ${assetCode}</b>.\n\n` +
+    `Vui lòng nhập lại số lượng hợp lệ!`,
+
+  INVALID_MAX_AMOUNT: (assetCode: string, maxAmount: number) =>
+    `❌ <b>Số lượng vượt quá giới hạn!</b>\n\n` +
+    `Số lượng ${assetCode} tối đa cho phép giao dịch là <b>${maxAmount} ${assetCode}</b>.\n\n` +
     `Vui lòng nhập lại số lượng hợp lệ!`,
 
   INVALID_WALLET: () =>
@@ -266,8 +287,7 @@ export const Messages = {
     }
     message += `💰 Vui lòng quét mã QR bên dưới để thanh toán`;
     if (expiredAt) {
-      message +=
-        `\n\n⚠️ <b>Lưu ý:</b> Vui lòng thanh toán trước <b>${formatTimeWithTimeZone(expiredAt)}</b> để tránh bị hủy đơn.\n`;
+      message += `\n\n⚠️ <b>Lưu ý:</b> Vui lòng thanh toán trước <b>${formatTimeWithTimeZone(expiredAt)}</b> để tránh bị hủy đơn.\n`;
     }
     return message;
   },
@@ -316,7 +336,7 @@ export const Messages = {
     const tokenLine = isXlm
       ? `💎 Token: <b>XLM (Native)</b>\n`
       : `💎 Token: <b>USDC (Circle)</b>\n` +
-      `📄 Issuer: <code>${telegramConfig.tokenAddress}</code> | Asset name: <b>USDC</b>\n`;
+        `📄 Issuer: <code>${telegramConfig.tokenAddress}</code> | Asset name: <b>USDC</b>\n`;
     return (
       `<b>ĐƠN HÀNG - BÁN ${assetCode}</b>\n\n` +
       `💰 Số lượng: <code>${usdtAmount} ${assetCode}</code>\n\n` +
@@ -331,9 +351,10 @@ export const Messages = {
       (netVndAmount
         ? `\n💰 <b>Số tiền nhận:</b> ${netVndAmount.toLocaleString('vi-VN')} VND`
         : '') +
-      `${bankName
-        ? `\n\n🏛️ Ngân hàng: <b>${bankName}</b>\n💳 Số TK: <code>${accountNumber}</code>\n👤 Chủ TK: <b>${fullName}</b>`
-        : ''
+      `${
+        bankName
+          ? `\n\n🏛️ Ngân hàng: <b>${bankName}</b>\n💳 Số TK: <code>${accountNumber}</code>\n👤 Chủ TK: <b>${fullName}</b>`
+          : ''
       }\n\n` +
       (expiredAt
         ? `⚠️ <b>Lưu ý:</b> Vui lòng thanh toán trước <b>${formatTimeWithTimeZone(expiredAt)}</b> để tránh bị hủy đơn.\n\n`
@@ -736,6 +757,34 @@ export const Messages = {
     `📊 Trạng thái: Thất bại\n\n` +
     `⏰ Thời gian: ${formatTimeWithTimeZone()}\n\n` +
     `💡 Giao dịch không thành công. Vui lòng liên hệ support để được hỗ trợ!`,
+
+  ORDER_STATE_LIQUIDITY_FAILED: (orderId: string) =>
+    `❌ <b>THẤT BẠI</b>\n\n` +
+    `🆔 Mã đơn: <code>${orderId}</code>\n` +
+    `📊 Trạng thái: Thất bại (Hệ thống thiếu thanh khoản)\n\n` +
+    `⏰ Thời gian: ${formatTimeWithTimeZone()}\n\n` +
+    `💡 Không thể thực hiện đơn hàng do máy chủ hiện đang thiếu thanh khoản. Vui lòng thử lại sau hoặc liên hệ support để được hỗ trợ!`,
+
+  ORDER_STATE_MAX_ORDER_EXCEEDED: (orderId: string) =>
+    `❌ <b>THẤT BẠI</b>\n\n` +
+    `🆔 Mã đơn: <code>${orderId}</code>\n` +
+    `📊 Trạng thái: Thất bại (Vượt giới hạn tối đa)\n\n` +
+    `⏰ Thời gian: ${formatTimeWithTimeZone()}\n\n` +
+    `💡 Số lượng đơn hàng vượt quá giới hạn tối đa cho phép. Vui lòng giảm số lượng và thử lại!`,
+
+  ORDER_STATE_MIN_ORDER_EXCEEDED: (orderId: string) =>
+    `❌ <b>THẤT BẠI</b>\n\n` +
+    `🆔 Mã đơn: <code>${orderId}</code>\n` +
+    `📊 Trạng thái: Thất bại (Dưới giới hạn tối thiểu)\n\n` +
+    `⏰ Thời gian: ${formatTimeWithTimeZone()}\n\n` +
+    `💡 Số lượng đơn hàng dưới giới hạn tối thiểu cho phép. Vui lòng tăng số lượng và thử lại!`,
+
+  ORDER_STATE_VND_BALANCE_FAILED: (orderId: string) =>
+    `❌ <b>THẤT BẠI</b>\n\n` +
+    `🆔 Mã đơn: <code>${orderId}</code>\n` +
+    `📊 Trạng thái: Thất bại (Hệ thống thiếu số dư VND)\n\n` +
+    `⏰ Thời gian: ${formatTimeWithTimeZone()}\n\n` +
+    `💡 Không thể thực hiện đơn hàng do máy chủ hiện đang thiếu số dư VND. Vui lòng thử lại sau hoặc liên hệ support để được hỗ trợ!`,
 
   ORDER_STATE_CANCELLED: (orderId: string) =>
     `🚫 <b>ĐÃ HỦY</b>\n\n` +

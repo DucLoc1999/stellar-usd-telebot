@@ -13,6 +13,19 @@ import type {
   DepositRequest,
 } from '../models/usdt247';
 
+export class PaymentAPIError extends Error {
+  constructor(
+    public code: string,
+    message: string,
+    public status: number,
+    public retriable: boolean,
+    public traceId?: string
+  ) {
+    super(message);
+    this.name = 'PaymentAPIError';
+  }
+}
+
 export class PaymentService {
   private readonly apiBaseUrl = process.env.API_PAY || '';
   private readonly partnerAppKey = process.env.PARTNER_APP_KEY || '';
@@ -115,6 +128,55 @@ export class PaymentService {
     }
   }
 
+  async getFeeConfig(assetCode: string): Promise<{
+    min_order_amount: number;
+    max_order_amount: number;
+  } | null> {
+    try {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 10000);
+      const response = await fetch(`${this.apiBaseUrl}/config/fee/${assetCode.toLowerCase()}`, {
+        signal: controller.signal,
+      });
+      clearTimeout(timeout);
+      if (!response.ok) {
+        logger.error({ status: response.status, assetCode }, 'Failed to fetch fee config');
+        return null;
+      }
+
+      const data = (await response.json()) as {
+        success: boolean;
+        data: {
+          token: string;
+          buy: {
+            spread: number;
+            fee_rate: number;
+            min_fee: number;
+            min_order_amount: number;
+            max_order_amount: number;
+            source: string;
+          };
+          sell: {
+            spread: number;
+            fee_rate: number;
+            min_fee: number;
+            min_order_amount: number;
+            max_order_amount: number;
+            source: string;
+          };
+        };
+      };
+
+      return {
+        min_order_amount: data.data.buy.min_order_amount,
+        max_order_amount: data.data.buy.max_order_amount,
+      };
+    } catch (error) {
+      logger.error({ error, assetCode }, 'Error fetching fee config');
+      return null;
+    }
+  }
+
   private convertTimestamp(timestamp: Usdt247Timestamp): Date {
     const milliseconds = timestamp.seconds * 1000 + timestamp.nanos / 1000000;
     return new Date(milliseconds);
@@ -156,14 +218,16 @@ export class PaymentService {
         let errorCode: string | undefined;
         let traceId: string | undefined;
         let errorMessage = errorText;
+        let retriable = false;
 
         try {
           const parsedError = JSON.parse(errorText) as {
-            error?: { code?: string; message?: string; trace_id?: string };
+            error?: { code?: string; message?: string; trace_id?: string; retriable?: boolean };
           };
           errorCode = parsedError.error?.code;
           traceId = parsedError.error?.trace_id;
           errorMessage = parsedError.error?.message || errorText;
+          retriable = parsedError.error?.retriable ?? false;
         } catch {
           // Keep raw error text when API response is non-JSON.
         }
@@ -172,6 +236,10 @@ export class PaymentService {
           { status: response.status, errorText, errorCode, traceId },
           'Withdrawal API returned error status'
         );
+
+        if (errorCode) {
+          throw new PaymentAPIError(errorCode, errorMessage, response.status, retriable, traceId);
+        }
         throw new Error(`USDT247 API error: ${response.status} - ${errorMessage}`);
       }
 
@@ -226,14 +294,37 @@ export class PaymentService {
 
       if (!response.ok) {
         const errorText = await response.text();
+        let errorCode: string | undefined;
+        let traceId: string | undefined;
+        let errorMessage = errorText;
+        let retriable = false;
+
+        try {
+          const parsedError = JSON.parse(errorText) as {
+            error?: { code?: string; message?: string; trace_id?: string; retriable?: boolean };
+          };
+          errorCode = parsedError.error?.code;
+          traceId = parsedError.error?.trace_id;
+          errorMessage = parsedError.error?.message || errorText;
+          retriable = parsedError.error?.retriable ?? false;
+        } catch {
+          // Keep raw error text when API response is non-JSON.
+        }
+
         logger.error(
           {
             status: response.status,
             errorText,
+            errorCode,
+            traceId,
             requestBody: requestData,
           },
           'Deposit API returned error status'
         );
+
+        if (errorCode) {
+          throw new PaymentAPIError(errorCode, errorMessage, response.status, retriable, traceId);
+        }
         throw new Error(`USDT247 API error: ${response.status} - ${errorText}`);
       }
 
