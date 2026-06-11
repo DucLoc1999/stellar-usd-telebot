@@ -742,12 +742,16 @@ export async function handleBuyAmountInput(
       : parseFloat(process.env.MAX_USDC_AMOUNT || '100000'));
 
   if (amount < minAmount) {
-    await ctx.reply(Messages.INVALID_MIN_AMOUNT(assetCode, minAmount), { parse_mode: 'HTML' });
+    await ctx.reply(Messages.INVALID_AMOUNT_RANGE(assetCode, minAmount, maxAmount), {
+      parse_mode: 'HTML',
+    });
     return;
   }
 
   if (amount > maxAmount) {
-    await ctx.reply(Messages.INVALID_MAX_AMOUNT(assetCode, maxAmount), { parse_mode: 'HTML' });
+    await ctx.reply(Messages.INVALID_AMOUNT_RANGE(assetCode, minAmount, maxAmount), {
+      parse_mode: 'HTML',
+    });
     return;
   }
 
