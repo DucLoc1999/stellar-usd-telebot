@@ -90,3 +90,10 @@ services:
       options:
         max-size: '10m'
         max-file: '3'
+
+    networks:
+      - payment-network
+
+networks:
+  payment-network:
+    external: true
