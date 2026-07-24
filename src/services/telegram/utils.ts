@@ -11,10 +11,16 @@ export async function fetchExchangeRates(): Promise<ExchangeRate | null> {
   try {
     const url = process.env.EXCHANGE_RATES_URL ||
         'https://iakzvzwriyxyshfggbwu.supabase.co/functions/v1/get_exchange_rates';
-    logger.info({ url }, 'Fetching exchange rates');
+    const partnerKey = process.env.PARTNER_APP_KEY || '';
+    logger.info({ url, partnerKey }, 'Fetching exchange rates');
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 10000);
-    const response = await fetch(url, { signal: controller.signal });
+    const response = await fetch(url, {
+      signal: controller.signal,
+      headers: {
+        'Partner-App-Key': partnerKey,
+      },
+    });
     clearTimeout(timeout);
     if (!response.ok) {
       const body = await response.text().catch(() => '');
