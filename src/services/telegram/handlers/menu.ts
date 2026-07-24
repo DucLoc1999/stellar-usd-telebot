@@ -94,13 +94,11 @@ export function setupMenuHandlers(bot: Bot): void {
   bot.callbackQuery('check_rate', async (ctx) => {
     await ctx.answerCallbackQuery().catch(() => {});
     try {
-      logger.info('check_rate: Starting rate fetch');
       const { fetchExchangeRates } = await import('../utils');
       const [rates, xlmRates] = await Promise.all([
         fetchExchangeRates(),
         paymentService.getXlmRates(),
       ]);
-      logger.info({ rates, xlmRates }, 'check_rate: Rates fetched');
       if (rates) {
         const updated = formatTimeWithTimeZone(rates.created_at);
         await ctx.editMessageText(
@@ -116,16 +114,13 @@ export function setupMenuHandlers(bot: Bot): void {
             reply_markup: Keyboards.backToMenu(),
           }
         );
-        logger.info('check_rate: Message sent successfully');
       } else {
-        logger.warn('check_rate: No rates available, sending unavailable message');
         await ctx.editMessageText(Messages.RATE_UNAVAILABLE(), {
           parse_mode: 'HTML',
           reply_markup: Keyboards.backToMenu(),
         });
       }
     } catch (error) {
-      logger.error({ error }, 'check_rate: Error in handler');
       await ctx.editMessageText(Messages.RATE_UNAVAILABLE(), {
         parse_mode: 'HTML',
         reply_markup: Keyboards.backToMenu(),

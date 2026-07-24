@@ -9,29 +9,26 @@ export interface ExchangeRate {
 
 export async function fetchExchangeRates(): Promise<ExchangeRate | null> {
   try {
-    const url = process.env.EXCHANGE_RATES_URL ||
-        'https://iakzvzwriyxyshfggbwu.supabase.co/functions/v1/get_exchange_rates';
-    const partnerKey = process.env.PARTNER_APP_KEY || '';
-    logger.info({ url, partnerKey }, 'Fetching exchange rates');
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 10000);
-    const response = await fetch(url, {
-      signal: controller.signal,
-      headers: {
-        'Partner-App-Key': partnerKey,
-      },
-    });
+    const response = await fetch(
+      process.env.EXCHANGE_RATES_URL ||
+        'https://iakzvzwriyxyshfggbwu.supabase.co/functions/v1/get_exchange_rates',
+      {
+        signal: controller.signal,
+        headers: {
+          'Partner-App-Key': process.env.PARTNER_APP_KEY || '',
+        },
+      }
+    );
     clearTimeout(timeout);
     if (!response.ok) {
-      const body = await response.text().catch(() => '');
-      logger.error({ status: response.status, url, body }, 'Failed to fetch exchange rates');
       return null;
     }
     const data = await response.json();
-    logger.info({ data }, 'Exchange rates fetched successfully');
     return data as ExchangeRate;
   } catch (error) {
-    logger.error({ error }, 'Error fetching exchange rates');
+    console.error('Error fetching exchange rates:', error);
     return null;
   }
 }
