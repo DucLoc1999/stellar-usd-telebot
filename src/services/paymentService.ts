@@ -43,6 +43,9 @@ export class PaymentService {
       const timeout = setTimeout(() => controller.abort(), 10000);
       const response = await fetch(`${this.apiBaseUrl}/api/rate/usdt_vnd`, {
         signal: controller.signal,
+        headers: {
+          'Partner-App-Key': this.partnerAppKey,
+        },
       });
       clearTimeout(timeout);
       if (!response.ok) {

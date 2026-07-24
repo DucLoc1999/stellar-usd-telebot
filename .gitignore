@@ -45,6 +45,8 @@ temp/
 # agent
 .agents/
 .claude/
+.opencode/
 skills-lock.json
 docs/
 scripts/
+AGENTS.md
