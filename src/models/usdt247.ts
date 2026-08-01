@@ -48,6 +48,8 @@ export interface Usdt247CreateWithdrawalRequest {
   payment_info: Usdt247PaymentInfo;
 }
 
+export type PayGateway = 'bank' | 'napas';
+
 export interface Usdt247CreateDepositRequest {
   amount: string;
   chain_id: string;
@@ -55,6 +57,7 @@ export interface Usdt247CreateDepositRequest {
   asset_code: string;
   recipient: string;
   callback: string;
+  pay_gateway?: PayGateway;
 }
 
 export interface Usdt247OrderData {
@@ -129,6 +132,7 @@ export interface DepositRequest {
   asset_code: string;
   recipient: string;
   callback: string;
+  pay_gateway?: PayGateway;
 }
 
 export interface Order {

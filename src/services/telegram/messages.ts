@@ -257,6 +257,12 @@ export const Messages = {
     return message;
   },
 
+  SELECT_GATEWAY: () =>
+    `🏧 <b>CHỌN PHƯƠNG THỨC THANH TOÁN</b>\n\n` +
+    `Vui lòng chọn phương thức thanh toán:\n\n` +
+    `🏦 <b>Chuyển khoản ngân hàng</b> — chuyển khoản thông thường\n` +
+    `⚡ <b>NAPAS</b> — quét QR nhanh qua ứng dụng ngân hàng (VietQR)`,
+
   ORDER_PAYMENT_BUY: (
     usdtAmount: string,
     wallet: string,
@@ -275,10 +281,13 @@ export const Messages = {
     message += `🌐 Mạng: Stellar | ⚡ Phí gas: $0.00\n`;
     message += `💰 Thành tiền: <b>${Math.round(totalAmount).toLocaleString('vi-VN')}đ</b> | 💳 Phí dịch vụ: <b>${Math.round(gatewayFee).toLocaleString('vi-VN')}đ</b>\n`;
     message += `📮 Ví nhận: <code>${wallet}</code>\n\n`;
-    if (bankName && accountNumber && accountName) {
+    if (bankName && accountNumber) {
       message += `🏛️ Ngân hàng: <b>${bankName}</b>\n`;
       message += `💳 Số tài khoản: <code>${accountNumber}</code>\n`;
-      message += `👤 Chủ tài khoản: <b>${accountName}</b>\n\n`;
+      if (accountName) {
+        message += `👤 Chủ tài khoản: <b>${accountName}</b>\n`;
+      }
+      message += '\n';
     }
     message += `💰 Vui lòng quét mã QR bên dưới để thanh toán`;
     if (expiredAt) {

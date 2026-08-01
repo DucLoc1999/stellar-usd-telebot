@@ -510,6 +510,7 @@ export class PaymentService {
       asset_code: request.asset_code,
       recipient: request.recipient,
       callback: request.callback,
+      ...(request.pay_gateway && { pay_gateway: request.pay_gateway }),
     };
 
     logger.info(

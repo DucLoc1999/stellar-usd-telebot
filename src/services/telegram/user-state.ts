@@ -76,6 +76,7 @@ export interface UserState {
   activationRate?: number;
   activationVndTotal?: number;
   activationFee?: number;
+  payGateway?: 'bank' | 'napas';
 }
 
 export interface StateLogMeta {

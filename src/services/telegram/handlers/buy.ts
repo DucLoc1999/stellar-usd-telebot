@@ -672,7 +672,7 @@ export function setupBuyHandlers(bot: Bot): void {
           gatewayFee,
           state.assetCode || 'USDC'
         ),
-        { parse_mode: 'HTML', reply_markup: Keyboards.confirmPayment() }
+        { parse_mode: 'HTML', reply_markup: Keyboards.gatewaySelection() }
       );
     } catch (err) {
       const errMessage = err instanceof Error ? err.message : String(err);
@@ -712,6 +712,62 @@ export function setupBuyHandlers(bot: Bot): void {
       reply_markup: Keyboards.backToMenu(),
     });
   });
+
+  async function handleGatewaySelection(ctx: any, gateway: 'bank' | 'napas'): Promise<void> {
+    await ctx.answerCallbackQuery().catch(() => {});
+    const userId = getUserId(ctx);
+    const state = getState(userId, {
+      action: 'handler.state.get',
+      chatType: ctx.chat?.type,
+      chatId: ctx.chat?.id,
+    });
+
+    if (!state || state.action !== 'buy' || !state.amount || !state.walletAddress) {
+      await ctx.reply(
+        `❌ <b>Lỗi trạng thái</b>\n\nPhiên làm việc đã hết hạn.\n\nVui lòng bắt đầu lại!`,
+        { parse_mode: 'HTML' }
+      );
+      return;
+    }
+
+    state.payGateway = gateway;
+    setState(userId, state, {
+      action: 'handler.state.set',
+      chatType: ctx.chat?.type,
+      chatId: ctx.chat?.id,
+    });
+
+    logger.info({ userId, gateway }, 'User selected payment gateway');
+
+    try {
+      await ctx.editMessageText(
+        Messages.ORDER_SUMMARY_BUY(
+          state.amount,
+          state.walletAddress,
+          (parseFloat(state.amount) * (state.buyRate ?? 0)) + (state.gatewayFee ?? 0),
+          state.buyRate ?? 0,
+          state.gatewayFee ?? 0,
+          state.assetCode || 'USDC'
+        ),
+        { parse_mode: 'HTML', reply_markup: Keyboards.confirmPayment() }
+      );
+    } catch {
+      await ctx.reply(
+        Messages.ORDER_SUMMARY_BUY(
+          state.amount,
+          state.walletAddress,
+          (parseFloat(state.amount) * (state.buyRate ?? 0)) + (state.gatewayFee ?? 0),
+          state.buyRate ?? 0,
+          state.gatewayFee ?? 0,
+          state.assetCode || 'USDC'
+        ),
+        { parse_mode: 'HTML', reply_markup: Keyboards.confirmPayment() }
+      );
+    }
+  }
+
+  bot.callbackQuery('gateway_bank', (ctx) => handleGatewaySelection(ctx, 'bank'));
+  bot.callbackQuery('gateway_napas', (ctx) => handleGatewaySelection(ctx, 'napas'));
 }
 
 export async function handleBuyAmountInput(
@@ -914,7 +970,7 @@ export async function handleWalletInput(
     ),
     {
       parse_mode: 'HTML',
-      reply_markup: Keyboards.confirmPayment(),
+      reply_markup: Keyboards.gatewaySelection(),
     }
   );
 }
@@ -971,6 +1027,7 @@ export async function handleBuyConfirmation(
       asset_code: assetCode,
       recipient: state.walletAddress,
       callback: telegramConfig.callbackUrl,
+      pay_gateway: state.payGateway,
     });
 
     const bankInfo = order.body?.bankInfo;

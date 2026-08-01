@@ -225,6 +225,15 @@ export class Keyboards {
       .text('🔙 Quay lại Menu', 'back_to_menu');
   }
 
+  static gatewaySelection(): InlineKeyboard {
+    return new InlineKeyboard()
+      .text('🏦 Chuyển khoản ngân hàng', 'gateway_bank')
+      .row()
+      .text('⚡ NAPAS (QR nhanh)', 'gateway_napas')
+      .row()
+      .text('🔙 Quay lại Menu', 'back_to_menu');
+  }
+
   static qrCodeWithCancel(orderId: string): InlineKeyboard {
     return new InlineKeyboard().text('❌ Hủy đơn hàng', `cancel_order_${orderId}`);
     // .row()
