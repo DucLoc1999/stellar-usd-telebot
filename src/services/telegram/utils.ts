@@ -1,38 +1,3 @@
-export interface ExchangeRate {
-  buy: number;
-  sell: number;
-  fee_rate_buy?: number;
-  fee_rate_sell?: number;
-  min_fee_vnd?: number;
-  created_at: string;
-}
-
-export async function fetchExchangeRates(): Promise<ExchangeRate | null> {
-  try {
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 10000);
-    const response = await fetch(
-      process.env.EXCHANGE_RATES_URL ||
-        'https://iakzvzwriyxyshfggbwu.supabase.co/functions/v1/get_exchange_rates',
-      {
-        signal: controller.signal,
-        headers: {
-          'Partner-App-Key': process.env.PARTNER_APP_KEY || '',
-        },
-      }
-    );
-    clearTimeout(timeout);
-    if (!response.ok) {
-      return null;
-    }
-    const data = await response.json();
-    return data as ExchangeRate;
-  } catch (error) {
-    console.error('Error fetching exchange rates:', error);
-    return null;
-  }
-}
-
 export function validateVietnamesePhoneNumber(phoneNumber: string): boolean {
   const cleaned = phoneNumber.replace(/[\s-]/g, '');
   const pattern1 = /^0\d{9}$/;

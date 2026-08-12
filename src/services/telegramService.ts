@@ -6,7 +6,6 @@ import {
   hasMessageBeenSent,
   markMessageAsSent,
   scheduleOrderTrackingCleanup,
-  fetchExchangeRates,
 } from './telegram/index';
 
 export {
@@ -16,7 +15,6 @@ export {
   hasMessageBeenSent,
   markMessageAsSent,
   scheduleOrderTrackingCleanup,
-  fetchExchangeRates,
 };
 export { TelegramService } from './telegram/telegram.service';
 export default ts;

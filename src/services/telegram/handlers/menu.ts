@@ -94,9 +94,8 @@ export function setupMenuHandlers(bot: Bot): void {
   bot.callbackQuery('check_rate', async (ctx) => {
     await ctx.answerCallbackQuery().catch(() => {});
     try {
-      const { fetchExchangeRates } = await import('../utils');
       const [rates, xlmRates] = await Promise.all([
-        fetchExchangeRates(),
+        paymentService.getRate(),
         paymentService.getXlmRates(),
       ]);
       if (rates) {

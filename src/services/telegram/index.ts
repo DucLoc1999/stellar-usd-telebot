@@ -9,8 +9,6 @@ export {
   type UserState,
 } from './user-state';
 export {
-  type ExchangeRate,
-  fetchExchangeRates,
   validateVietnamesePhoneNumber,
   parseSexForDatabase,
   isDuplicateKeyError,

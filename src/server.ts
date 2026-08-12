@@ -6,6 +6,7 @@ import { appConfig } from './config/app';
 import { logger } from './config/logger';
 import db from './config/knex';
 import notificationQueueService from './services/notificationQueueService';
+import paymentService from './services/paymentService';
 import { clearAllPendingTimers } from './services/telegram/order-tracking';
 
 dotenv.config();
@@ -63,22 +64,15 @@ const start = async (): Promise<void> => {
     logger.info(`📋 Logs API available at http://${appConfig.host}:${appConfig.port}/api/logs`);
 
     try {
-      const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), 10000);
-      const response = await fetch(
-        process.env.EXCHANGE_RATES_URL ||
-          'https://iakzvzwriyxyshfggbwu.supabase.co/functions/v1/get_exchange_rates',
-        { signal: controller.signal }
-      );
-      clearTimeout(timeout);
-      if (!response.ok) {
-        logger.error({
-          error: '📚 Failed to fetch exchange rates',
-          responseText: response.statusText,
-        });
+      const rate = await paymentService.getRate();
+      if (rate) {
+        logger.info('📚 Exchange rates fetched successfully');
+      } else {
+        logger.error(
+          { error: 'Failed to fetch exchange rates' },
+          '📚 Failed to fetch exchange rates'
+        );
       }
-      await response.json();
-      logger.info('📚 Exchange rates fetched successfully');
     } catch (error) {
       logger.info('📚 Failed to fetch exchange rates');
       logger.error(error);

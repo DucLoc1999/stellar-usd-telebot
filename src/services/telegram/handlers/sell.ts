@@ -17,7 +17,6 @@ import teleUserService from '../../teleUserService';
 import { captureErrorWithContext } from '../../../utils/sentryHelper';
 import { banks } from '../../../models/webhook';
 import {
-  fetchExchangeRates,
   scheduleOrderTrackingCleanup,
   sendOrderNotice,
   calculateGatewayFee,
@@ -394,7 +393,7 @@ export function setupSellHandlers(bot: Bot): void {
         feeRateSell = usdcRates?.fee_rate_sell ?? 0;
         minFeeVnd = usdcRates?.min_fee_vnd ?? 0;
       } else {
-        const rates = await fetchExchangeRates();
+        const rates = await paymentService.getRate();
         if (rates) {
           sellRate = rates.sell;
           feeRateSell = rates.fee_rate_sell ?? 0;
@@ -647,7 +646,7 @@ export async function handleAccountNumberInput(
       feeRateSell = usdcRates?.fee_rate_sell ?? 0;
       minFeeVnd = usdcRates?.min_fee_vnd ?? 0;
     } else {
-      const rates = await fetchExchangeRates();
+      const rates = await paymentService.getRate();
       if (rates) {
         sellRate = rates.sell;
         feeRateSell = rates.fee_rate_sell ?? 0;
@@ -821,7 +820,7 @@ export async function handleBankDetailsSingleInput(
       feeRateSell = usdcRates?.fee_rate_sell ?? 0;
       minFeeVnd = usdcRates?.min_fee_vnd ?? 0;
     } else {
-      const rates = await fetchExchangeRates();
+      const rates = await paymentService.getRate();
       if (rates) {
         sellRate = rates.sell;
         feeRateSell = rates.fee_rate_sell ?? 0;
