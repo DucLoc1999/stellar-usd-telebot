@@ -1,261 +1,218 @@
-# Fastify TypeScript MySQL Project
+# Stellarish — Buy & Sell XLM, USDC
 
-A production-ready REST API built with Fastify, TypeScript, and MySQL. This project includes comprehensive API documentation with Swagger, proper error handling, and follows best practices for Node.js application development.
+> The friendly face of Stellarish — a Telegram bot that lets anyone buy and sell XLM/USDC with Vietnamese Dong, without ever talking to an API.
 
-## 🚀 Technology Stack
+`Stellarish` is a Telegram bot (grammY) that acts as the **client side** of the Stellarish platform. Users buy and sell crypto through inline keyboards and guided flows; the bot handles KYC, fees, rates, and order states, while delegating all financial heavy-lifting to the `payment_server` backend.
 
-- **Framework**: [Fastify](https://www.fastify.io/) v4 - Fast and low overhead web framework
-- **Language**: [TypeScript](https://www.typescriptlang.org/) - Strict type checking enabled
-- **Database**: [MySQL](https://www.mysql.com/) with connection pooling via `mysql2`
-- **API Documentation**: Swagger/OpenAPI with `@fastify/swagger` and `@fastify/swagger-ui`
-- **Code Quality**: ESLint + Prettier
-- **Development**: Hot-reload with `tsx`
+## 🎯 Philosophy
 
-## 📋 Prerequisites
+A Telegram trading flow works when it feels like chatting with a helpful teller, and fails the moment a message gets out of order or a button is tapped twice. So this bot is built around three commitments:
 
-Before you begin, ensure you have the following installed:
+1. **Guide, don't dump** — every action runs through a state machine with validating inputs, confirmation steps, and clear next buttons; double-taps can't create double orders.
+2. **React, don't guess** — order state changes come from `payment_server` as signed webhooks, verified, ordered, and delivered to the right chat in the right sequence.
+3. **Survive the retry storm** — per-chat notification queues, duplicate-photo guards, and graceful drains keep the bot calm under Telegram retries and out-of-order callbacks.
 
-- **Node.js**: >= 18.0.0 ([Download](https://nodejs.org/))
-- **MySQL**: >= 8.0 ([Download](https://dev.mysql.com/downloads/mysql/))
-- **npm**: >= 9.0.0 (comes with Node.js)
+## 🧱 Architecture
+
+### How a tap becomes a trade
+
+```
+Telegram user
+   │ taps buy / sell / KYC / wallets / referral
+   ▼
+grammY bot ──► user state machine ──► services ──► payment_server
+   │                                              (quotes, orders, SePay,
+   │                                               disbursements)
+   ▼
+signed order-state events
+   ▼
+webhookService (verify HMAC)
+   ▼
+notificationQueueService (per-chat sequential delivery)
+   ▼
+order status message sent back to the Telegram user
+```
+
+### Components
+
+| Component | Role |
+|---|---|
+| **tele server** | Hosts the Telegram webhook + signed payment webhook endpoints |
+| **grammY bot** | Inline keyboard navigation, callback queries, photo/contact handling |
+| **user state machine** | Validates multi-step flows (buy, sell, KYC, wallet/bank entry) |
+| **paymentService** | Thin client for `payment_server` — rates, fee config, deposits, withdrawals |
+| **webhookService** | Verifies `X-Signature` + `X-Timestamp` on payment events |
+| **notificationQueueService** | Per-chat queues deliver status updates in chronological order |
+| **kycService / fptAiVision** | ID-card OCR (front/back); photos stored on S3 |
+| **Stellar (stellar-sdk)** | Trustline checks, Stellar Pay URIs, QR codes, Horizon lookups |
+| **MySQL (Knex)** | Mirrored orders, tele users, KYC records, saved banks/wallets, referrals |
+
+## ✨ Key Features
+
+### 1. Telegram-First UX
+Inline keyboards and callback queries drive the whole experience — rates, buy, sell, KYC, saved bank accounts, crypto wallets, referral info, and support all live behind a single main menu.
+
+### 2. Guided Multi-Step Flows
+A state machine (`waitingFor` + per-user context) walks users through each step: buy amount → wallet address → trustline check → payment; sell amount → full name → account number → bank. Every step validates, and confirmations gate irreversible actions so a mis-tap never double-orders.
+
+### 3. OCR KYC Onboarding
+Users share their phone via Telegram contact, then send ID-card photo front/back. FPT AI Vision extracts the fields, images go to S3, and the user's KYC flag flips. Duplicate-photo guard and processing states keep retries safe.
+
+### 4. Live Rates & Fees
+Current USDC/VND and XLM/VND rates (buy + sell) are fetched live from `payment_server`; order amounts are validated against the backend's min/max order limits.
+
+### 5. Signed, Sequenced Order Notifications
+`payment_server` POSTs order-state events to `/api/webhooks/payment`. The bot verifies the HMAC signature, then enqueues the update into a per-chat queue so messages always arrive in order — even when webhooks do not. Completed states also clean up stale order messages and return the user home.
+
+### 6. Referral Program
+`/start` with a referral username registers the referrer, increments their count, and records the relationship in the `referrals` table.
+
+## 🚀 Quick Start
+
+### Prerequisites
+
+- **Node.js** 18+
+- **MySQL** (the bot mirrors orders and users locally)
+
+### Installation
+
+```bash
+npm install
+cp .env.example .env
+```
+
+Fill in the required credentials inside `.env`:
+
+- **Telegram** — `TELEGRAM_BOT_TOKEN` and `TELEGRAM_WEBHOOK_SECRET`
+- **Payment backend** — `API_PAY` (the `payment_server` URL) and `PARTNER_APP_KEY`
+- **Webhook verification** — `WEBHOOK_PUBLIC_KEY` (HMAC secret for payment events)
+- **Stellar** — `STELLAR_NETWORK` (public | testnet), `TOKEN_ADDRESS`, `TOKEN_CODE`, `CALLBACK_URL`
+- **KYC** — `FPT_API_SERVICE_URL` + `FPT_API_SERVICE_KEY`, and S3 (`SECRET_KEY_ID`, `SECRET_ACCESS_KEY`, `REGION`, `BUCKET`)
+- **Database** — `DB_HOST`, `DB_PORT`, `DB_USER`, `DB_PASSWORD`, `DB_NAME`
+
+Migrations run automatically on startup (`onReady` hook), or manually:
+
+```bash
+npm run migrate:latest
+```
+
+### Run
+
+```bash
+npm run dev              # tsx watch, hot reload
+npm run build && npm start   # compiled production server
+```
+
+Point Telegram's webhook at `https://<host>/api/telegram/webhook` with your `TELEGRAM_WEBHOOK_SECRET`; point `payment_server` callbacks at `https://<host>/api/webhooks/payment`.
+
+## 💵 Usage / Data Flows
+
+### Buy XLM/USDC (VND → XLM/USDC)
+
+```
+User taps "Mua"
+   → enter VND amount (validated against min/max)
+   → enter Stellar wallet address
+   → trustline check on Horizon — QR/web steps offered if missing
+   → confirm → paymentService creates deposit order on payment_server
+   → show bank transfer (SePay) / gateway payment with unique payment_code
+   → payment_server confirms fiat → ORDER state webhook arrives
+   → bot updates the order message → COMPLETED → back to main menu
+```
+
+### Sell XLM/USDC (XLM/USDC → VND)
+
+```
+User taps "Bán"
+   → enter amount
+   → pick/capture bank details (full name, account number, bank)
+   → show Stellar pay URI/QR to deposit XLM/USDC from the user's wallet
+   → payment_server sees the incoming token → ORDER state webhook arrives
+   → bot shows completed payout summary (net VND, bank account) → main menu
+```
+
+## 📡 Endpoints Overview
+
+| Endpoint | Purpose | Auth |
+|---|---|---|
+| `POST /api/telegram/webhook` | Telegram update stream | `TELEGRAM_WEBHOOK_SECRET` |
+| `POST /api/webhooks/payment` | Order-state events from `payment_server` | `X-Timestamp` + `X-Signature` (HMAC) |
+| `GET /health` | Liveness probe | — |
+| `GET /docs` | Swagger UI | — |
+
+## 🧭 Order Lifecycle
+
+Order states mirror `payment_server` (delivered via webhook):
+
+| State | Code | Meaning |
+|---|---|---|
+| CREATED | 1 | Awaiting payment |
+| PROCESSING | 2 | Payment confirmed, processing |
+| COMPLETED | 3 | Finished successfully |
+| FAILED | 4 | Failed |
+| CANCELLED | 5 | Cancelled / expired |
+
+```
+CREATED → PROCESSING → COMPLETED
+CREATED → PROCESSING → FAILED
+CREATED → CANCELLED   (skipped when the user cancelled it locally)
+```
+
+## 🔐 Security
+
+| Surface | Measure |
+|---|---|
+| Telegram updates | `TELEGRAM_WEBHOOK_SECRET` secret-token check (grammY) |
+| Payment webhooks | HMAC-SHA256 over raw body with `X-Timestamp` + `X-Signature` |
+| Merchant keys | Held on the server; only `payment_server` sees the `Partner-App-Key` on outbound calls |
+| User & payment REST routes | **Intentionally disabled** — the Telegram bot is the only client (see `src/app.ts`) |
+
+## 🐳 Docker
+
+Multi-stage `Dockerfile` (builder → production) plus `docker-compose.yml`:
+
+```bash
+docker compose up -d --build
+```
+
+- Healthy check at `/health`, logs persisted to `./logs`
+- Migrations run in-process on startup
+- Secrets injected via `.env`
 
 ## 📁 Project Structure
 
 ```
-.
-├── src/
-│   ├── config/              # Configuration files
-│   │   ├── app.ts          # Application configuration
-│   │   └── database.ts     # MySQL connection pool setup
-│   ├── routes/              # Route definitions
-│   │   └── helloRoutes.ts  # Hello world routes
-│   ├── controllers/         # Request handlers
-│   │   └── helloController.ts
-│   ├── services/            # Business logic layer
-│   │   └── helloService.ts
-│   ├── models/              # Data models and TypeScript types
-│   │   └── types.ts
-│   ├── middlewares/         # Custom middleware
-│   │   └── errorHandler.ts # Global error handler
-│   ├── utils/               # Utility functions
-│   │   └── logger.ts       # Simple logger utility
-│   ├── app.ts              # Fastify app initialization
-│   └── server.ts           # Server entry point
-├── .env.example            # Environment variables template
-├── .eslintrc.json          # ESLint configuration
-├── .prettierrc.json        # Prettier configuration
-├── tsconfig.json           # TypeScript configuration
-└── package.json            # Project dependencies and scripts
+src/
+├── server.ts               # Entry point + graceful shutdown
+├── app.ts                  # Fastify factory, routes, migrations on startup
+├── config/                 # App, logger (pino), database (Knex)
+├── controllers/            # Webhook + Telegram update handlers
+├── routes/                 # Fastify route definitions
+├── middleware/             # Global error handling
+├── models/                 # Types + bank catalog
+├── migrations/             # Knex schema migrations
+└── services/
+    ├── paymentService.ts   # payment_server client (rates, deposits, withdrawals)
+    ├── webhookService.ts   # HMAC verification + event processing
+    ├── notificationQueueService.ts # Sequential per-chat delivery
+    ├── kycService.ts / fptAiVisionService.ts / s3Service.ts
+    ├── referralService.ts / teleUserService.ts / paymentInformationService.ts
+    └── telegram/           # grammY bot — handlers, state, keyboards, messages
+        ├── handlers/       # menu, buy, sell, kyc, delete, payment, router
+        ├── user-state.ts   # State machine
+        ├── trustline.ts    # Stellar trustline help
+        └── order-tracking.ts  # Order message slots + timers
 ```
-
-## 🛠️ Installation & Setup
-
-### 1. Clone the repository
-
-```bash
-git clone <repository-url>
-cd fastify-typescript-mysql
-```
-
-### 2. Install dependencies
-
-```bash
-npm install
-```
-
-### 3. Configure environment variables
-
-Copy the example environment file and update with your settings:
-
-```bash
-cp .env.example .env
-```
-
-Edit `.env` file with your configuration:
-
-```env
-# Application Configuration
-NODE_ENV=development
-PORT=3000
-HOST=0.0.0.0
-LOG_LEVEL=info
-
-# Database Configuration
-DB_HOST=localhost
-DB_PORT=3306
-DB_USER=root
-DB_PASSWORD=your_password_here
-DB_NAME=fastify_db
-```
-
-### 4. Set up MySQL Database
-
-Create a new database for the project:
-
-```sql
-CREATE DATABASE fastify_db CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
-```
-
-Grant privileges to your database user:
-
-```sql
-GRANT ALL PRIVILEGES ON fastify_db.* TO 'your_user'@'localhost';
-FLUSH PRIVILEGES;
-```
-
-## 🏃 Running the Application
-
-### Development Mode (with hot-reload)
-
-```bash
-npm run dev
-```
-
-The server will start on `http://localhost:3000` with automatic restart on file changes.
-
-### Production Mode
-
-1. Build the TypeScript code:
-
-```bash
-npm run build
-```
-
-2. Start the production server:
-
-```bash
-npm start
-```
-
-## 📚 API Documentation
-
-Once the server is running, you can access the interactive API documentation:
-
-- **Swagger UI**: [http://localhost:3000/documentation](http://localhost:3000/documentation)
-- **Health Check**: [http://localhost:3000/health](http://localhost:3000/health)
-- **Hello World API**: [http://localhost:3000/api/hello](http://localhost:3000/api/hello)
-
-### Example API Response
-
-**GET** `/api/hello`
-
-```json
-{
-  "success": true,
-  "data": {
-    "message": "Hello World"
-  }
-}
-```
-
-## 🧪 Code Quality
-
-### Run ESLint
-
-```bash
-npm run lint
-```
-
-### Fix ESLint issues automatically
-
-```bash
-npm run lint:fix
-```
-
-### Format code with Prettier
-
-```bash
-npm run format
-```
-
-### Check formatting
-
-```bash
-npm run format:check
-```
-
-## 📝 Available NPM Scripts
-
-| Script | Description |
-|--------|-------------|
-| `npm run dev` | Start development server with hot-reload |
-| `npm run build` | Compile TypeScript to JavaScript |
-| `npm start` | Run production server |
-| `npm run lint` | Run ESLint to check code quality |
-| `npm run lint:fix` | Fix ESLint issues automatically |
-| `npm run format` | Format code with Prettier |
-| `npm run format:check` | Check if code is formatted correctly |
-
-## 🏗️ Architecture
-
-This project follows a layered architecture pattern:
-
-1. **Routes Layer** (`src/routes/`): Defines API endpoints and request validation schemas
-2. **Controllers Layer** (`src/controllers/`): Handles HTTP requests and responses
-3. **Services Layer** (`src/services/`): Contains business logic and data processing
-4. **Models Layer** (`src/models/`): Defines TypeScript interfaces and types
-5. **Middlewares Layer** (`src/middlewares/`): Custom middleware for error handling, authentication, etc.
-
-### Request Flow
-
-```
-Client Request
-    ↓
-Route Handler (with Swagger schema)
-    ↓
-Controller (request/response handling)
-    ↓
-Service (business logic)
-    ↓
-Database (MySQL via connection pool)
-    ↓
-Response back through the layers
-```
-
-## 🔒 Database Connection Pool
-
-The MySQL connection pool is configured with the following settings:
-
-- **Connection Limit**: 10 connections (configurable)
-- **Wait for Connections**: true
-- **Queue Limit**: 0 (unlimited)
-
-These settings ensure optimal performance and resource management.
-
-## 🚨 Error Handling
-
-The application includes comprehensive error handling:
-
-- Global error handler middleware
-- Validation error handling
-- Database error handling
-- Custom error responses with appropriate HTTP status codes
-- Stack traces in development mode only
-
-## 🌟 Features
-
-- ✅ TypeScript with strict type checking
-- ✅ Fastify web framework (high performance)
-- ✅ MySQL database integration with connection pooling
-- ✅ Swagger/OpenAPI documentation
-- ✅ Environment-based configuration
-- ✅ Comprehensive error handling
-- ✅ ESLint + Prettier for code quality
-- ✅ Hot-reload in development
-- ✅ Graceful shutdown handling
-- ✅ Health check endpoint
-- ✅ CORS enabled
-- ✅ Structured logging
-
-## 📄 License
-
-MIT
 
 ## 🤝 Contributing
 
-Contributions are welcome! Please feel free to submit a Pull Request.
+Contributions welcome!
 
-## 📧 Support
+1. Fork the repo
+2. Create your feature branch
+3. Commit and push
+4. Open a pull request
 
-For issues and questions, please open an issue in the repository.
+## 📄 License
 
+MIT License — see [LICENSE](LICENSE). © 2026 Orbit Labs
